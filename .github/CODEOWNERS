@@ -1,0 +1,30 @@
+# OnboardOps Code Ownership
+# This file defines code ownership for automated review requests and merge protection.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Bob Configuration Surface - Dev 1 (Bob Architect)
+# Any changes to Bob modes, skills, or commands require Dev 1's review
+/.bob/modes/ @varunbhandarii
+/.bob/skills/ @varunbhandarii
+/.bob/commands/ @varunbhandarii
+
+# Documentation - Team Lead
+# SRS and architecture docs require team lead approval
+/docs/onboardops_srs.pdf @varunbhandarii
+/docs/onboardops_srs.tex @varunbhandarii
+
+# Backend MCP Server - Dev 2
+# /backend/ @dev2-github-username
+
+# Frontend Dashboard - Dev 3
+# /frontend/ @dev3-github-username
+
+# Infrastructure & Scripts - Dev 4
+# /scripts/ @dev4-github-username
+
+# Integration & CI - Dev 5
+# /.github/workflows/ @dev5-github-username
+# /Makefile @dev5-github-username
+
+# Note: Uncomment and update the above sections once all team members' GitHub usernames are known.
+# For Phase 1, only Dev 1's ownership is established.
