@@ -5,6 +5,7 @@ import { EventStream } from '@/components/EventStream';
 import { CartographyCard } from '@/components/CartographyCard';
 import { DependencyGraph, GraphData } from '@/components/DependencyGraph';
 import { CartographyStepper } from '@/components/CartographyStepper';
+import { TranscriptPanel } from '@/components/TranscriptPanel';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventsStore } from '@/store/events';
 import { useState } from 'react';
@@ -112,8 +113,13 @@ export default function Home() {
           </div>
         </main>
 
-        {/* Right Sidebar - Test Controls & Certification */}
-        <aside className="w-80 border-l border-ibm-gray-10 p-6 space-y-6">
+        {/* Right Sidebar - Transcript & Certification */}
+        <aside className="w-96 border-l border-ibm-gray-10 p-6 space-y-6 flex flex-col">
+          {/* Transcript Panel */}
+          <div className="flex-1 min-h-0">
+            <TranscriptPanel maxHeight={400} />
+          </div>
+
           {/* Test Controls */}
           <div>
             <h2 className="text-sm font-semibold text-ibm-gray-100 mb-3">
@@ -132,28 +138,16 @@ export default function Home() {
               >
                 Complete Graph
               </button>
-              <button
-                onClick={() => updateStepStatus('entry', 'in-progress')}
-                className="w-full px-3 py-2 text-xs bg-ibm-blue-60 text-white rounded hover:bg-ibm-blue-70 transition-colors"
-              >
-                Start Entry Points
-              </button>
-              <button
-                onClick={() => updateStepStatus('entry', 'complete')}
-                className="w-full px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-              >
-                Complete Entry
-              </button>
             </div>
           </div>
 
           {/* Certification Panel */}
           <div>
-            <h2 className="text-lg font-semibold text-ibm-gray-100 mb-4">
+            <h2 className="text-sm font-semibold text-ibm-gray-100 mb-3">
               Certification
             </h2>
             <div className="bg-ibm-gray-10 rounded-lg p-4">
-              <p className="text-sm text-ibm-gray-70">
+              <p className="text-xs text-ibm-gray-70">
                 Socratic quiz panel placeholder
               </p>
             </div>
