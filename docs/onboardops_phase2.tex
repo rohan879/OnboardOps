@@ -1,0 +1,743 @@
+% =====================================================================
+% OnboardOps Phase 2 -- Detailed Task Breakdown
+% IBM Bob Hackathon 2026
+% Compile with: pdflatex onboardops_phase2.tex (run twice for TOC)
+% =====================================================================
+
+\documentclass[11pt,letterpaper]{article}
+
+% ---------- Page geometry ----------
+\usepackage[margin=1in,top=1.1in,bottom=1.1in]{geometry}
+
+% ---------- Encoding & fonts ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[protrusion=true,expansion=false]{microtype}
+
+% ---------- Colors ----------
+\usepackage[table]{xcolor}
+\definecolor{ibmblue}{HTML}{0F62FE}
+\definecolor{ibmdark}{HTML}{161616}
+\definecolor{ibmgray}{HTML}{6F6F6F}
+\definecolor{ibmlight}{HTML}{F4F4F4}
+\definecolor{ibmaccent}{HTML}{8A3FFC}
+\definecolor{ibmgreen}{HTML}{24A148}
+\definecolor{ibmred}{HTML}{DA1E28}
+\definecolor{ibmorange}{HTML}{FF832B}
+
+% ---------- Hyperlinks ----------
+\usepackage[colorlinks=true,linkcolor=ibmblue,urlcolor=ibmblue,citecolor=ibmblue]{hyperref}
+
+% ---------- Headers / footers ----------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{ibmgray}{OnboardOps -- Phase 2 Tasks}}
+\fancyhead[R]{\small\textcolor{ibmgray}{H+2 to H+10}}
+\fancyfoot[C]{\small\textcolor{ibmgray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------- Section formatting ----------
+\usepackage{titlesec}
+\titleformat{\section}
+  {\Large\bfseries\color{ibmblue}}{\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{ibmdark}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{ibmdark}}{\thesubsubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4\baselineskip}{0.6\baselineskip}
+
+% ---------- Tables & lists ----------
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\setlist{nosep,topsep=2pt,partopsep=2pt}
+
+% ---------- Code listings ----------
+\usepackage{listings}
+\lstdefinestyle{shellstyle}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{ibmlight},
+  frame=single,
+  framerule=0pt,
+  rulecolor=\color{ibmgray!20},
+  breaklines=true,
+  showstringspaces=false,
+  columns=flexible,
+  keywordstyle=\color{ibmblue}\bfseries,
+  commentstyle=\color{ibmgreen}\itshape,
+  stringstyle=\color{ibmaccent},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+}
+\lstset{style=shellstyle}
+
+% ---------- Task callout boxes ----------
+\usepackage[most]{tcolorbox}
+
+\newtcolorbox{task}[2]{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmblue,
+  fonttitle=\bfseries\color{white},
+  coltitle=white,
+  title={#1 \hfill \normalfont\itshape #2},
+  boxrule=0pt,arc=2pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+  attach boxed title to top left={xshift=4pt,yshift=-2mm},
+  boxed title style={colback=ibmblue,arc=2pt,boxrule=0pt},
+}
+
+\newtcolorbox{warning}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmorange,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+\newtcolorbox{gate}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmgreen,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+\newtcolorbox{principle}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmaccent,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+% ---------- Misc ----------
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup{labelfont={bf,color=ibmblue},textfont=it,font=small}
+
+% Custom commands
+\newcommand{\acceptance}[1]{\par\smallskip\textcolor{ibmgreen}{\textbf{Done when:}} #1}
+\newcommand{\depends}[1]{\par\smallskip\textcolor{ibmorange}{\textbf{Depends on:}} #1}
+\newcommand{\nodep}{\par\smallskip\textcolor{ibmgray}{\textit{No dependencies.}}}
+\newcommand{\bobcost}[1]{\par\smallskip\textcolor{ibmaccent}{\textbf{Bobcoin budget:}} #1}
+\newcommand{\shall}{\textbf{shall}}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+% =====================================================================
+\begin{document}
+% =====================================================================
+
+% ---------- Title page ----------
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\vspace*{1.5cm}
+
+{\color{ibmblue}\rule{\textwidth}{2pt}}
+\vspace{0.8cm}
+
+{\fontsize{38}{46}\selectfont\bfseries\color{ibmblue} OnboardOps\par}
+\vspace{0.3cm}
+{\Large\itshape\color{ibmgray} The 10-Minute Repo Whisperer\par}
+\vspace{0.4cm}
+
+{\color{ibmblue}\rule{\textwidth}{2pt}}
+\vspace{2.0cm}
+
+{\huge\bfseries Phase 2: Vertical Slice\par}
+\vspace{0.3cm}
+{\large One End-to-End Path Through Every Layer\par}
+\vspace{2.5cm}
+
+\begin{tabularx}{0.75\textwidth}{lX}
+\toprule
+\textbf{Phase Window} & H+2 to H+10 (eight hours) \\
+\textbf{Team Composition} & Five implementers \\
+\textbf{Parallelism Model} & Parallel across persons; sequential within each person \\
+\textbf{Total Person-Hours} & 40 (5 devs $\times$ 8 hours) \\
+\textbf{Phase Type} & Vertical slice (one path, every layer) \\
+\textbf{Gate Criterion} & \texttt{/onboard} produces one real cartography card from real git data, end-to-end \\
+\bottomrule
+\end{tabularx}
+
+\vfill
+
+{\large IBM Bob Hackathon 2026\par}
+{\normalsize Companion document to the OnboardOps SRS v1.0\par}
+\vspace{0.6cm}
+{\small\color{ibmgray} Phase 2 lights up every architectural layer for the first time on one narrow path. By H+10, typing \texttt{/onboard} in Bob \shall{} retrieve real git data through the MCP server, render at least one cartography card on the live dashboard, and bootstrap the demo repository. Fanning out to all four cartography stages, all seven MCP tools, and all five auto-recovery patterns is Phase 3 work.\par}
+\end{titlepage}
+
+{\hypersetup{linkcolor=ibmdark}\tableofcontents}
+\newpage
+
+% =====================================================================
+\section{Phase 2 Overview}
+% =====================================================================
+
+Phase 1 produced scaffolding. Phase 2 produces the first signal of life. Every layer of the architecture must transmit a real signal through every adjacent layer before the team is allowed to leave this phase.
+
+The defining discipline of Phase 2 is the \textbf{vertical slice}. The team does not implement all four cartography stages, all seven MCP tools, all five auto-recovery patterns, and the full grading rubric. The team implements \textit{one} of each, end-to-end, and proves the path works. Then Phase 3 fans out.
+
+\begin{principle}
+\textbf{Vertical Slice Principle.} A working thin path through every layer is worth more than four broken paths through one layer. If you find yourself implementing the second MCP tool before the first one has produced a card on the dashboard, you are violating the slice.
+\end{principle}
+
+By the end of Phase 2, the team \shall{} have:
+
+\begin{enumerate}
+  \item A full Onboard mode body in Bob that responds Socratically and invokes the cartography skill.
+  \item Stage 1 of cartography (Dependency Graph) producing a real card with real data.
+  \item Three real MCP tools running against the demo repository, returning typed JSON in under 800 ms.
+  \item A working WebSocket bridge that streams Bob events to the dashboard in real time.
+  \item The dashboard rendering at least one real cartography card with a force-directed dependency graph.
+  \item A Bob Shell bootstrap that installs the demo repo's dependencies, with one working auto-recovery pattern.
+  \item Session telemetry captured to JSONL and exportable to \texttt{bob\_sessions/}.
+  \item A measured Bobcoin spend per session, with at least one round of prompt compression applied.
+\end{enumerate}
+
+\textbf{What Phase 2 is not:} the polished final product. Visual polish, animations, replay UX, the personalized AGENTS.md, and the starter PR generator are all Phase 3 or Phase 4. Phase 2 only needs to be \textit{correct}.
+
+% =====================================================================
+\section{The Bobcoin Reality Check}
+% =====================================================================
+
+Phase 2 is the first phase that burns Bobcoins materially. The team starts the phase with 200 Bobcoins (40 per dev) and \shall{} budget tightly.
+
+\begin{warning}
+\textbf{Bobcoin discipline starts now.} Each developer \shall{} log every meaningful Bob session with its consumption in their personal \texttt{bob\_sessions/devX/} folder. If any developer reaches 30\% of their personal budget by H+10, the team raises an alert at the H+10 sync and re-plans Phases 3--4 to use Plan and Ask modes more aggressively (cheaper than Advanced and Orchestrator).
+\end{warning}
+
+\begin{longtable}{|p{2.0cm}|p{5.5cm}|p{2.5cm}|p{4cm}|}
+\hline
+\rowcolor{ibmblue!10}
+\textbf{Dev} & \textbf{Primary Bobcoin Consumer in Phase 2} & \textbf{Soft Budget} & \textbf{Cost-Control Lever} \\
+\hline
+Dev 1 & Authoring + tuning the Onboard mode and cartography prompts & 10 Bobcoins & Use Plan mode for prompt iteration; switch to Code mode only for final runs \\
+\hline
+Dev 2 & Testing MCP tool integration end-to-end with Bob & 6 Bobcoins & Mock at unit-test layer; only use Bob for integration smoke tests \\
+\hline
+Dev 3 & Asking Bob for component scaffolding via Code mode & 5 Bobcoins & Use Ask mode for small UI changes \\
+\hline
+Dev 4 & Testing the Bob Shell error-pipe loop & 6 Bobcoins & Use the shortest possible recovery prompt; cap output tokens \\
+\hline
+Dev 5 & Testing telemetry capture and replay & 3 Bobcoins & Replay mode uses no Bobcoins; lean on it \\
+\hline
+\rowcolor{ibmblue!5}
+\textbf{Total} & \textbf{Phase 2 target Bobcoin spend} & \textbf{30 / 200} & \textbf{15\% of total budget} \\
+\hline
+\end{longtable}
+
+% =====================================================================
+\section{Cross-Person Dependency Map}
+% =====================================================================
+
+Phase 2 has tighter coupling than Phase 1. Three integration handoffs are the critical path:
+
+\begin{enumerate}
+  \item \textbf{Dev 2's \texttt{emit\_event} MCP tool} (T2.4) is the bridge from Bob to the dashboard. Dev 1 cannot finish T1.3 (cartography wired to MCP) until this is in place. Dev 3 cannot finish T3.4 (WS event handling) until this emits real events. Dev 5 cannot finish T5.1 (telemetry capture) until events are flowing.
+  \item \textbf{Dev 2's \texttt{git\_blame\_summary} tool} (T2.1) is the first real-data tool. Dev 1's Stage 1 cartography prompt (T1.2) depends on its output shape.
+  \item \textbf{Dev 4's bootstrap event emission} (T4.8) depends on Dev 2's WS bridge being live.
+\end{enumerate}
+
+These three handoffs make \textbf{Dev 2 the critical-path engineer in Phase 2.} The team \shall{} prioritize unblocking Dev 2 at the H+6 midpoint sync if their schedule slips.
+
+\begin{longtable}{|p{1.4cm}|p{2.4cm}|p{3.4cm}|p{6cm}|}
+\hline
+\rowcolor{ibmblue!10}
+\textbf{Time} & \textbf{Person} & \textbf{Task Producing Artifact} & \textbf{Who Consumes It} \\
+\hline
+H+2 -- H+3 & Dev 2 & T2.1: \texttt{git\_blame\_summary} & Dev 1's T1.2 (Stage 1 prompt) \\
+\hline
+H+3 -- H+5 & Dev 2 & T2.4: \texttt{emit\_event} + WS bridge & Dev 1's T1.3, Dev 3's T3.4, Dev 5's T5.1, Dev 4's T4.8 \\
+\hline
+H+5 -- H+6 & Dev 1 & T1.3: first real card emit & Dev 3 verifies dashboard renders it \\
+\hline
+H+6 -- H+8 & Dev 4 & T4.8: bootstrap emits events & Dev 3 renders bootstrap progress \\
+\hline
+H+8 -- H+10 & All & Joint E2E run on demo repo & Phase 2 gate review at H+10 \\
+\hline
+\end{longtable}
+
+% =====================================================================
+\section{H+6 Midpoint Sync}
+% =====================================================================
+
+Halfway through the phase, the team holds a 10-minute synchronous check. The format is brutal: each developer states, in 60 seconds, (a) whether they will hit H+10 on time, (b) what they are blocked on, and (c) whether their integration handoff is unblocked. No discussion of feature details. The only output is a red/yellow/green per developer and a list of scope cuts if any developer is red.
+
+\begin{warning}
+\textbf{Scope cuts at H+6, not at H+10.} If a developer is red at H+6, scope is cut immediately. Cutting scope at H+10 is too late because Phase 3 plans depend on Phase 2 actually shipping.
+\end{warning}
+
+% =====================================================================
+\section{Phase 2 Gate (H+10 Sync)}
+% =====================================================================
+
+At H+10, the team holds a 20-minute synchronous review. The phase is complete only if every gate below is demonstrably true on the demo machine.
+
+\begin{gate}
+\textbf{Gate G2.1 -- Onboard Mode Lives.} Typing \texttt{/onboard} in Bob (against the demo repo) produces a Socratic greeting that mentions the onboardee's repository by name and announces the four-stage cartography. Direct code-writing requests are refused.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G2.2 -- One Real MCP Tool Working.} Bob successfully calls \texttt{git\_blame\_summary} against the demo repo and incorporates the response into its narration. The MCP server logs show the call. The response includes real authors and real timestamps.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G2.3 -- One Cartography Card on Dashboard.} The dependency graph card renders on the dashboard from a real WebSocket event. The graph contains at least 5 real nodes (real source files) and at least 5 real edges (real imports).
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G2.4 -- Bootstrap Installs Demo Repo.} \texttt{./scripts/bootstrap.sh} run against the demo repo installs dependencies and boots the demo's dev server. At least one auto-recovery pattern (port-in-use) is demonstrated to fire and recover.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G2.5 -- Session Telemetry Captured.} Every Bob turn, every MCP tool call, and every WebSocket event from the demo run is written to \texttt{.onboardops/sessions/<id>.jsonl}. The file replays cleanly through the dashboard's replay endpoint.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G2.6 -- Bobcoin Spend Measured.} The team has a measured Bobcoin cost for one full vertical-slice demo run, and a projected total spend for Phases 3--6 based on that measurement. If the projection exceeds 150 Bobcoins (75\% of budget), a cost-reduction plan is drafted at this gate.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G2.7 -- Bob Session Exports Working.} \texttt{make export-bob-sessions} pulls today's session exports into \texttt{bob\_sessions/} for at least two developers. The export contains the markdown transcript and the consumption-summary screenshot.
+\end{gate}
+
+% =====================================================================
+\section{Dev 1 -- Bob Architect}
+% =====================================================================
+
+\textbf{Time budget:} 480 minutes (8 hours). \textbf{Tasks: 10.} \textbf{Bobcoin budget:} 10.
+
+\textbf{Phase 2 Mission:} take the Onboard mode and cartography skill from stub to real, working artifact that emits at least one card from real data, with measurable Bobcoin economy.
+
+\begin{task}{T1.1 -- Author the Full Onboard Mode Body}{60 min}
+Replace the Phase 1 stub of \texttt{.bob/modes/onboard.md} with a complete role definition. Cover: (a) the Socratic stance (guide, not coder), (b) the four-stage cartography contract, (c) the certification handoff, (d) how to refuse direct code-writing requests, (e) the four-part greeting contract from FR-1.7. Use clear, short paragraphs. Test by running \texttt{/onboard} on the demo repo: the greeting \shall{} be Socratic, not procedural.
+\nodep
+\bobcost{1.5}
+\acceptance{Greeting on demo repo is Socratic and exactly four parts; direct ``write the auth handler'' request is refused with a redirection to discovery.}
+\end{task}
+
+\begin{task}{T1.2 -- Author Stage 1: Dependency Graph Cartography}{75 min}
+Implement Stage 1 of \texttt{.bob/skills/repo-cartography.md}. The skill body \shall{} instruct Bob to: (a) call the \texttt{git\_blame\_summary} tool against the top-level source files, (b) parse Python imports across the top-level package, (c) emit a structured \texttt{CardEmit} event via the \texttt{emit\_event} MCP tool with payload \texttt{\{type: "graph", nodes: [...], edges: [...]\}}, (d) follow with a one-sentence narration in chat. The skill \shall{} produce the same shape regardless of input variability.
+\depends{T1.1, T2.1, T2.4}
+\bobcost{2}
+\acceptance{Running the skill against the demo repo emits a \texttt{CardEmit} with $\geq$ 5 nodes and $\geq$ 5 edges; payload matches the schema in \texttt{docs/bob-contracts.md}.}
+\end{task}
+
+\begin{task}{T1.3 -- First Integration Test of the Vertical Slice}{45 min}
+With Dev 2's \texttt{git\_blame\_summary} and \texttt{emit\_event} live, and Dev 3's dashboard running, execute \texttt{/onboard} end-to-end on the demo repo. Verify the dependency graph card appears on the dashboard within 30 seconds. Capture the Bob task session export immediately. Diagnose any failures together with Dev 2 and Dev 3.
+\depends{T1.2, T2.1, T2.4, T3.4}
+\bobcost{1.5}
+\acceptance{Dashboard renders the graph card; session exported to \texttt{bob\_sessions/dev1/01\_vertical-slice.md}.}
+\end{task}
+
+\begin{task}{T1.4 -- Compress the Cartography Prompt for Bobcoin Economy}{45 min}
+The first integration run will reveal real token consumption. Edit the cartography skill to: (a) move repeating instructions into \texttt{.bob/rules/cartography-style.md} (loaded once per session, not per turn), (b) replace verbose examples with concise pattern descriptions, (c) cap output token hints in the front matter. Re-run the slice; compare Bobcoin spend before vs. after. Target: at most 2 Bobcoins per cartography stage.
+\depends{T1.3}
+\bobcost{1.5}
+\acceptance{Re-run consumes at most 2 Bobcoins for Stage 1; ratio improvement documented in \texttt{docs/bobcoin-tuning.md}.}
+\end{task}
+
+\begin{task}{T1.5 -- Author the Stage 1 Socratic Question Loop}{45 min}
+Inside the cartography skill, after the graph card emits, instruct Bob to emit \textbf{one} Socratic question whose answer is checkable from the graph (e.g., ``which module is the highest-fan-in dependency?''). Implement the remediation branch: wrong answer $\rightarrow$ 80-word remediation $\rightarrow$ re-ask once $\rightarrow$ reveal-and-continue. Emit a \texttt{QuestionAsk} event with the question text so Dev 3 can render it.
+\depends{T1.2, T2.4}
+\bobcost{1}
+\acceptance{Stage 1 question fires after graph card; remediation flow tested with one wrong and one right answer.}
+\end{task}
+
+\begin{task}{T1.6 -- Stub Stages 2--4 with Minimum Safe Behavior}{60 min}
+Add Stages 2 (Entry Points), 3 (Change Hotspots), and 4 (Project Conventions) to the cartography skill, each as a minimum-viable stage that: (a) emits a single line of narration, (b) emits a \texttt{CardEmit} with empty data and a ``coming in Phase 3'' note, (c) advances to the next stage. The stages exist so the full four-stage flow runs end-to-end without 404s, even though only Stage 1 has real content. Real content for Stages 2--4 is Phase 3 work.
+\depends{T1.2}
+\bobcost{0.5}
+\acceptance{Running the skill emits four card events in sequence; Stage 1 has real data, Stages 2--4 have placeholder cards.}
+\end{task}
+
+\begin{task}{T1.7 -- Author the Cartography-Style Rule File}{30 min}
+Create \texttt{.bob/rules/cartography-style.md} encoding: tone (concise, third-person), forbidden phrases (``As an AI...''), required narration length (one to two sentences per card), and prohibition of speculation when data is missing. This file is loaded once per session and applies to every cartography turn, replacing repeated inline instructions for Bobcoin savings.
+\depends{T1.4}
+\bobcost{0}
+\acceptance{Rule file committed; re-running cartography shows Bob respects the rules (e.g., narration $\leq$ 2 sentences).}
+\end{task}
+
+\begin{task}{T1.8 -- Hand Off Prompt Patterns to the Team}{30 min}
+Author \texttt{docs/prompt-patterns.md} capturing the patterns you converged on: how to ask Bob to emit structured events, how to enforce token budgets, how to enforce Socratic stance, how to make rules survive context compaction. Dev 4 (for the auto-recovery prompt) and Dev 5 (for the AGENTS.md generator) need this document.
+\depends{T1.4, T1.5}
+\bobcost{0}
+\acceptance{Document committed; Dev 4 and Dev 5 each acknowledge.}
+\end{task}
+
+\begin{task}{T1.9 -- End-of-Phase Session Export}{15 min}
+Export the day's Bob task sessions to \texttt{bob\_sessions/dev1/}. Include consumption screenshots. Curate to the top 3 most demo-worthy sessions; delete or move noise to a \texttt{drafts/} subfolder.
+\depends{T1.3}
+\bobcost{0}
+\acceptance{At least three curated sessions present with screenshots.}
+\end{task}
+
+\begin{task}{T1.10 -- Phase 2 Gate Prep + Buffer}{75 min}
+Reserve this block as buffer for integration debugging and gate preparation. If under budget, begin scoping Stage 2 (Entry Points) real implementation as a head-start for Phase 3.
+\nodep
+\bobcost{2}
+\acceptance{Ready to demonstrate all relevant gates at H+10.}
+\end{task}
+
+% =====================================================================
+\section{Dev 2 -- Backend / MCP}
+% =====================================================================
+
+\textbf{Time budget:} 480 minutes (8 hours). \textbf{Tasks: 10.} \textbf{Bobcoin budget:} 6.
+
+\textbf{Phase 2 Mission:} ship three real MCP tools, the \texttt{emit\_event} integration tool, and the WebSocket bridge. Dev 2 is on the critical path; integration handoffs at T2.1 and T2.4 unblock the rest of the team.
+
+\begin{task}{T2.1 -- Implement \texttt{git\_blame\_summary} Against Real Demo Repo}{60 min}
+Replace the Phase 1 mock with a real implementation using \texttt{GitPython}. Input: a file path. Output: top three authors, last commit date, total commits, and a one-line summary message. Cache by (commit-sha, file-path) within the in-process session cache. Add a 5-second timeout. Test against three different files in the demo repo.
+\nodep
+\bobcost{0.5}
+\acceptance{Three different file paths return distinct, real author lists; p95 latency $<$ 800 ms.}
+\end{task}
+
+\begin{task}{T2.2 -- Implement \texttt{commit\_frequency}}{60 min}
+Implement the tool that returns, for a given file, the number of commits in the last 180 days and a sparkline (12 bi-weekly buckets). Use \texttt{git log --since} via GitPython. Cache by file path. Output includes \texttt{rationale} field that Bob will fill in (the tool returns the data; Bob narrates).
+\depends{T2.1}
+\bobcost{0.5}
+\acceptance{Tool returns 180-day commit count and 12-bucket sparkline for any file in the demo repo.}
+\end{task}
+
+\begin{task}{T2.3 -- Implement \texttt{recent\_authors}}{45 min}
+Implement the tool returning the top five contributors to a directory or the whole repo in the last 180 days, with commit counts and the date of their most recent commit. This tool powers the ``ask Maria about the auth refactor'' narration in the cartography demo.
+\depends{T2.1}
+\bobcost{0.5}
+\acceptance{Tool returns five authors sorted by commit count.}
+\end{task}
+
+\begin{task}{T2.4 -- Build \texttt{emit\_event} MCP Tool + WebSocket Bridge}{75 min}
+This is the most important task in Dev 2's Phase 2. Implement an MCP tool \texttt{emit\_event} that accepts any structured event (TurnStart, CardEmit, QuestionAsk, etc.) from Bob and broadcasts it on the \texttt{/events} WebSocket. Implement the WebSocket handler in \texttt{backend/ws/handler.py} with: connection registry, per-session topic routing, and graceful close. Test by calling \texttt{emit\_event} from Bob and observing the event on a \texttt{wscat} client.
+\depends{T2.1}
+\bobcost{2}
+\acceptance{Bob calls \texttt{emit\_event}; a \texttt{wscat} connection on \texttt{/events} receives the event within 200 ms.}
+\end{task}
+
+\begin{task}{T2.5 -- Session ID Propagation}{45 min}
+Introduce a session ID concept. Bob's first \texttt{emit\_event} of a session opens the session and returns the ID; subsequent calls carry the same ID. The MCP server tags every tool call with the session ID. Sessions auto-close after 30 minutes of inactivity. This is the substrate for Dev 5's telemetry capture and for the dashboard's per-session routing.
+\depends{T2.4}
+\bobcost{0.5}
+\acceptance{Two parallel Bob sessions on the same machine route to separate WebSocket topics without crosstalk.}
+\end{task}
+
+\begin{task}{T2.6 -- In-Session Response Caching}{45 min}
+Implement an in-memory cache keyed by (session-id, tool-name, input-hash). Cache entries live for the duration of the session. Add cache-hit headers (\texttt{X-Cache: HIT}) for observability. Tests: same call twice $\rightarrow$ second is sub-50 ms; different sessions $\rightarrow$ no cross-contamination.
+\depends{T2.5}
+\bobcost{0}
+\acceptance{Cache hit measured in observability; second-call latency $<$ 50 ms; sessions isolated.}
+\end{task}
+
+\begin{task}{T2.7 -- Structured Logging + Observability}{30 min}
+Replace ad-hoc \texttt{print} calls with \texttt{structlog} JSON logging. Add a request middleware that logs every MCP call with: session ID, tool name, input hash, latency, cache hit, exception. Add a \texttt{/metrics} endpoint exposing per-tool counters and p50/p95/p99 latency. This is the substrate for Phase 4 performance tuning.
+\depends{T2.4}
+\bobcost{0}
+\acceptance{\texttt{curl localhost:8765/metrics} returns latency stats; logs are valid JSON parseable by \texttt{jq}.}
+\end{task}
+
+\begin{task}{T2.8 -- Implement \texttt{pr\_for\_file} (Lightweight)}{45 min}
+Implement the tool that returns the most recent merged PR touching a given file: PR number, title, author, merge date, one-line body excerpt. Use the GitHub REST API via the team's PAT. Cache aggressively (PRs don't change). This tool is consumed in Phase 3's Stage 3 (Hotspots) cartography but worth shipping in Phase 2 to amortize the GitHub-client setup work.
+\depends{T2.4}
+\bobcost{0.5}
+\acceptance{Tool returns one PR per file for files with PR history; returns \texttt{null} cleanly for files without.}
+\end{task}
+
+\begin{task}{T2.9 -- Performance Pass to Hit p95 $<$ 800 ms}{30 min}
+Profile the four implemented tools with \texttt{cProfile}. Identify the slowest tool. Apply one targeted optimization (e.g., subprocess vs.~GitPython for cold reads, pre-loading the git repo handle at server start). Re-measure.
+\depends{T2.6}
+\bobcost{0}
+\acceptance{All four tools p95 $<$ 800 ms over 10 sequential calls on the demo repo.}
+\end{task}
+
+\begin{task}{T2.10 -- Joint E2E Run + Session Export}{45 min}
+Pair with Dev 1 and Dev 3 for the final vertical-slice run. Confirm event flow on the WebSocket. Confirm the dashboard receives events. Export Dev 2's Bob sessions to \texttt{bob\_sessions/dev2/}, curated to integration debugging stories.
+\depends{T2.4, T2.9}
+\bobcost{1}
+\acceptance{E2E run completes; three Bob sessions exported with screenshots.}
+\end{task}
+
+% =====================================================================
+\section{Dev 3 -- Frontend / Dashboard}
+% =====================================================================
+
+\textbf{Time budget:} 480 minutes (8 hours). \textbf{Tasks: 10.} \textbf{Bobcoin budget:} 5.
+
+\textbf{Phase 2 Mission:} make the first real cartography card render on the dashboard, driven by real WebSocket events from Bob via the MCP server. Visual quality matters here because this is what wins the presentation score.
+
+\begin{task}{T3.1 -- Build the Generic Cartography Card Component}{60 min}
+In \texttt{frontend/src/components/CartographyCard.tsx}, build a card primitive that accepts: \texttt{type} (graph $|$ entry $|$ hotspot $|$ convention), \texttt{title}, \texttt{state} (pending $|$ in-progress $|$ complete), \texttt{children}. Style with IBM design tokens. Add a subtle animation on state transitions (Framer Motion). The component is reused for all four stages.
+\nodep
+\bobcost{1}
+\acceptance{Card renders in all four states; Storybook (or a simple test page) shows each.}
+\end{task}
+
+\begin{task}{T3.2 -- Build the Dependency Graph Visualization}{90 min}
+This is the visual centerpiece of Phase 2. Inside the Stage 1 card variant, render a force-directed graph using either \texttt{d3-force} or \texttt{react-force-graph-2d}. Accept the \texttt{\{nodes, edges\}} payload from \texttt{CardEmit}. Style: IBM Blue 60 nodes, IBM Gray 50 edges, IBM Plex Sans labels. Animate on mount. Resize-responsive. Target: looks great on a 1080p video frame.
+\depends{T3.1}
+\bobcost{2}
+\acceptance{Graph renders with 10+ nodes; pleasing visually on a screenshot; no overlapping labels at default zoom.}
+\end{task}
+
+\begin{task}{T3.3 -- Build the Four-Stage Stepper}{45 min}
+Above the main panel, a horizontal stepper shows the four cartography stages with their current state (pending, active, complete, error). Stage 1 (Dependency Graph) is the only ``complete'' stage in Phase 2; the other three are ``pending.'' Driven by a Zustand store keyed off card events.
+\depends{T3.1}
+\bobcost{0.5}
+\acceptance{Stepper renders four stages; advances correctly when Dev 1 emits \texttt{CardEmit} for each.}
+\end{task}
+
+\begin{task}{T3.4 -- Wire WebSocket Events to Card State}{60 min}
+In \texttt{frontend/src/hooks/useEvents.ts}, expand the Zustand store to handle the real event types: \texttt{TurnStart}, \texttt{ToolCall}, \texttt{CardEmit}, \texttt{QuestionAsk}, \texttt{CertificationGrade}. Each event mutates store state in a predictable way. Render the appropriate card when \texttt{CardEmit} arrives.
+\depends{T3.1, T2.4, T2.5}
+\bobcost{1}
+\acceptance{When Dev 1 emits a \texttt{CardEmit} via Bob, the graph card transitions from pending to complete and renders the data.}
+\end{task}
+
+\begin{task}{T3.5 -- Build the Chat-Style Transcript Panel}{45 min}
+Below the cards, render a transcript of Bob's narration (one paragraph per \texttt{TurnEnd} event with non-empty content). Auto-scroll to the latest. Optional: typewriter-effect animation for the latest paragraph. This is the panel judges see when they want to read what Bob said.
+\depends{T3.4}
+\bobcost{0.5}
+\acceptance{Transcript shows Bob's greeting and Stage 1 narration after a slice run.}
+\end{task}
+
+\begin{task}{T3.6 -- Build the Bobcoin Budget Meter}{30 min}
+In the header or sidebar, render a small meter showing total Bobcoins spent in the current session, projected total based on stages completed, and remaining team budget. Driven by a tally of \texttt{ToolCall} events plus a per-event cost lookup. This is both a useful internal tool and a fantastic differentiating demo detail (judges will notice).
+\depends{T3.4}
+\bobcost{0}
+\acceptance{Meter ticks up as Bob makes calls; remaining budget visible.}
+\end{task}
+
+\begin{task}{T3.7 -- Wire the Stopwatch to Session Events}{30 min}
+The Stopwatch component from Phase 1 currently starts on prop change. Wire it to start on the \texttt{SessionStart} event and stop on \texttt{CertificationComplete}. Ensure it survives WebSocket reconnects by deriving \texttt{startedAt} from the event timestamp, not from local time.
+\depends{T3.4}
+\bobcost{0}
+\acceptance{Stopwatch starts when Dev 1 runs \texttt{/onboard}; pauses correctly on WS disconnect; resumes on reconnect.}
+\end{task}
+
+\begin{task}{T3.8 -- Loading and Error States}{30 min}
+Every card and panel needs a polished loading state (skeleton or shimmer) and an error state (with a retry button). The dashboard \shall{} never display a blank panel during a real demo; even at the moment Bob is thinking, something visible must communicate progress.
+\depends{T3.1}
+\bobcost{0}
+\acceptance{Pulling the network cable shows error states; reconnect restores the live view.}
+\end{task}
+
+\begin{task}{T3.9 -- Joint E2E Smoke Test}{45 min}
+With Dev 1 and Dev 2, run \texttt{/onboard} end-to-end three times in a row from a freshly reset dashboard. Time each run. Note any visual jank, race conditions, or layout shifts. Fix the top one.
+\depends{T3.4, T2.4, T1.3}
+\bobcost{0.5}
+\acceptance{Three back-to-back runs each render the graph card within 30 seconds with no visual jank in the top problem area.}
+\end{task}
+
+\begin{task}{T3.10 -- Session Export + Buffer}{45 min}
+Export Dev 3's Bob sessions (probably mostly Ask-mode UI scaffolding) to \texttt{bob\_sessions/dev3/}. Capture one ``before'' and one ``after'' screenshot of the dashboard for the slide deck. Reserve remainder as buffer for any visual polish that emerged during T3.9.
+\depends{T3.9}
+\bobcost{0.5}
+\acceptance{Sessions exported; screenshots saved to \texttt{docs/screenshots/phase2/}.}
+\end{task}
+
+% =====================================================================
+\section{Dev 4 -- Infra / Bob Shell}
+% =====================================================================
+
+\textbf{Time budget:} 480 minutes (8 hours). \textbf{Tasks: 9.} \textbf{Bobcoin budget:} 6.
+
+\textbf{Phase 2 Mission:} ship a real bootstrap that installs the demo repo's dependencies, demonstrate one auto-recovery pattern, and wire bootstrap events into the dashboard event stream.
+
+\begin{task}{T4.1 -- Implement the Bootstrap Detect Stage}{60 min}
+Flesh out the \texttt{detect} stage of \texttt{scripts/bootstrap.sh}. The stage \shall{} read the demo repo's manifest files (\texttt{pyproject.toml}, \texttt{package.json}, \texttt{requirements.txt}) and emit a structured JSON description of the detected toolchain: languages, package managers, Python version requirement, Node version requirement, and any services declared (databases, message brokers).
+\nodep
+\bobcost{0.5}
+\acceptance{Running detect on the demo repo emits valid JSON including the correct language, package manager, and Python version requirement.}
+\end{task}
+
+\begin{task}{T4.2 -- Implement the Install Stage for the Demo Repo}{75 min}
+Implement the \texttt{install} stage end-to-end. Use detect-stage output to drive package-manager choice. For a Python repo: create virtualenv, \texttt{pip install} requirements, install dev dependencies. For a Node repo: \texttt{pnpm install}. Stream JSON progress to stdout (one event per significant step). Idempotent: re-running on a complete environment finishes in $<$ 5 seconds.
+\depends{T4.1}
+\bobcost{1}
+\acceptance{Fresh clone of demo repo $\rightarrow$ \texttt{./scripts/bootstrap.sh install} completes; demo's test suite runs; second invocation finishes in $<$ 5s.}
+\end{task}
+
+\begin{task}{T4.3 -- Implement Port-in-Use Auto-Recovery}{60 min}
+Implement the first auto-recovery pattern: when the dev server fails to bind because the port is in use, the bootstrap (a) identifies the offending process via \texttt{lsof -i :8000}, (b) emits a structured ``recovery'' event, (c) prompts to terminate, (d) on confirmation, terminates the process and retries. Add a \texttt{--auto-recover} flag that skips the prompt for demo runs.
+\depends{T4.2}
+\bobcost{0.5}
+\acceptance{With another process holding port 8000, bootstrap detects, recovers, and proceeds to a healthy boot.}
+\end{task}
+
+\begin{task}{T4.4 -- Add Checkpoint Wrapping}{45 min}
+Wrap the entire bootstrap invocation in a Bob checkpoint named \texttt{pre-bootstrap}, created via Bob Shell's checkpoint API before any file mutation. On non-recoverable failure, the checkpoint \shall{} restore automatically. Document the exact Bob Shell commands used.
+\depends{T4.2}
+\bobcost{1}
+\acceptance{Bootstrap that artificially fails halfway is restored; pre-bootstrap workspace state is bit-identical.}
+\end{task}
+
+\begin{task}{T4.5 -- Build the Bob Shell Error-Pipe Loop}{75 min}
+Implement the wrapper that pipes bootstrap stderr to Bob Shell for autonomous diagnosis and recovery. Pattern:
+
+\begin{lstlisting}
+./scripts/bootstrap.sh 2> err.log
+bob -p "$(cat err.log)\n\nWhat went wrong? Reply in one sentence."
+\end{lstlisting}
+
+Build a Python wrapper \texttt{scripts/auto\_bootstrap.py} that orchestrates: run, on failure pipe stderr to Bob, parse Bob's diagnosis into a structured tag, apply the corresponding recovery action, retry. Cap retries at 3. This is the showpiece feature of F3 in the demo.
+\depends{T4.3}
+\bobcost{2.5}
+\acceptance{Demo: a known failure (e.g., wrong Python version) triggers a Bob diagnosis and one successful recovery, then proceeds to a healthy boot.}
+\end{task}
+
+\begin{task}{T4.6 -- Implement the Dev Server Health Check}{45 min}
+After install completes, the bootstrap \shall{} boot the demo's dev server, poll its health endpoint (or a configured endpoint) every 500 ms for up to 30 s, and emit a final \texttt{HealthCheck} event with status. The dashboard's stepper will turn green when this fires.
+\depends{T4.2}
+\bobcost{0}
+\acceptance{Healthy demo $\rightarrow$ HealthCheck status=ok within 30 s; broken demo $\rightarrow$ status=fail with diagnostic.}
+\end{task}
+
+\begin{task}{T4.7 -- Time and Tune Bootstrap to $<$ 3 Minutes}{45 min}
+Run the full bootstrap five times on a freshly reset machine. Record each timing. Identify the slowest stage. Apply one optimization (e.g., \texttt{pip install --no-cache-dir} on, parallelize independent installs, pre-build a venv tarball). Re-measure. Document timings in \texttt{docs/bootstrap-timings.md}.
+\depends{T4.6}
+\bobcost{0.5}
+\acceptance{Five sequential runs each complete in under 3 minutes on the reference machine.}
+\end{task}
+
+\begin{task}{T4.8 -- Wire Bootstrap Events to the WebSocket Bridge}{45 min}
+The bootstrap script writes JSON events to stdout. Add a sidecar process (\texttt{scripts/bootstrap\_relay.py}) that tails stdout, transforms each JSON event into the canonical WS event format, and POSTs it to Dev 2's \texttt{emit\_event} MCP tool. The dashboard now shows bootstrap progress in the event stream and turns the bootstrap card green when HealthCheck fires.
+\depends{T4.6, T2.4}
+\bobcost{0.5}
+\acceptance{Live: the dashboard event stream shows install, recovery, healthcheck events as bootstrap runs.}
+\end{task}
+
+\begin{task}{T4.9 -- Session Export + Buffer}{30 min}
+Export Bob sessions (especially the error-pipe loop sessions: those are great demo content) to \texttt{bob\_sessions/dev4/}. Reserve remainder for buffer or to help Dev 5 with the demo recording rig.
+\depends{T4.5}
+\bobcost{0.5}
+\acceptance{At least three sessions exported, including one auto-recovery transcript.}
+\end{task}
+
+% =====================================================================
+\section{Dev 5 -- Integration Engineer}
+% =====================================================================
+
+\textbf{Time budget:} 480 minutes (8 hours). \textbf{Tasks: 9.} \textbf{Bobcoin budget:} 3.
+
+\textbf{Phase 2 Mission:} ship the telemetry capture layer end-to-end, the dashboard replay mode, the \texttt{bob\_sessions} export pipeline, and minimum-viable versions of F7 (starter PR) and F8 (AGENTS.md). Dev 5's work is the substrate that lets the team prove the vertical slice actually worked.
+
+\begin{task}{T5.1 -- Build Session Telemetry Capture}{60 min}
+Build a small Python service \texttt{scripts/telemetry.py} that subscribes to the WebSocket \texttt{/events} stream and appends every event to \texttt{.onboardops/sessions/<session-id>.jsonl}. One file per session. Auto-rotate at session-close. Run it as a sidecar started by the Makefile's \texttt{dev} target.
+\depends{T2.4, T2.5}
+\bobcost{0.5}
+\acceptance{After a demo run, a JSONL file exists with one event per line; line count matches the dashboard's event count.}
+\end{task}
+
+\begin{task}{T5.2 -- Build the PII Scrubber and Secret Scanner}{60 min}
+Author \texttt{scripts/scrub.py} that takes a session JSONL and produces a scrubbed version: removes API keys (regex patterns), removes email addresses outside an allow-list (the team's emails), replaces absolute paths containing usernames with \texttt{\$HOME}-relative paths. Add a CI check that fails if any unscrubbed file is committed to \texttt{bob\_sessions/}.
+\depends{T5.1}
+\bobcost{0}
+\acceptance{Test file with five planted ``leaks'' $\rightarrow$ scrubbed output has zero; CI fails on unscrubbed file.}
+\end{task}
+
+\begin{task}{T5.3 -- Implement \texttt{make export-bob-sessions}}{60 min}
+The make target \shall{}: (a) prompt each dev to drag-and-drop their Bob task export into \texttt{bob\_sessions/devN/raw/}, (b) run the PII scrubber over each, (c) place the cleaned markdown in \texttt{bob\_sessions/devN/} with the canonical naming \texttt{NN\_title.md}, (d) prompt for a consumption screenshot, (e) generate \texttt{bob\_sessions/README.md} indexing all curated sessions.
+\depends{T5.2}
+\bobcost{0}
+\acceptance{Two devs run the target back-to-back; the index README is regenerated correctly each time.}
+\end{task}
+
+\begin{task}{T5.4 -- Build the Dashboard Replay Mode}{75 min}
+Add a route \texttt{/replay} to the dashboard that accepts a JSONL session file. It re-emits events to the same Zustand store the live mode uses, at real wall-clock time (using event timestamps), so the dashboard plays back identically to the live run -- but consumes zero Bobcoins. This is the basis for the final demo video: record once, replay forever. Coordinate with Dev 3 on the store contract.
+\depends{T5.1, T3.4}
+\bobcost{0.5}
+\acceptance{Loading a recorded session into \texttt{/replay?file=session-X.jsonl} reproduces the dashboard exactly.}
+\end{task}
+
+\begin{task}{T5.5 -- F8 v0: Minimum-Viable AGENTS.md Generator}{60 min}
+At the end of a slice run, write the personalized \texttt{AGENTS.md} to the demo-repo root containing: a one-line repo summary, the cartography Stage 1 result (dependency graph as ASCII or markdown table), and a ``Open Questions'' placeholder. Use a Bob Shell call with a tight skill (\texttt{.bob/skills/agents-md-recipe.md}) to compose the file. Real personalization (F8.1's full composition) is Phase 3.
+\depends{T5.1}
+\bobcost{1}
+\acceptance{After a slice run, a personalized AGENTS.md exists at the demo-repo root with real Stage 1 data.}
+\end{task}
+
+\begin{task}{T5.6 -- Set Up the Demo Recording Rig}{30 min}
+Configure OBS (or QuickTime on macOS) on the demo machine: 1920$\times$1080 capture, 60 fps, 32-bit audio, dual-source layout (primary monitor on left, secondary monitor with dashboard on right). Save a preset. Do one 30-second test recording and verify legibility. This is the rig used to record the final video in Phase 5.
+\nodep
+\bobcost{0}
+\acceptance{Test recording plays back at 1080p60; both monitors visible; chat panel text legible at 100\% zoom.}
+\end{task}
+
+\begin{task}{T5.7 -- F7 v0: Minimum-Viable Starter PR Opener}{75 min}
+Build the script \texttt{scripts/open\_starter\_pr.py} that (a) reads one of the starter-task specs from \texttt{docs/starter-tasks.md}, (b) creates a new branch \texttt{onboardops/<onboardee>-<ts>}, (c) applies a pre-recorded diff (a real change to the demo repo, hand-authored once now), (d) runs the test suite, (e) opens a PR via the GitHub API. No Bob-driven diff generation in Phase 2 -- that's Phase 3. The script proves the pipeline end-to-end.
+\depends{T2.6}
+\bobcost{0}
+\acceptance{Running the script opens a real PR against the demo fork with all tests green.}
+\end{task}
+
+\begin{task}{T5.8 -- First Captured Demo Run}{45 min}
+With the team, run the vertical slice end-to-end while recording. Don't worry about narration -- just capture the raw flow. This recording becomes the basis of the Phase 5 video and the source of all replay sessions. Save the JSONL session export and the video file to \texttt{docs/recordings/phase2/}.
+\depends{T5.4, T5.6, T1.3}
+\bobcost{0.5}
+\acceptance{Video file and matching JSONL committed (or stored locally and indexed).}
+\end{task}
+
+\begin{task}{T5.9 -- Slide Deck Update + Buffer}{15 min}
+Update the Phase 1 slide outline with real screenshots from the first captured demo. Add the dependency graph image, the dashboard layout, and the Bobcoin meter. Reserve any remaining time as buffer.
+\depends{T5.8}
+\bobcost{0.5}
+\acceptance{Slide deck has at least three real screenshots from the slice run.}
+\end{task}
+
+% =====================================================================
+\section{H+10 Sync Meeting Protocol}
+% =====================================================================
+
+\textbf{Duration:} 20 minutes, hard cap. \textbf{Format:} live demo with shared screen.
+
+This is the most important checkpoint of the hackathon. If the vertical slice does not work at H+10, the team is behind schedule and \shall{} make explicit cuts to Phase 3 scope before proceeding.
+
+\begin{enumerate}
+  \item \textbf{Live vertical-slice demo} (5 min): one team member runs \texttt{/onboard} from a freshly reset state on the demo machine. The team watches in silence. The demo \shall{} render at least one cartography card and finish without manual intervention.
+  \item \textbf{Per-dev status} (5 min, 1 min each): each developer states their current Bobcoin spend, their integration handoff status, and any known issues going into Phase 3.
+  \item \textbf{Gate review} (5 min): walk through G2.1 -- G2.7. Mark each green/yellow/red. Reds become Phase 3 P0s.
+  \item \textbf{Phase 3 scope adjustment} (5 min): based on Phase 2 outcomes, confirm or adjust Phase 3 scope. Cuts go to the four cartography stages not yet implemented and the auto-recovery patterns beyond port-in-use.
+\end{enumerate}
+
+% =====================================================================
+\section{Anti-Patterns to Avoid in Phase 2}
+% =====================================================================
+
+\begin{warning}
+\textbf{Do not implement all four cartography stages.} Stage 1 with real data is worth more than four stages with mocks. Stages 2--4 are stubs in Phase 2.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not implement all seven MCP tools.} Three real tools (\texttt{git\_blame\_summary}, \texttt{commit\_frequency}, \texttt{recent\_authors}) plus \texttt{emit\_event} is the Phase 2 target. The remaining tools are Phase 3.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not optimize Bob prompts before measuring.} Run the integration once, measure the Bobcoin spend, \textit{then} compress. Premature prompt optimization is more expensive than the inefficient prompt it tried to replace.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not skip the H+6 midpoint sync.} It is 10 minutes that prevents 8 hours of misalignment. The team \shall{} hold it even if everyone feels ``on track.''
+\end{warning}
+
+\begin{warning}
+\textbf{Do not commit unscrubbed Bob session exports.} Dev 5's scrubber is mandatory. The IBM Security team's scanners run continuously; one leaked token deactivates the team's hackathon access.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not run the demo only once.} If the vertical slice works on the first run at H+10, run it again. And again. Phase 4 will require ten consecutive successful runs; the more flakiness you find now, the less you fix in the last 12 hours.
+\end{warning}
+
+\vfill
+
+\begin{center}
+\rule{0.6\textwidth}{0.6pt}\\
+\vspace{0.3em}
+{\small\itshape\color{ibmgray} End of Phase 2 Task Breakdown.\\}
+{\small\itshape\color{ibmgray} Next document: Phase 3 -- Feature Buildout (H+10 to H+28).}
+\end{center}
+
+\end{document}
