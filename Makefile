@@ -113,23 +113,22 @@ demo: ## Run the full end-to-end demo
 		echo "  4. Watch the dashboard at http://localhost:3000"; \
 	fi
 
-export-bob-sessions: ## Export all Bob IDE sessions
+export-bob-sessions: ## Export and scrub all Bob IDE sessions
 	@echo "📤 Exporting Bob IDE sessions..."
 	@echo ""
-	@echo "Each developer should export their sessions to bob_sessions/devN/"
-	@echo ""
-	@echo "Export instructions:"
-	@echo "  1. In Bob IDE, click the session menu (top-right)"
-	@echo "  2. Select 'Export Session'"
-	@echo "  3. Choose 'Markdown' format"
-	@echo "  4. Save to bob_sessions/devN/NN_task-title.md"
-	@echo "  5. Take a screenshot and save as NN_task-title.png"
-	@echo "  6. Commit both files together"
-	@echo ""
-	@echo "Current session structure:"
-	@ls -la bob_sessions/*/README.md 2>/dev/null || echo "  (No sessions exported yet)"
-	@echo ""
-	@echo "⚠️  Remember: Export sessions immediately after completing each task!"
+	@if [ -f "scripts/export_bob_sessions.py" ]; then \
+		python3 scripts/export_bob_sessions.py; \
+	else \
+		echo "❌ scripts/export_bob_sessions.py not found"; \
+		echo ""; \
+		echo "Manual export instructions:"; \
+		echo "  1. In Bob IDE, export each task session as Markdown"; \
+		echo "  2. Place in bob_sessions/devN/raw/"; \
+		echo "  3. Run: python3 scripts/scrub.py <input> <output>"; \
+		echo "  4. Rename to: NN_task-title.md"; \
+		echo "  5. Add Bobcoin screenshot"; \
+		exit 1; \
+	fi
 
 lint: ## Run linters on all code
 	@echo "🔍 Linting OnboardOps codebase..."

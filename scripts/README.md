@@ -44,6 +44,9 @@ python scripts/scrub.py input.jsonl output.jsonl
 
 # Scrub all files in a directory
 python scripts/scrub.py --dir .onboardops/sessions --output bob_sessions/
+
+# CI check mode (fails if violations found)
+python scripts/scrub.py --check bob_sessions/
 ```
 
 **What it removes:**
@@ -52,6 +55,43 @@ python scripts/scrub.py --dir .onboardops/sessions --output bob_sessions/
 - Absolute paths with usernames (replaced with `$HOME`)
 - GitHub tokens
 - AWS credentials
+
+#### `export_bob_sessions.py` (Phase 2, T5.3)
+**Purpose:** Automated pipeline for exporting, scrubbing, and indexing Bob IDE sessions.
+
+**Usage:**
+```bash
+# Run the full export pipeline
+python scripts/export_bob_sessions.py
+
+# Or use the Makefile target
+make export-bob-sessions
+```
+
+**What it does:**
+1. Prompts each dev to place raw exports in `bob_sessions/devN/raw/`
+2. Runs PII scrubber on each export
+3. Renames with canonical format: `NN_task-title.md`
+4. Collects Bobcoin consumption screenshots
+5. Generates `bob_sessions/README.md` index
+
+**Output structure:**
+```
+bob_sessions/
+├── README.md              # Auto-generated index
+├── dev1/
+│   ├── raw/              # Place raw exports here
+│   ├── 01_verify-bob.md  # Scrubbed exports
+│   ├── 02_create-repo.md
+│   └── bobcoin-usage.png
+├── dev2/
+│   └── ...
+```
+
+**Interactive prompts:**
+- Waits for each dev to place exports in raw/ directory
+- Press ENTER when ready to process
+- Automatically scrubs and renames all files
 
 ### Bootstrap & Auto-Recovery
 
