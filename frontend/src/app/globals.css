@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #161616;
+  --font-ibm-plex-sans: 'IBM Plex Sans', sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-ibm-plex-sans);
+  --font-mono: var(--font-geist-mono);
+  
+  /* IBM Design System Colors */
+  --color-ibm-blue-60: #0F62FE;
+  --color-ibm-blue-70: #0043CE;
+  --color-ibm-gray-10: #F4F4F4;
+  --color-ibm-gray-100: #161616;
+  --color-ibm-gray-70: #525252;
+  --color-ibm-green-50: #24A148;
+  --color-ibm-red-50: #DA1E28;
+  --color-ibm-purple-50: #8A3FFC;
+  --color-ibm-orange-40: #FF832B;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-ibm-plex-sans);
+}
