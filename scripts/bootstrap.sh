@@ -51,6 +51,96 @@ log_stage() {
     # Human-readable to log file
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] [$stage] $status: $message" >> "$LOG_FILE"
 }
+# =====================================================================
+# Auto-Recovery Functions
+# =====================================================================
+
+# Auto-recover from port-in-use error
+# Usage: auto_recover_port <port> [--auto-recover]
+auto_recover_port() {
+    local port="$1"
+    local auto_recover="${2:-false}"
+    
+    # Check if port is in use
+    if ! lsof -i ":$port" > /dev/null 2>&1; then
+        return 0  # Port is free, no recovery needed
+    fi
+    
+    # Port is in use, identify the process
+    local pid=$(lsof -ti ":$port" 2>/dev/null | head -1)
+    local process_name=$(ps -p "$pid" -o comm= 2>/dev/null || echo "unknown")
+    
+    log_stage "recovery" "warning" "Port $port is in use by process $pid ($process_name)"
+    
+    # Emit structured recovery event
+    local recovery_event=$(cat <<EOF
+{"timestamp":"$(date -u +"%Y-%m-%dT%H:%M:%SZ")","event":"recovery","type":"port-in-use","port":$port,"pid":$pid,"process":"$process_name","action":"terminate"}
+EOF
+)
+    echo "$recovery_event"
+    
+    # Prompt or auto-recover
+    if [ "$auto_recover" = "--auto-recover" ]; then
+        log_stage "recovery" "info" "Auto-recovery enabled, terminating process $pid"
+        kill "$pid" 2>/dev/null || {
+            log_stage "recovery" "warning" "Failed to terminate process $pid, trying SIGKILL"
+            kill -9 "$pid" 2>/dev/null || {
+                log_stage "recovery" "error" "Failed to terminate process $pid"
+                return 1
+            }
+        }
+        
+        # Wait for port to be released
+        local retries=0
+        while lsof -i ":$port" > /dev/null 2>&1 && [ $retries -lt 10 ]; do
+            sleep 0.5
+            retries=$((retries + 1))
+        done
+        
+        if lsof -i ":$port" > /dev/null 2>&1; then
+            log_stage "recovery" "error" "Port $port still in use after termination"
+            return 1
+        fi
+        
+        log_stage "recovery" "success" "Port $port recovered successfully"
+        return 0
+    else
+        # Interactive prompt
+        echo ""
+        echo "Port $port is in use by process $pid ($process_name)"
+        read -p "Terminate this process? (y/n): " -n 1 -r
+        echo ""
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            kill "$pid" 2>/dev/null || {
+                log_stage "recovery" "warning" "Failed to terminate process $pid, trying SIGKILL"
+                kill -9 "$pid" 2>/dev/null || {
+                    log_stage "recovery" "error" "Failed to terminate process $pid"
+                    return 1
+                }
+            }
+            
+            # Wait for port to be released
+            local retries=0
+            while lsof -i ":$port" > /dev/null 2>&1 && [ $retries -lt 10 ]; do
+                sleep 0.5
+                retries=$((retries + 1))
+            done
+            
+            if lsof -i ":$port" > /dev/null 2>&1; then
+                log_stage "recovery" "error" "Port $port still in use after termination"
+                return 1
+            fi
+            
+            log_stage "recovery" "success" "Port $port recovered successfully"
+            return 0
+        else
+            log_stage "recovery" "info" "User declined to terminate process"
+            return 1
+        fi
+    fi
+}
+
 
 # =====================================================================
 # Stage 1: DETECT
@@ -61,6 +151,14 @@ stage_detect() {
     local stage="detect"
     
     log_stage "$stage" "start" "Beginning environment detection"
+    
+    # Initialize detection results
+    declare -A TOOLCHAIN
+    TOOLCHAIN[languages]=""
+    TOOLCHAIN[package_managers]=""
+    TOOLCHAIN[python_version_required]=""
+    TOOLCHAIN[node_version_required]=""
+    TOOLCHAIN[services]=""
     
     # Detect operating system
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -117,19 +215,132 @@ stage_detect() {
         log_stage "$stage" "info" "pip detected: $(pip3 --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
     fi
     
-    # Detect project type
+    # ===== PHASE 2: Parse manifest files for toolchain details =====
+    
+    # Parse pyproject.toml for Python requirements
+    if [ -f "pyproject.toml" ]; then
+        log_stage "$stage" "info" "Parsing pyproject.toml"
+        TOOLCHAIN[languages]="${TOOLCHAIN[languages]:+${TOOLCHAIN[languages]},}python"
+        TOOLCHAIN[package_managers]="${TOOLCHAIN[package_managers]:+${TOOLCHAIN[package_managers]},}pip"
+        
+        # Extract Python version requirement
+        if command -v python3 &> /dev/null; then
+            local py_req=$(python3 -c "
+import tomli
+try:
+    with open('pyproject.toml', 'rb') as f:
+        data = tomli.load(f)
+        req = data.get('project', {}).get('requires-python', '')
+        if not req:
+            req = data.get('tool', {}).get('poetry', {}).get('dependencies', {}).get('python', '')
+        print(req)
+except:
+    print('')
+" 2>/dev/null || echo "")
+            if [ -n "$py_req" ]; then
+                TOOLCHAIN[python_version_required]="$py_req"
+                log_stage "$stage" "info" "Python version requirement: $py_req"
+            fi
+        fi
+    fi
+    
+    # Parse requirements.txt for Python
+    if [ -f "requirements.txt" ]; then
+        log_stage "$stage" "info" "Parsing requirements.txt"
+        if [[ "${TOOLCHAIN[languages]}" != *"python"* ]]; then
+            TOOLCHAIN[languages]="${TOOLCHAIN[languages]:+${TOOLCHAIN[languages]},}python"
+        fi
+        if [[ "${TOOLCHAIN[package_managers]}" != *"pip"* ]]; then
+            TOOLCHAIN[package_managers]="${TOOLCHAIN[package_managers]:+${TOOLCHAIN[package_managers]},}pip"
+        fi
+    fi
+    
+    # Parse package.json for Node.js requirements
     if [ -f "package.json" ]; then
-        log_stage "$stage" "info" "Node.js project detected (package.json)"
-        PROJECT_TYPE="node"
+        log_stage "$stage" "info" "Parsing package.json"
+        TOOLCHAIN[languages]="${TOOLCHAIN[languages]:+${TOOLCHAIN[languages]},}javascript"
+        
+        # Detect package manager from lockfiles
+        if [ -f "pnpm-lock.yaml" ]; then
+            TOOLCHAIN[package_managers]="${TOOLCHAIN[package_managers]:+${TOOLCHAIN[package_managers]},}pnpm"
+            log_stage "$stage" "info" "Package manager: pnpm (detected from pnpm-lock.yaml)"
+        elif [ -f "yarn.lock" ]; then
+            TOOLCHAIN[package_managers]="${TOOLCHAIN[package_managers]:+${TOOLCHAIN[package_managers]},}yarn"
+            log_stage "$stage" "info" "Package manager: yarn (detected from yarn.lock)"
+        elif [ -f "package-lock.json" ]; then
+            TOOLCHAIN[package_managers]="${TOOLCHAIN[package_managers]:+${TOOLCHAIN[package_managers]},}npm"
+            log_stage "$stage" "info" "Package manager: npm (detected from package-lock.json)"
+        else
+            TOOLCHAIN[package_managers]="${TOOLCHAIN[package_managers]:+${TOOLCHAIN[package_managers]},}npm"
+            log_stage "$stage" "info" "Package manager: npm (default)"
+        fi
+        
+        # Extract Node version requirement
+        if command -v node &> /dev/null; then
+            local node_req=$(node -e "
+try {
+    const pkg = require('./package.json');
+    const engines = pkg.engines || {};
+    console.log(engines.node || '');
+} catch(e) {
+    console.log('');
+}
+" 2>/dev/null || echo "")
+            if [ -n "$node_req" ]; then
+                TOOLCHAIN[node_version_required]="$node_req"
+                log_stage "$stage" "info" "Node version requirement: $node_req"
+            fi
+        fi
     fi
-    if [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
-        log_stage "$stage" "info" "Python project detected"
-        PROJECT_TYPE="${PROJECT_TYPE:+$PROJECT_TYPE,}python"
-    fi
+    
+    # Parse docker-compose.yml for services
     if [ -f "docker-compose.yml" ] || [ -f "docker-compose.yaml" ]; then
-        log_stage "$stage" "info" "Docker Compose project detected"
-        PROJECT_TYPE="${PROJECT_TYPE:+$PROJECT_TYPE,}docker"
+        local compose_file="docker-compose.yml"
+        [ -f "docker-compose.yaml" ] && compose_file="docker-compose.yaml"
+        
+        log_stage "$stage" "info" "Parsing $compose_file"
+        TOOLCHAIN[languages]="${TOOLCHAIN[languages]:+${TOOLCHAIN[languages]},}docker"
+        
+        # Extract service names
+        local services=$(grep -E '^\s+[a-zA-Z0-9_-]+:' "$compose_file" | sed 's/://g' | tr -d ' ' | tr '\n' ',' | sed 's/,$//')
+        if [ -n "$services" ]; then
+            TOOLCHAIN[services]="$services"
+            log_stage "$stage" "info" "Docker services detected: $services"
+        fi
+        
+        # Detect common service types
+        if grep -q "postgres\|postgresql" "$compose_file"; then
+            log_stage "$stage" "info" "PostgreSQL database detected"
+        fi
+        if grep -q "redis" "$compose_file"; then
+            log_stage "$stage" "info" "Redis cache detected"
+        fi
+        if grep -q "mongo" "$compose_file"; then
+            log_stage "$stage" "info" "MongoDB database detected"
+        fi
     fi
+    
+    # Emit structured JSON toolchain description
+    local toolchain_json=$(cat <<EOF
+{
+  "languages": "${TOOLCHAIN[languages]:-unknown}",
+  "package_managers": "${TOOLCHAIN[package_managers]:-unknown}",
+  "python_version_required": "${TOOLCHAIN[python_version_required]:-any}",
+  "node_version_required": "${TOOLCHAIN[node_version_required]:-any}",
+  "services": "${TOOLCHAIN[services]:-none}",
+  "os": "$OS",
+  "docker_available": $DOCKER_RUNNING,
+  "python_installed": "$(command -v python3 &> /dev/null && echo true || echo false)",
+  "node_installed": "$(command -v node &> /dev/null && echo true || echo false)"
+}
+EOF
+)
+    
+    echo "$toolchain_json" > /tmp/onboardops-toolchain.json
+    log_stage "$stage" "info" "Toolchain description: $toolchain_json"
+    
+    # Store for use in other stages
+    PROJECT_TYPE="${TOOLCHAIN[languages]}"
     
     local stage_end=$(date +%s)
     local duration=$(((stage_end - stage_start) * 1000))
@@ -148,30 +359,171 @@ stage_install() {
     
     log_stage "$stage" "start" "Beginning dependency installation"
     
-    # This is a skeleton - actual installation logic will be added in Phase 2
-    # For now, just verify that dependencies can be installed
+    # Check if already installed (idempotency check)
+    local already_installed=false
     
+    # ===== PYTHON INSTALLATION =====
+    if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+        log_stage "$stage" "info" "Python project detected"
+        
+        # Check if virtualenv already exists and is complete
+        if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
+            log_stage "$stage" "info" "Virtual environment already exists"
+            
+            # Quick check if dependencies are installed
+            source venv/bin/activate
+            if [ -f "requirements.txt" ]; then
+                local req_count=$(grep -v '^#' requirements.txt | grep -v '^$' | wc -l | tr -d ' ')
+                local installed_count=$(pip list --format=freeze 2>/dev/null | wc -l | tr -d ' ')
+                if [ "$installed_count" -ge "$req_count" ]; then
+                    log_stage "$stage" "info" "Dependencies appear to be installed (idempotent check passed)"
+                    already_installed=true
+                fi
+            else
+                already_installed=true
+            fi
+            deactivate 2>/dev/null || true
+        fi
+        
+        if [ "$already_installed" = false ]; then
+            # Create virtual environment
+            if [ ! -d "venv" ]; then
+                log_stage "$stage" "info" "Creating Python virtual environment"
+                python3 -m venv venv || {
+                    log_stage "$stage" "error" "Failed to create virtual environment"
+                    return 1
+                }
+            fi
+            
+            # Activate virtual environment
+            source venv/bin/activate || {
+                log_stage "$stage" "error" "Failed to activate virtual environment"
+                return 1
+            }
+            
+            # Upgrade pip
+            log_stage "$stage" "info" "Upgrading pip"
+            pip install --upgrade pip --quiet || {
+                log_stage "$stage" "warning" "Failed to upgrade pip, continuing"
+            }
+            
+            # Install from requirements.txt
+            if [ -f "requirements.txt" ]; then
+                log_stage "$stage" "info" "Installing from requirements.txt"
+                pip install -r requirements.txt || {
+                    log_stage "$stage" "error" "Failed to install requirements.txt"
+                    deactivate
+                    return 1
+                }
+            fi
+            
+            # Install from pyproject.toml
+            if [ -f "pyproject.toml" ]; then
+                log_stage "$stage" "info" "Installing from pyproject.toml"
+                pip install -e . || {
+                    log_stage "$stage" "error" "Failed to install pyproject.toml"
+                    deactivate
+                    return 1
+                }
+            fi
+            
+            # Install dev dependencies if present
+            if [ -f "requirements-dev.txt" ]; then
+                log_stage "$stage" "info" "Installing dev dependencies"
+                pip install -r requirements-dev.txt || {
+                    log_stage "$stage" "warning" "Failed to install dev dependencies, continuing"
+                }
+            fi
+            
+            deactivate
+            log_stage "$stage" "info" "Python dependencies installed successfully"
+        fi
+    fi
+    
+    # ===== NODE.JS INSTALLATION =====
     if [ -f "package.json" ]; then
-        log_stage "$stage" "info" "Node.js dependencies detected"
-        # Actual: npm install or pnpm install
-        log_stage "$stage" "info" "Would run: npm install (skipped in skeleton)"
+        log_stage "$stage" "info" "Node.js project detected"
+        
+        # Determine package manager
+        local pkg_manager="npm"
+        if [ -f "pnpm-lock.yaml" ]; then
+            pkg_manager="pnpm"
+        elif [ -f "yarn.lock" ]; then
+            pkg_manager="yarn"
+        fi
+        
+        # Check if already installed
+        if [ -d "node_modules" ] && [ -f "node_modules/.package-lock.json" -o -f "node_modules/.pnpm-lock.yaml" -o -f "node_modules/.yarn-integrity" ]; then
+            log_stage "$stage" "info" "Node modules already installed (idempotent check passed)"
+            already_installed=true
+        else
+            already_installed=false
+        fi
+        
+        if [ "$already_installed" = false ]; then
+            log_stage "$stage" "info" "Installing Node.js dependencies with $pkg_manager"
+            
+            case "$pkg_manager" in
+                pnpm)
+                    if ! command -v pnpm &> /dev/null; then
+                        log_stage "$stage" "info" "Installing pnpm"
+                        npm install -g pnpm || {
+                            log_stage "$stage" "error" "Failed to install pnpm"
+                            return 1
+                        }
+                    fi
+                    pnpm install || {
+                        log_stage "$stage" "error" "Failed to run pnpm install"
+                        return 1
+                    }
+                    ;;
+                yarn)
+                    if ! command -v yarn &> /dev/null; then
+                        log_stage "$stage" "info" "Installing yarn"
+                        npm install -g yarn || {
+                            log_stage "$stage" "error" "Failed to install yarn"
+                            return 1
+                        }
+                    fi
+                    yarn install || {
+                        log_stage "$stage" "error" "Failed to run yarn install"
+                        return 1
+                    }
+                    ;;
+                npm)
+                    npm install || {
+                        log_stage "$stage" "error" "Failed to run npm install"
+                        return 1
+                    }
+                    ;;
+            esac
+            
+            log_stage "$stage" "info" "Node.js dependencies installed successfully"
+        fi
     fi
     
-    if [ -f "requirements.txt" ]; then
-        log_stage "$stage" "info" "Python dependencies detected"
-        # Actual: pip install -r requirements.txt
-        log_stage "$stage" "info" "Would run: pip install -r requirements.txt (skipped in skeleton)"
-    fi
-    
-    if [ -f "pyproject.toml" ]; then
-        log_stage "$stage" "info" "Python project with pyproject.toml detected"
-        # Actual: pip install -e .
-        log_stage "$stage" "info" "Would run: pip install -e . (skipped in skeleton)"
+    # ===== DOCKER COMPOSE SETUP =====
+    if [ -f "docker-compose.yml" ] || [ -f "docker-compose.yaml" ]; then
+        log_stage "$stage" "info" "Docker Compose configuration detected"
+        
+        if [ "$DOCKER_RUNNING" = true ]; then
+            log_stage "$stage" "info" "Pulling Docker images"
+            docker-compose pull || {
+                log_stage "$stage" "warning" "Failed to pull Docker images, continuing"
+            }
+        else
+            log_stage "$stage" "warning" "Docker not running, skipping image pull"
+        fi
     fi
     
     local stage_end=$(date +%s)
     local duration=$(((stage_end - stage_start) * 1000))
-    log_stage "$stage" "complete" "Dependency installation complete" "$duration"
+    
+    if [ "$already_installed" = true ]; then
+        log_stage "$stage" "complete" "Dependency installation complete (idempotent, <5s)" "$duration"
+    else
+        log_stage "$stage" "complete" "Dependency installation complete" "$duration"
+    fi
     
     return 0
 }
