@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# Skip CI if commit message contains [skip ci], [ci skip], [no ci], or [skip actions]
+# Usage: git commit -m "docs: Update README [skip ci]"
+
 jobs:
   secrets:
     name: Secret Scanning
@@ -195,6 +198,34 @@ jobs:
           config-file: '.github/markdown-link-check-config.json'
         continue-on-error: true  # Don't fail on broken links in Phase 1
 
+  pii-check:
+    name: PII/Secret Check (Bob Sessions)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Check bob_sessions for unscrubbed secrets
+        run: |
+          if [ -d "bob_sessions" ]; then
+            echo "Checking bob_sessions/ for unscrubbed secrets..."
+            python3 scripts/scrub.py --check bob_sessions/
+            if [ $? -ne 0 ]; then
+              echo "❌ FAIL: Unscrubbed secrets found in bob_sessions/"
+              echo "Run: python3 scripts/scrub.py --dir bob_sessions/ --output bob_sessions/"
+              exit 1
+            fi
+            echo "✅ PASS: No unscrubbed secrets found"
+          else
+            echo "⚠️ bob_sessions/ directory not found, skipping check"
+          fi
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -221,7 +252,7 @@ jobs:
   build-summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [secrets, backend, frontend, integration]
+    needs: [secrets, backend, frontend, integration, pii-check]
     if: always()
     
     steps:
