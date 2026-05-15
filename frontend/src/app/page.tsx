@@ -6,6 +6,7 @@ import { CartographyCard } from '@/components/CartographyCard';
 import { DependencyGraph, GraphData } from '@/components/DependencyGraph';
 import { CartographyStepper } from '@/components/CartographyStepper';
 import { TranscriptPanel } from '@/components/TranscriptPanel';
+import { BobcoinMeter } from '@/components/BobcoinMeter';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventsStore } from '@/store/events';
 import { useState } from 'react';
@@ -43,6 +44,8 @@ export default function Home() {
   const connectionState = useEventsStore((state) => state.connectionState);
   const cartographySteps = useEventsStore((state) => state.cartographySteps);
   const updateStepStatus = useEventsStore((state) => state.updateStepStatus);
+  const bobcoinBudget = useEventsStore((state) => state.bobcoinBudget);
+  const incrementBobcoinSpent = useEventsStore((state) => state.incrementBobcoinSpent);
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -113,11 +116,18 @@ export default function Home() {
           </div>
         </main>
 
-        {/* Right Sidebar - Transcript & Certification */}
-        <aside className="w-96 border-l border-ibm-gray-10 p-6 space-y-6 flex flex-col">
+        {/* Right Sidebar - Transcript, Budget & Certification */}
+        <aside className="w-96 border-l border-ibm-gray-10 p-6 space-y-4 flex flex-col overflow-y-auto">
+          {/* Bobcoin Budget Meter */}
+          <BobcoinMeter
+            totalBudget={bobcoinBudget.total}
+            spent={bobcoinBudget.spent}
+            projected={bobcoinBudget.projected}
+          />
+
           {/* Transcript Panel */}
           <div className="flex-1 min-h-0">
-            <TranscriptPanel maxHeight={400} />
+            <TranscriptPanel maxHeight={300} />
           </div>
 
           {/* Test Controls */}
@@ -137,6 +147,12 @@ export default function Home() {
                 className="w-full px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
               >
                 Complete Graph
+              </button>
+              <button
+                onClick={() => incrementBobcoinSpent(5)}
+                className="w-full px-3 py-2 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+              >
+                +5 Bobcoins
               </button>
             </div>
           </div>
