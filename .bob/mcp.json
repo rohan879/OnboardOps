@@ -36,6 +36,10 @@
         {
           "name": "incident_for_file",
           "description": "Returns linked incidents or issues (from Linear, Jira, GitHub Issues) that mention the file"
+        },
+        {
+          "name": "emit_event",
+          "description": "Emits structured events to the WebSocket bridge for dashboard visualization (CardEmit, QuestionAsk, CheckpointCreate, etc.)"
         }
       ],
       "authentication": {

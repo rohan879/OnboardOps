@@ -240,6 +240,72 @@ All tools return JSON responses. All tools are **read-only** (no mutations to gi
 
 ---
 
+### 8. `emit_event`
+
+**Purpose**: Emit structured events to the WebSocket bridge for dashboard visualization.
+
+**Input**:
+```json
+{
+  "event_type": "string (required) - One of: TurnStart, TurnEnd, CardEmit, QuestionAsk, CheckpointCreate, CheckpointRestore, CertificationGrade, PROpened",
+  "payload": "object (required) - Event-specific data structure",
+  "timestamp": "string (optional) - ISO 8601, defaults to server time"
+}
+```
+
+**Output**:
+```json
+{
+  "event_id": "string - Unique event ID (UUID)",
+  "event_type": "string - Echo of input",
+  "timestamp": "string - ISO 8601",
+  "status": "string - 'emitted' or 'queued'"
+}
+```
+
+**Event Payload Schemas**:
+
+**CardEmit**:
+```json
+{
+  "type": "string - 'graph' | 'entry' | 'hotspot' | 'convention'",
+  "title": "string",
+  "data": "object - Card-specific data",
+  "summary": "string - One-sentence summary"
+}
+```
+
+**QuestionAsk**:
+```json
+{
+  "question": "string - The Socratic question",
+  "stage": "string - Which cartography stage",
+  "expected_answer_hint": "string (optional)"
+}
+```
+
+**CheckpointCreate**:
+```json
+{
+  "checkpoint_name": "string",
+  "reason": "string - Why checkpoint was created"
+}
+```
+
+**CertificationGrade**:
+```json
+{
+  "question_id": "string",
+  "answer": "string - Onboardee's answer",
+  "grade": "string - 'pass' | 'partial' | 'fail'",
+  "rationale": "string - Grading explanation"
+}
+```
+
+**Usage**: All cartography stages, certification, bootstrap, PR generation.
+
+---
+
 ## Error Handling
 
 All tools **must** return a consistent error format when they fail:
