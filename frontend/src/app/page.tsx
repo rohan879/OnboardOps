@@ -41,7 +41,6 @@ const sampleGraphData: GraphData = {
 };
 
 export default function Home() {
-  const [sessionStart] = useState(new Date());
   const [showEventStream, setShowEventStream] = useState(false);
   const { isConnected } = useEvents();
   useEventHandlers(); // Process WebSocket events and update state
@@ -50,6 +49,8 @@ export default function Home() {
   const updateStepStatus = useEventsStore((state) => state.updateStepStatus);
   const bobcoinBudget = useEventsStore((state) => state.bobcoinBudget);
   const incrementBobcoinSpent = useEventsStore((state) => state.incrementBobcoinSpent);
+  const session = useEventsStore((state) => state.session);
+  const startSession = useEventsStore((state) => state.startSession);
   
   // Demo states for loading/error components
   const [showLoadingDemo, setShowLoadingDemo] = useState(false);
@@ -61,7 +62,11 @@ export default function Home() {
       {/* Header */}
       <header className="border-b border-ibm-gray-10 px-6 py-4">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between">
-          <Stopwatch startedAt={sessionStart} className="text-ibm-gray-100" />
+          <Stopwatch
+            startedAt={session.startTime || new Date()}
+            isRunning={session.isActive}
+            className="text-ibm-gray-100"
+          />
           <div className="text-2xl font-bold text-ibm-blue-60">
             OnboardOps
           </div>
@@ -162,6 +167,13 @@ export default function Home() {
                 className="w-full px-3 py-2 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
               >
                 +5 Bobcoins
+              </button>
+              <button
+                onClick={() => startSession()}
+                className="w-full px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                disabled={session.isActive}
+              >
+                {session.isActive ? 'Session Active' : 'Start Session'}
               </button>
               <div className="border-t border-ibm-gray-20 pt-2 mt-2">
                 <div className="text-xs font-semibold text-ibm-gray-70 mb-2">

@@ -21,11 +21,18 @@ export interface BobcoinBudget {
   projected: number;
 }
 
+export interface SessionState {
+  isActive: boolean;
+  startTime: Date | null;
+  endTime: Date | null;
+}
+
 interface EventsState {
   events: Event[];
   connectionState: 'connecting' | 'connected' | 'disconnected';
   cartographySteps: CartographyStep[];
   bobcoinBudget: BobcoinBudget;
+  session: SessionState;
   addEvent: (event: Event) => void;
   setConnectionState: (state: 'connecting' | 'connected' | 'disconnected') => void;
   clearEvents: () => void;
@@ -33,6 +40,8 @@ interface EventsState {
   resetSteps: () => void;
   updateBobcoinBudget: (budget: Partial<BobcoinBudget>) => void;
   incrementBobcoinSpent: (amount: number) => void;
+  startSession: () => void;
+  endSession: () => void;
 }
 
 const DEFAULT_STEPS: CartographyStep[] = [
@@ -50,6 +59,11 @@ export const useEventsStore = create<EventsState>((set) => ({
     total: 200,
     spent: 0,
     projected: 0,
+  },
+  session: {
+    isActive: false,
+    startTime: null,
+    endTime: null,
   },
   addEvent: (event) =>
     set((state) => ({
@@ -74,6 +88,22 @@ export const useEventsStore = create<EventsState>((set) => ({
         ...state.bobcoinBudget,
         spent: state.bobcoinBudget.spent + amount,
         projected: state.bobcoinBudget.spent + amount,
+      },
+    })),
+  startSession: () =>
+    set({
+      session: {
+        isActive: true,
+        startTime: new Date(),
+        endTime: null,
+      },
+    }),
+  endSession: () =>
+    set((state) => ({
+      session: {
+        ...state.session,
+        isActive: false,
+        endTime: new Date(),
       },
     })),
 }));

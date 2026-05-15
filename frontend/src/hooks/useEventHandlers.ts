@@ -12,6 +12,8 @@ export function useEventHandlers() {
   const updateStepStatus = useEventsStore((state) => state.updateStepStatus);
   const updateBobcoinBudget = useEventsStore((state) => state.updateBobcoinBudget);
   const incrementBobcoinSpent = useEventsStore((state) => state.incrementBobcoinSpent);
+  const startSession = useEventsStore((state) => state.startSession);
+  const endSession = useEventsStore((state) => state.endSession);
 
   useEffect(() => {
     if (events.length === 0) return;
@@ -59,18 +61,18 @@ export function useEventHandlers() {
       }
 
       case 'session_start':
-        // Session started - reset all steps to pending
+        // Session started - start stopwatch and reset state
+        startSession();
         updateStepStatus('graph', 'pending');
         updateStepStatus('entry', 'pending');
         updateStepStatus('hotspot', 'pending');
         updateStepStatus('convention', 'pending');
-        
-        // Reset budget
         updateBobcoinBudget({ spent: 0, projected: 0 });
         break;
 
       case 'session_end': {
-        // Session ended - finalize budget
+        // Session ended - stop stopwatch and finalize budget
+        endSession();
         const totalSpent = (latestEvent.data.total_bobcoins_spent as number) || 0;
         updateBobcoinBudget({ spent: totalSpent, projected: totalSpent });
         break;
@@ -91,7 +93,7 @@ export function useEventHandlers() {
         // Unknown event type
         break;
     }
-  }, [events, updateStepStatus, updateBobcoinBudget, incrementBobcoinSpent]);
+  }, [events, updateStepStatus, updateBobcoinBudget, incrementBobcoinSpent, startSession, endSession]);
 }
 
 // Made with Bob
