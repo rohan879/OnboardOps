@@ -34,8 +34,16 @@ install: ## Install all dependencies (backend + frontend)
 	@echo ""
 	@echo "✅ Installation complete!"
 
-dev: ## Start development servers (backend + frontend)
+dev: ## Start development servers (backend + frontend + telemetry)
 	@echo "🚀 Starting OnboardOps development servers..."
+	@echo ""
+	@echo "→ Starting telemetry capture..."
+	@if [ -f "scripts/telemetry.py" ]; then \
+		python3 scripts/telemetry.py & \
+		echo "✓ Telemetry started (PID: $$!)"; \
+	else \
+		echo "⚠️  scripts/telemetry.py not found"; \
+	fi
 	@echo ""
 	@echo "→ Starting backend on http://localhost:8765..."
 	@if [ -d "backend" ]; then \
@@ -57,6 +65,7 @@ dev: ## Start development servers (backend + frontend)
 	fi
 	@echo ""
 	@echo "✅ Development servers running!"
+	@echo "   Telemetry: Capturing to .onboardops/sessions/"
 	@echo "   Backend:  http://localhost:8765"
 	@echo "   Frontend: http://localhost:3000"
 	@echo "   Dashboard: http://localhost:3000"
