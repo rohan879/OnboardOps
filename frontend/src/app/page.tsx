@@ -7,6 +7,8 @@ import { DependencyGraph, GraphData } from '@/components/DependencyGraph';
 import { CartographyStepper } from '@/components/CartographyStepper';
 import { TranscriptPanel } from '@/components/TranscriptPanel';
 import { BobcoinMeter } from '@/components/BobcoinMeter';
+import { LoadingState, SkeletonLoader } from '@/components/LoadingState';
+import { ErrorState, ErrorBanner, EmptyState } from '@/components/ErrorState';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventsStore } from '@/store/events';
 import { useState } from 'react';
@@ -46,6 +48,11 @@ export default function Home() {
   const updateStepStatus = useEventsStore((state) => state.updateStepStatus);
   const bobcoinBudget = useEventsStore((state) => state.bobcoinBudget);
   const incrementBobcoinSpent = useEventsStore((state) => state.incrementBobcoinSpent);
+  
+  // Demo states for loading/error components
+  const [showLoadingDemo, setShowLoadingDemo] = useState(false);
+  const [showErrorDemo, setShowErrorDemo] = useState(false);
+  const [showEmptyDemo, setShowEmptyDemo] = useState(false);
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -154,8 +161,71 @@ export default function Home() {
               >
                 +5 Bobcoins
               </button>
+              <div className="border-t border-ibm-gray-20 pt-2 mt-2">
+                <div className="text-xs font-semibold text-ibm-gray-70 mb-2">
+                  State Demos
+                </div>
+                <button
+                  onClick={() => setShowLoadingDemo(!showLoadingDemo)}
+                  className="w-full px-3 py-2 text-xs bg-ibm-gray-70 text-white rounded hover:bg-ibm-gray-80 transition-colors mb-1"
+                >
+                  {showLoadingDemo ? 'Hide' : 'Show'} Loading
+                </button>
+                <button
+                  onClick={() => setShowErrorDemo(!showErrorDemo)}
+                  className="w-full px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors mb-1"
+                >
+                  {showErrorDemo ? 'Hide' : 'Show'} Error
+                </button>
+                <button
+                  onClick={() => setShowEmptyDemo(!showEmptyDemo)}
+                  className="w-full px-3 py-2 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
+                >
+                  {showEmptyDemo ? 'Hide' : 'Show'} Empty
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* State Demos */}
+          {showLoadingDemo && (
+            <div className="space-y-3">
+              <div className="text-xs font-semibold text-ibm-gray-100">Loading States</div>
+              <div className="bg-white rounded-lg border border-ibm-gray-20 p-4">
+                <LoadingState message="Analyzing repository..." size="sm" />
+              </div>
+              <div className="bg-white rounded-lg border border-ibm-gray-20 p-4">
+                <SkeletonLoader lines={3} />
+              </div>
+            </div>
+          )}
+
+          {showErrorDemo && (
+            <div className="space-y-3">
+              <div className="text-xs font-semibold text-ibm-gray-100">Error States</div>
+              <ErrorBanner
+                message="Failed to connect to backend server"
+                severity="error"
+                onDismiss={() => setShowErrorDemo(false)}
+              />
+              <div className="bg-white rounded-lg border border-ibm-gray-20 p-4">
+                <ErrorState
+                  message="Unable to load dependency graph. Please check your connection."
+                  onRetry={() => alert('Retrying...')}
+                  severity="error"
+                />
+              </div>
+            </div>
+          )}
+
+          {showEmptyDemo && (
+            <div className="bg-white rounded-lg border border-ibm-gray-20 p-4">
+              <EmptyState
+                title="No messages yet"
+                message="Bob will start narrating once the onboarding session begins."
+              />
+            </div>
+          )}
 
           {/* Certification Panel */}
           <div>
