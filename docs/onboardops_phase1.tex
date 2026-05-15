@@ -1,0 +1,668 @@
+% =====================================================================
+% OnboardOps Phase 1 -- Detailed Task Breakdown
+% IBM Bob Hackathon 2026
+% Compile with: pdflatex onboardops_phase1.tex (run twice for TOC)
+% =====================================================================
+
+\documentclass[11pt,letterpaper]{article}
+
+% ---------- Page geometry ----------
+\usepackage[margin=1in,top=1.1in,bottom=1.1in]{geometry}
+
+% ---------- Encoding & fonts ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[protrusion=true,expansion=false]{microtype}
+
+% ---------- Colors ----------
+\usepackage{xcolor}
+\definecolor{ibmblue}{HTML}{0F62FE}
+\definecolor{ibmdark}{HTML}{161616}
+\definecolor{ibmgray}{HTML}{6F6F6F}
+\definecolor{ibmlight}{HTML}{F4F4F4}
+\definecolor{ibmaccent}{HTML}{8A3FFC}
+\definecolor{ibmgreen}{HTML}{24A148}
+\definecolor{ibmred}{HTML}{DA1E28}
+\definecolor{ibmorange}{HTML}{FF832B}
+
+% ---------- Hyperlinks ----------
+\usepackage[colorlinks=true,linkcolor=ibmblue,urlcolor=ibmblue,citecolor=ibmblue]{hyperref}
+
+% ---------- Headers / footers ----------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{ibmgray}{OnboardOps -- Phase 1 Tasks}}
+\fancyhead[R]{\small\textcolor{ibmgray}{H+0 to H+2}}
+\fancyfoot[C]{\small\textcolor{ibmgray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------- Section formatting ----------
+\usepackage{titlesec}
+\titleformat{\section}
+  {\Large\bfseries\color{ibmblue}}{\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{ibmdark}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{ibmdark}}{\thesubsubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4\baselineskip}{0.6\baselineskip}
+
+% ---------- Tables & lists ----------
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\setlist{nosep,topsep=2pt,partopsep=2pt}
+
+% ---------- Code listings ----------
+\usepackage{listings}
+\lstdefinestyle{shellstyle}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{ibmlight},
+  frame=single,
+  framerule=0pt,
+  rulecolor=\color{ibmgray!20},
+  breaklines=true,
+  showstringspaces=false,
+  columns=flexible,
+  keywordstyle=\color{ibmblue}\bfseries,
+  commentstyle=\color{ibmgreen}\itshape,
+  stringstyle=\color{ibmaccent},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+}
+\lstset{style=shellstyle}
+
+% ---------- Task callout boxes ----------
+\usepackage[most]{tcolorbox}
+
+\newtcolorbox{task}[2]{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmblue,
+  fonttitle=\bfseries\color{white},
+  coltitle=white,
+  title={#1 \hfill \normalfont\itshape #2},
+  boxrule=0pt,arc=2pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+  attach boxed title to top left={xshift=4pt,yshift=-2mm},
+  boxed title style={colback=ibmblue,arc=2pt,boxrule=0pt},
+}
+
+\newtcolorbox{warning}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmorange,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+\newtcolorbox{gate}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmgreen,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+% ---------- Misc ----------
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup{labelfont={bf,color=ibmblue},textfont=it,font=small}
+
+% Custom commands
+\newcommand{\acceptance}[1]{\par\smallskip\textcolor{ibmgreen}{\textbf{Done when:}} #1}
+\newcommand{\depends}[1]{\par\smallskip\textcolor{ibmorange}{\textbf{Depends on:}} #1}
+\newcommand{\nodep}{\par\smallskip\textcolor{ibmgray}{\textit{No dependencies.}}}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+% =====================================================================
+\begin{document}
+% =====================================================================
+
+% ---------- Title page ----------
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\vspace*{1.5cm}
+
+{\color{ibmblue}\rule{\textwidth}{2pt}}
+\vspace{0.8cm}
+
+{\fontsize{38}{46}\selectfont\bfseries\color{ibmblue} OnboardOps\par}
+\vspace{0.3cm}
+{\Large\itshape\color{ibmgray} The 10-Minute Repo Whisperer\par}
+\vspace{0.4cm}
+
+{\color{ibmblue}\rule{\textwidth}{2pt}}
+\vspace{2.0cm}
+
+{\huge\bfseries Phase 1: Foundation \& Storyboard\par}
+\vspace{0.3cm}
+{\large Detailed Task Breakdown for Five Implementers\par}
+\vspace{2.5cm}
+
+\begin{tabularx}{0.75\textwidth}{lX}
+\toprule
+\textbf{Phase Window} & H+0 to H+2 (first 120 minutes) \\
+\textbf{Team Composition} & Five implementers (no producer role) \\
+\textbf{Parallelism Model} & Parallel across persons; sequential within each person \\
+\textbf{Total Person-Hours} & 10 (5 devs $\times$ 2 hours) \\
+\textbf{Gate Criterion} & Repo skeleton + storyboard + all stubs committed and reviewed \\
+\bottomrule
+\end{tabularx}
+
+\vfill
+
+{\large IBM Bob Hackathon 2026\par}
+{\normalsize Companion document to the OnboardOps SRS v1.0\par}
+\vspace{0.6cm}
+{\small\color{ibmgray} This document specifies, for each of the five implementers, the exact sequence of tasks to execute during Phase 1. Tasks within a single person's list run sequentially; the five lists run in parallel. The phase ends at H+2 with a 15-minute sync meeting.\par}
+\end{titlepage}
+
+{\hypersetup{linkcolor=ibmdark}\tableofcontents}
+\newpage
+
+% =====================================================================
+\section{Phase 1 Overview}
+% =====================================================================
+
+Phase 1 is the only phase of the hackathon where the team can afford to move deliberately. Every minute spent on coordination here pays back tenfold in the parallel phases that follow. The phase produces no shippable product feature; it produces \textbf{the working substrate} on which every later phase depends.
+
+By the end of Phase 1, the team \shall{} have:
+
+\begin{enumerate}
+  \item A public GitHub repository with a complete directory skeleton and license.
+  \item A working local development environment on each developer's machine.
+  \item A forked demo repository chosen and inspected.
+  \item A frame-by-frame demo storyboard reviewed and approved.
+  \item Stub files for every Bob configuration artifact (\texttt{.bob/modes}, \texttt{.bob/skills}, \texttt{.bob/mcp.json}).
+  \item A booting FastAPI backend stub, a booting Next.js frontend stub, and a working Bob Shell harness.
+  \item Pre-commit hooks for secret scanning and CI scaffolding.
+\end{enumerate}
+
+\textbf{What Phase 1 is not:} it is not a feature-building phase. No cartography logic, no MCP tool implementations, no Socratic grading. If a developer finds themselves writing real product logic in Phase 1, they have gotten ahead of the team and \shall{} stop and help unblock others instead.
+
+% =====================================================================
+\section{Team Composition (Revised)}
+% =====================================================================
+
+The producer role has been removed. All five developers are implementers. Cross-cutting responsibilities formerly owned by the producer (demo storyboard, slide deck, Bob session exports, video) have been redistributed as primary or secondary duties across the team.
+
+\begin{longtable}{|p{1.5cm}|p{3.2cm}|p{5cm}|p{4.5cm}|}
+\hline
+\rowcolor{ibmblue!10}
+\textbf{Dev} & \textbf{Role} & \textbf{Primary Ownership} & \textbf{Phase 1 Focus} \\
+\hline
+Dev 1 & Bob Architect & All \texttt{.bob/} configuration: modes, skills, slash commands, MCP bindings & Repo creation, directory scaffolding, mode and skill stubs \\
+\hline
+Dev 2 & Backend / MCP & Institutional Knowledge MCP server, WebSocket bridge, GitHub integration & FastAPI scaffolding, MCP contracts, event schema \\
+\hline
+Dev 3 & Frontend / Dashboard & Next.js dashboard, real-time UI, IBM design system & Next.js scaffold, IBM design tokens, layout shell \\
+\hline
+Dev 4 & Infra / Bob Shell & Bootstrap engine, auto-recovery, checkpoint orchestration, demo machine & Demo repo selection, Bob Shell verification, friction audit \\
+\hline
+Dev 5 & Integration Engineer & F7 starter PR generator, F8 AGENTS.md builder, F9 telemetry, plus demo storyboard and slide deck & Demo storyboard, Makefile, README, CI scaffolding \\
+\hline
+\end{longtable}
+
+\textbf{Bob session exports} (formerly producer-owned) are now owned by \textit{each developer individually} for their own sessions; Dev 5 owns the final curation pass in Phase 5. Every developer \shall{} export their Bob task sessions immediately on completion, not retrospectively.
+
+% =====================================================================
+\section{Cross-Person Dependency Map}
+% =====================================================================
+
+Most Phase 1 tasks are independent. The two hard dependencies in this phase are:
+
+\begin{enumerate}
+  \item \textbf{All non-Dev-1 devs depend on Dev 1's T1.2} (repository creation) before they can push code. They \shall{} therefore start with prerequisite verification (T*.1) and any local-only work, then check for the repo at roughly H+15.
+  \item \textbf{Dev 5's Makefile (T5.3)} depends on Dev 2's backend stub directory existing and Dev 3's frontend stub directory existing. Dev 5 \shall{} execute the Makefile task after H+45.
+\end{enumerate}
+
+\begin{warning}
+\textbf{Soft dependencies} (do not block, but improve quality):
+Dev 3's WebSocket smoke test (T3.7) benefits from Dev 2's stub backend running. Dev 4's E2E harness (T4.8) benefits from Dev 2's backend running. Both can be stubbed against mock data if the upstream isn't ready.
+\end{warning}
+
+\begin{longtable}{|p{1.2cm}|p{2.5cm}|p{3cm}|p{6cm}|}
+\hline
+\rowcolor{ibmblue!10}
+\textbf{Time} & \textbf{Person} & \textbf{Task} & \textbf{Why It Blocks Others} \\
+\hline
+H+0 -- H+15 & Dev 1 & T1.1 -- T1.2 & Repo URL needed by all other devs to clone. \\
+\hline
+H+15 -- H+45 & Dev 2 & T2.2 -- T2.4 & Backend dir needed by Dev 5's Makefile. \\
+\hline
+H+15 -- H+40 & Dev 3 & T3.2 -- T3.5 & Frontend dir needed by Dev 5's Makefile. \\
+\hline
+H+15 -- H+45 & Dev 4 & T4.2 -- T4.3 & Demo repo fork URL needed by Dev 5's starter-task identification. \\
+\hline
+H+0 -- H+35 & Dev 5 & T5.2 & Storyboard needed by all for end-of-phase alignment. \\
+\hline
+\end{longtable}
+
+% =====================================================================
+\section{Phase 1 Gate (H+2 Sync)}
+% =====================================================================
+
+At H+2, the team holds a 15-minute synchronous review. The phase is complete only if all of the following are demonstrably true. Anything failing is a P0 to fix before Phase 2 begins.
+
+\begin{gate}
+\textbf{Gate G1.1 -- Repository.} The public GitHub repository exists with the full directory skeleton, MIT license, working pre-commit hooks, and a draft README. All five developers have cloned and pushed at least one commit.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G1.2 -- Storyboard.} The 60-second demo storyboard exists at \texttt{docs/demo-storyboard.md}. All five developers have read it and verbally approved it. Disagreements are resolved at this sync, not later.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G1.3 -- Bob Foundations.} The \texttt{.bob/} directory contains stub files for: \texttt{onboard} mode, \texttt{repo-cartography} skill, \texttt{certification} skill, and \texttt{mcp.json}. The \texttt{/onboard} slash command appears in Bob's command palette.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G1.4 -- Backend Boots.} \texttt{uvicorn app:app --port 8765} runs on Dev 2's machine; \texttt{/health} returns 200. MCP tool contracts (7 tools) are defined as Pydantic models, even if implementations are mocked.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G1.5 -- Frontend Boots.} \texttt{pnpm dev} on Dev 3's machine serves the dashboard on port 3000. Layout shell visible. Stopwatch component ticks. WebSocket client attempts connection (failure to connect is OK at this gate).
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G1.6 -- Demo Repo Ready.} Demo repository selected, forked, cloned. Friction audit document committed at \texttt{notes/demo-repo-friction.md}. Five auto-recovery target patterns identified.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G1.7 -- Integration Glue.} Makefile with at least 6 targets (\texttt{install}, \texttt{dev}, \texttt{test}, \texttt{demo}, \texttt{export-bob-sessions}, \texttt{lint}) committed. GitHub Actions CI scaffold runs on push.
+\end{gate}
+
+% =====================================================================
+\section{Dev 1 -- Bob Architect}
+% =====================================================================
+
+\textbf{Time budget:} 105 minutes plus 15-minute buffer. \textbf{Tasks: 10.}
+
+\begin{task}{T1.1 -- Verify Bob IDE on Hackathon Account}{5 min}
+Open Bob IDE. Open Settings. Confirm team displayed is \texttt{ibm-coding-challenge-xxx} (the hackathon-provisioned team), not a personal account. Confirm Bobcoin balance reads close to 40.
+\nodep
+\acceptance{Settings panel screenshot shows the hackathon team and a Bobcoin balance is visible.}
+\end{task}
+
+\begin{task}{T1.2 -- Create the GitHub Repository}{10 min}
+Create a public GitHub repository named \texttt{onboardops}. Initialize with: MIT \texttt{LICENSE}, one-line \texttt{README.md}, a \texttt{.gitignore} combining Python and Node templates. Invite all four teammates as collaborators with write access. Push the URL to the team channel.
+\nodep
+\acceptance{Repo URL accessible to all five devs; clone-and-push succeeds for each.}
+\end{task}
+
+\begin{task}{T1.3 -- Bootstrap Directory Skeleton}{10 min}
+Create the canonical directory tree and push as the first non-init commit:
+
+\begin{lstlisting}
+.bob/modes/        .bob/skills/        .bob/commands/
+.bob/rules/        backend/            frontend/
+scripts/           docs/               bob_sessions/
+notes/             .github/workflows/
+\end{lstlisting}
+
+Place a \texttt{.gitkeep} in each empty directory so they survive cloning.
+\depends{T1.2}
+\acceptance{\texttt{tree -L 2} on a fresh clone shows the full skeleton.}
+\end{task}
+
+\begin{task}{T1.4 -- Write OnboardOps' Own AGENTS.md}{15 min}
+Author \texttt{AGENTS.md} at repo root. This is the file Bob loads when team members work \textit{on} OnboardOps -- distinct from the personalized AGENTS.md the product generates for end users. Include: product one-liner, high-level architecture, key directories, coding conventions for this repo, and a note about Bobcoin economy.
+\depends{T1.3}
+\acceptance{Bob's \texttt{/init} on the repo shows AGENTS.md is loaded as context.}
+\end{task}
+
+\begin{task}{T1.5 -- Stub the Onboard Custom Mode}{15 min}
+Author \texttt{.bob/modes/onboard.md} with YAML front matter: \texttt{name: onboard}, \texttt{slug: onboard}, \texttt{description}, \texttt{skills: [repo-cartography, certification]}, \texttt{mcp\_servers: [institutional-knowledge]}, and a body containing the Socratic-stance role definition (3--5 paragraphs).
+\depends{T1.3}
+\acceptance{In Bob's chat, typing \texttt{/} shows \texttt{/onboard} in the slash-command list.}
+\end{task}
+
+\begin{task}{T1.6 -- Stub the Repo Cartography Skill}{15 min}
+Author \texttt{.bob/skills/repo-cartography.md} with YAML front matter (\texttt{name}, \texttt{description}, \texttt{auto\_activate: false}) and section headers for the four stages: Dependency Graph, Entry Points, Change Hotspots, Project Conventions. Each section is a TODO placeholder; the body fills in Phase 2.
+\depends{T1.3}
+\acceptance{File compiles as valid markdown; Bob lists it as an available skill.}
+\end{task}
+
+\begin{task}{T1.7 -- Stub the Certification Skill}{10 min}
+Author \texttt{.bob/skills/certification.md} with twelve question-template placeholders, each with: \texttt{id}, \texttt{topic}, \texttt{question}, and a YAML rubric block specifying minimum content for a passing answer. Topics fill in Phase 2; structure must be machine-readable now.
+\depends{T1.3}
+\acceptance{File parses as YAML-in-markdown with 12 distinct question IDs.}
+\end{task}
+
+\begin{task}{T1.8 -- Configure Project-Scoped MCP Binding}{10 min}
+Author \texttt{.bob/mcp.json} declaring one MCP server, \texttt{institutional-knowledge}, with transport \texttt{http} and URL \texttt{http://127.0.0.1:8765/mcp}. Include no secrets. Document the schema in a one-line comment.
+\depends{T1.3}
+\acceptance{Bob's MCP settings show the server registered (status will be ``unreachable'' until Dev 2's stub is up -- this is expected).}
+\end{task}
+
+\begin{task}{T1.9 -- Establish CODEOWNERS for Bob Surface}{5 min}
+Create \texttt{.github/CODEOWNERS} assigning ownership of \texttt{/.bob/skills/} and \texttt{/.bob/modes/} to Dev 1's GitHub username, and \texttt{/docs/onboardops\_srs.pdf} to the team lead. This enforces review discipline for changes to Bob's behavior.
+\depends{T1.3}
+\acceptance{CODEOWNERS file present; visible in repo Settings $\rightarrow$ Code review.}
+\end{task}
+
+\begin{task}{T1.10 -- Publish Bob $\leftrightarrow$ Backend Contracts}{10 min}
+Author \texttt{docs/bob-contracts.md} documenting the data shapes the onboard mode and cartography skill will request from the MCP server: tool names, input arguments, expected response schemas. Hand this off to Dev 2 explicitly.
+\depends{T1.5, T1.6, T1.8}
+\acceptance{Dev 2 acknowledges the document and confirms the contracts align with T2.3.}
+\end{task}
+
+% =====================================================================
+\section{Dev 2 -- Backend / MCP}
+% =====================================================================
+
+\textbf{Time budget:} 105 minutes plus 15-minute buffer. \textbf{Tasks: 9.}
+
+\begin{task}{T2.1 -- Verify Local Python Environment}{5 min}
+Confirm: \texttt{python3 --version} reports 3.11+, \texttt{pip} works, Git access works, GitHub CLI (\texttt{gh}) authenticated. Note OS for portability checks later.
+\nodep
+\acceptance{Versions noted in personal scratchpad; no failures.}
+\end{task}
+
+\begin{task}{T2.2 -- Set Up Backend Directory and Virtualenv}{10 min}
+After Dev 1 pushes T1.3, clone the repo. Inside \texttt{backend/}, run \texttt{python -m venv .venv} and create initial \texttt{requirements.txt} listing: \texttt{fastapi}, \texttt{uvicorn[standard]}, \texttt{websockets}, \texttt{gitpython}, \texttt{httpx}, \texttt{pyyaml}, \texttt{python-dotenv}, \texttt{pydantic}. Install. Create the subpackage skeleton: \texttt{backend/app.py}, \texttt{backend/mcp/}, \texttt{backend/ws/}, \texttt{backend/tools/}.
+\depends{T1.3}
+\acceptance{\texttt{pip install -r requirements.txt} completes without error; \texttt{python -c "import fastapi"} succeeds.}
+\end{task}
+
+\begin{task}{T2.3 -- Define MCP Tool Contracts}{20 min}
+For each of the seven MCP tools (\texttt{git\_blame\_summary}, \texttt{commit\_frequency}, \texttt{recent\_authors}, \texttt{pr\_for\_file}, \texttt{file\_changelog}, \texttt{rationale\_for\_commit}, \texttt{incident\_for\_file}), define a Pydantic input model and output model in \texttt{backend/mcp/contracts.py}. No business logic. Cross-check shapes against Dev 1's \texttt{docs/bob-contracts.md}.
+\depends{T2.2, T1.10}
+\acceptance{\texttt{python -m backend.mcp.contracts} prints the seven model schemas; \texttt{mypy --strict} passes.}
+\end{task}
+
+\begin{task}{T2.4 -- Stub the FastAPI Application}{15 min}
+In \texttt{backend/app.py}, scaffold the FastAPI app with: \texttt{GET /health} returning \texttt{\{"status":"ok"\}}, \texttt{POST /mcp} returning a hard-coded MCP discovery response listing the seven tools, and \texttt{WS /events} echoing whatever it receives. CORS allow-list set to \texttt{http://localhost:3000}.
+\depends{T2.3}
+\acceptance{\texttt{uvicorn backend.app:app --port 8765 --reload} boots; \texttt{curl localhost:8765/health} returns 200.}
+\end{task}
+
+\begin{task}{T2.5 -- Define WebSocket Event Schema}{15 min}
+In \texttt{backend/ws/events.py}, define Pydantic models for: \texttt{TurnStart}, \texttt{TurnEnd}, \texttt{ToolCall}, \texttt{ToolResponse}, \texttt{CheckpointCreate}, \texttt{CheckpointRestore}, \texttt{CardEmit}, \texttt{CertificationGrade}. Each event carries a monotonic timestamp and a unique ID. Add a discriminated-union envelope type.
+\depends{T2.2}
+\acceptance{Schema unit test: serialize $\rightarrow$ deserialize round-trip preserves all events.}
+\end{task}
+
+\begin{task}{T2.6 -- Set Up GitHub Authentication}{10 min}
+Create a fine-grained Personal Access Token scoped to the demo repository fork only, with permissions: \texttt{contents:read}, \texttt{metadata:read}, \texttt{pull-requests:read+write}. Document expected env var \texttt{ONBOARDOPS\_GITHUB\_TOKEN} in \texttt{.env.example}. \textbf{Never commit the token.} Add \texttt{.env} to \texttt{.gitignore} (Dev 1 may have already; verify).
+\nodep
+\acceptance{\texttt{.env.example} committed; \texttt{.env} present locally and gitignored; \texttt{gh api user} works under the token.}
+\end{task}
+
+\begin{task}{T2.7 -- Stub the Seven MCP Tools with Mock Data}{15 min}
+In \texttt{backend/tools/}, create one module per tool. Each returns a deterministic mock that matches its contract from T2.3. The mocks should be plausible-looking (real-ish file paths, real-ish authors) so Dev 3 can build the dashboard against them without waiting for real implementations.
+\depends{T2.3, T2.4}
+\acceptance{A POST to \texttt{/mcp} requesting each tool returns a valid, schema-conforming JSON response.}
+\end{task}
+
+\begin{task}{T2.8 -- Configure Pre-Commit Hooks}{10 min}
+Install \texttt{pre-commit}. Author \texttt{.pre-commit-config.yaml} with: \texttt{gitleaks} (secret scan), \texttt{ruff} (Python lint and format), \texttt{end-of-file-fixer}, \texttt{trailing-whitespace}. Run \texttt{pre-commit install} and \texttt{pre-commit run --all-files}.
+\depends{T1.3}
+\acceptance{First commit after install triggers the hooks; \texttt{pre-commit run --all-files} passes.}
+\end{task}
+
+\begin{task}{T2.9 -- Author Backend Run Instructions}{5 min}
+Write \texttt{backend/README.md} with one-page instructions: clone, venv, install, run. Include the curl command Dev 3 can use to smoke-test the MCP endpoint.
+\depends{T2.2, T2.4}
+\acceptance{Dev 3 follows the README and reaches a 200 response without DM-ing for help.}
+\end{task}
+
+% =====================================================================
+\section{Dev 3 -- Frontend / Dashboard}
+% =====================================================================
+
+\textbf{Time budget:} 105 minutes plus 15-minute buffer. \textbf{Tasks: 9.}
+
+\begin{task}{T3.1 -- Verify Local Node Environment}{5 min}
+Confirm: \texttt{node --version} reports 20+, \texttt{pnpm} or \texttt{npm} works. Note OS.
+\nodep
+\acceptance{Versions noted; no failures.}
+\end{task}
+
+\begin{task}{T3.2 -- Scaffold the Next.js Application}{10 min}
+After Dev 1 pushes T1.3, clone the repo. Inside the repo root, run:
+
+\begin{lstlisting}
+pnpm create next-app@latest frontend \
+  --typescript --tailwind --app \
+  --eslint --src-dir --import-alias "@/*"
+\end{lstlisting}
+
+Verify the dev server boots on port 3000 and the default page renders. Commit.
+\depends{T1.3}
+\acceptance{\texttt{pnpm dev} in \texttt{frontend/} serves on localhost:3000; default Next.js page visible.}
+\end{task}
+
+\begin{task}{T3.3 -- Install Supporting Dependencies}{10 min}
+Add: \texttt{react-use-websocket} (WS client), \texttt{zustand} (state), \texttt{framer-motion} (animations for card emissions), \texttt{lucide-react} (icons), \texttt{date-fns} (stopwatch math). Verify \texttt{pnpm install} succeeds and \texttt{pnpm build} still passes.
+\depends{T3.2}
+\acceptance{\texttt{pnpm build} passes with no warnings.}
+\end{task}
+
+\begin{task}{T3.4 -- Apply IBM Design Tokens}{15 min}
+Edit \texttt{tailwind.config.ts} to define the IBM palette (\texttt{ibm-blue-60: \#0F62FE}, \texttt{ibm-gray-100: \#161616}, etc.). Load IBM Plex Sans via \texttt{next/font/google}. Update the root layout to apply the font and set the body background to \texttt{\#FFFFFF} with text in \texttt{ibm-gray-100}.
+\depends{T3.2}
+\acceptance{Default page renders in IBM Plex Sans with an IBM Blue heading.}
+\end{task}
+
+\begin{task}{T3.5 -- Build the Dashboard Layout Shell}{20 min}
+Author \texttt{frontend/src/app/page.tsx} with the four regions of the dashboard: header (stopwatch left, wordmark center, name right), main panel (horizontal 4-card stepper with placeholder cards), right sidebar (certification panel placeholder), footer (event-stream toggle). Use Tailwind grid. No real data; placeholders are fine. Layout must be usable at 1440$\times$900 without horizontal scroll.
+\depends{T3.4}
+\acceptance{Page renders all four regions at 1440$\times$900; no overflow; visible on a screenshot.}
+\end{task}
+
+\begin{task}{T3.6 -- Build the Stopwatch Component}{15 min}
+In \texttt{frontend/src/components/Stopwatch.tsx}, build a component that accepts a \texttt{startedAt} prop, updates every 100ms, displays as \texttt{mm:ss.t}, and renders at 24px or larger. Use a \texttt{useEffect} for the interval. Memoize aggressively.
+\depends{T3.5}
+\acceptance{Stopwatch ticks accurately from any \texttt{startedAt}; passes a basic Jest/Vitest test.}
+\end{task}
+
+\begin{task}{T3.7 -- Build the WebSocket Client Hook}{15 min}
+In \texttt{frontend/src/hooks/useEvents.ts}, build a hook that connects to \texttt{ws://localhost:8765/events}, reconnects with backoff (1s, 2s, 4s, 8s), exposes the event stream as a Zustand store, and surfaces connection state. Wire it into the layout so the footer shows a green or red dot.
+\depends{T3.5, T2.4}
+\acceptance{When Dev 2's backend is running, the footer dot is green; when stopped, it goes red and the client retries.}
+\end{task}
+
+\begin{task}{T3.8 -- Build the Event Stream Component}{10 min}
+In \texttt{frontend/src/components/EventStream.tsx}, render the Zustand event store as a scrolling list. Color-code by event type (tool calls one color, card emissions another, certification grades a third). Newest at the top.
+\depends{T3.7}
+\acceptance{When Dev 2's backend echoes a fake event, it appears in the stream within 200ms.}
+\end{task}
+
+\begin{task}{T3.9 -- Build Verification and Commit}{5 min}
+Run \texttt{pnpm build} (must succeed), \texttt{pnpm lint} (must pass), \texttt{pnpm tsc --noEmit} (zero errors). Commit, push, open a draft PR titled ``Phase 1: Frontend scaffold.''
+\depends{T3.2 -- T3.8}
+\acceptance{Draft PR open with green CI checks.}
+\end{task}
+
+% =====================================================================
+\section{Dev 4 -- Infra / Bob Shell}
+% =====================================================================
+
+\textbf{Time budget:} 105 minutes plus 15-minute buffer. \textbf{Tasks: 8.}
+
+\begin{task}{T4.1 -- Install and Verify Bob Shell}{10 min}
+Install Bob Shell per official instructions. Authenticate via browser and IBMid. Confirm the hackathon team is selected (\texttt{ibm-coding-challenge-xxx}). Run a smoke test:
+
+\begin{lstlisting}
+echo "what is 2+2?" | bob -p "answer in one number only"
+\end{lstlisting}
+
+Verify a one-character response. Record Bobcoin consumption.
+\nodep
+\acceptance{Smoke test returns ``4'' (or similar minimal answer); Bobcoin spend logged.}
+\end{task}
+
+\begin{task}{T4.2 -- Select and Fork the Demo Repository}{15 min}
+Evaluate the three candidates below against the rubric: (a) 10--30 source files; (b) has a real test suite; (c) has at least one onboarding ``trap'' (a non-obvious setup step or a counterintuitive convention) that makes the demo dramatic.
+
+\begin{enumerate}
+  \item \texttt{tiangolo/full-stack-fastapi-template} -- larger, full demo of trap potential.
+  \item \texttt{encode/starlette} -- smaller, cleaner code, fewer traps.
+  \item \texttt{tiangolo/sqlmodel} -- mid-size, well-documented.
+\end{enumerate}
+
+Pick one. Fork to the team org. Share the fork URL.
+\nodep
+\acceptance{Fork URL pinned in the team channel; selection rationale in \texttt{notes/demo-repo-choice.md}.}
+\end{task}
+
+\begin{task}{T4.3 -- Conduct a Naive Onboarding Audit}{20 min}
+On a clean working tree, clone the demo fork and pretend you have never seen it before. Try to: install dependencies, run the dev server, run the test suite, identify the entry point. \textbf{Log every friction point with a timestamp.} These are the source of your auto-recovery patterns. Commit notes to \texttt{notes/demo-repo-friction.md}.
+\depends{T4.2}
+\acceptance{Friction document committed with at least 5 distinct friction points and timestamps.}
+\end{task}
+
+\begin{task}{T4.4 -- Identify Five Auto-Recovery Targets}{10 min}
+From T4.3's friction list, pick five distinct failure modes that the bootstrap engine (F3) will auto-recover from. Default candidates: Node version mismatch, port-in-use, missing virtualenv, missing seed data, database service not running. Document at \texttt{docs/auto-recovery-patterns.md} with the detection signal (stderr regex) and recovery action for each.
+\depends{T4.3}
+\acceptance{Five patterns documented with detection signals and actions.}
+\end{task}
+
+\begin{task}{T4.5 -- Author Bootstrap Script Skeleton}{15 min}
+Author \texttt{scripts/bootstrap.sh} with five stages: \texttt{detect}, \texttt{install}, \texttt{migrate}, \texttt{seed}, \texttt{healthcheck}. Each stage is a no-op function that emits a structured JSON log line to stdout. Exit codes consistent: 0 success, non-zero with a JSON error payload. Make executable.
+\depends{T1.3}
+\acceptance{\texttt{./scripts/bootstrap.sh} runs in $<$ 5s, prints five JSON lines, exits 0.}
+\end{task}
+
+\begin{task}{T4.6 -- Verify Bob Shell Non-Interactive Piping}{10 min}
+Test the canonical piping pattern that will drive auto-recovery in Phase 3:
+
+\begin{lstlisting}
+./scripts/bootstrap.sh 2>&1 | bob -p "summarize what happened in 1 line"
+\end{lstlisting}
+
+Verify a one-line summary comes back. Record Bobcoin spend per invocation; this is your unit cost for the auto-recovery loop.
+\depends{T4.1, T4.5}
+\acceptance{Bob returns a one-line summary; per-invocation Bobcoin cost logged.}
+\end{task}
+
+\begin{task}{T4.7 -- Document the Reference Demo Machine}{10 min}
+Designate one team laptop as the official demo machine. Document: OS version, Node version, Python version, screen resolution, browser, terminal emulator, screen-recording tool. Author \texttt{docs/demo-machine.md}. From this point forward, the demo machine \shall{} be reset to this baseline before each test run.
+\nodep
+\acceptance{Reference machine documented; reset procedure described.}
+\end{task}
+
+\begin{task}{T4.8 -- Build the E2E Smoke Harness}{15 min}
+Author \texttt{scripts/e2e-smoke.sh} that orchestrates: kill any process on ports 8765 and 3000, start backend, start frontend, wait for both health checks, run a fake \texttt{/onboard} invocation against the backend, verify an event reaches the frontend. Use \texttt{trap} for cleanup. This script becomes the heartbeat of Phases 3--4.
+\depends{T4.5, T2.4, T3.2}
+\acceptance{When Dev 2 and Dev 3 have pushed their stubs, \texttt{./scripts/e2e-smoke.sh} runs green.}
+\end{task}
+
+% =====================================================================
+\section{Dev 5 -- Integration Engineer}
+% =====================================================================
+
+\textbf{Time budget:} 120 minutes (longest path; storyboard is heavy). \textbf{Tasks: 9.}
+
+\begin{task}{T5.1 -- Verify Local Environment}{5 min}
+Confirm: Bob IDE installed and on hackathon team, Node 20+, Python 3.11+, Git auth.
+\nodep
+\acceptance{No failures.}
+\end{task}
+
+\begin{task}{T5.2 -- Author the 60-Second Demo Storyboard}{30 min}
+This is the single highest-leverage task in Phase 1. Author \texttt{docs/demo-storyboard.md} as a frame-by-frame breakdown of the 60 seconds that anchor the final video. Use SRS Appendix D as the starting skeleton. For each beat (every 3--5 seconds), specify: (a) what is on screen, (b) what the narrator says, (c) what the user does, (d) which OnboardOps feature is being showcased.
+
+The storyboard answers, before any code is written, the question: \textit{what does winning look like?}
+\nodep
+\acceptance{Storyboard committed; reviewed by all four other devs at the H+2 sync.}
+\end{task}
+
+\begin{task}{T5.3 -- Author the Top-Level Makefile}{15 min}
+Author \texttt{Makefile} at repo root with targets: \texttt{install}, \texttt{dev}, \texttt{test}, \texttt{demo}, \texttt{export-bob-sessions}, \texttt{lint}, \texttt{clean}, \texttt{help}. Each target delegates to \texttt{backend/}, \texttt{frontend/}, or \texttt{scripts/} as appropriate. Include a \texttt{.PHONY} declaration. Add a one-line help comment on each target.
+\depends{T2.2, T3.2}
+\acceptance{\texttt{make help} prints all targets with help text; \texttt{make install} runs both backend and frontend installs.}
+\end{task}
+
+\begin{task}{T5.4 -- Author the README v1}{15 min}
+Replace Dev 1's placeholder README with the v1 draft. Include: cover image slot, one-line pitch (the storyboard's tagline), 3-bullet problem statement, demo GIF placeholder, install section (one paragraph plus \texttt{make install}), demo section (link to the video, will be filled later), architecture diagram slot, team roster, license.
+\depends{T5.2}
+\acceptance{README renders correctly on the GitHub repo page; all sections present (some with placeholder content).}
+\end{task}
+
+\begin{task}{T5.5 -- Structure the bob\_sessions Folder}{10 min}
+Inside \texttt{bob\_sessions/}, create one subfolder per dev: \texttt{dev1/}, \texttt{dev2/}, etc. In each, place a \texttt{README.md} that explains the naming convention (\texttt{NN\_task-title.md} for the markdown and \texttt{NN\_task-title.png} for the screenshot) and the structure judges will see. Add a top-level \texttt{bob\_sessions/README.md} listing each dev's focus areas.
+\depends{T1.3}
+\acceptance{Folder structure committed; each dev knows where to drop their exports.}
+\end{task}
+
+\begin{task}{T5.6 -- Set Up GitHub Actions CI}{15 min}
+Author \texttt{.github/workflows/ci.yml} with three jobs: \texttt{secrets} (run \texttt{gitleaks}), \texttt{backend} (run \texttt{ruff} and Pytest stubs), \texttt{frontend} (run \texttt{pnpm lint} and \texttt{pnpm build}). Use a matrix on Node 20 and Python 3.11. Trigger on \texttt{push} and \texttt{pull\_request}.
+\depends{T1.3}
+\acceptance{First push triggers CI; \texttt{secrets} job runs gitleaks and passes (assuming nothing leaked).}
+\end{task}
+
+\begin{task}{T5.7 -- Identify Three Starter PR Candidates}{10 min}
+For the demo repo (after Dev 4's T4.2), identify three candidate ``starter tasks'' suitable for F7 (the starter PR generator). Each candidate is a ${\sim}20$-line change: a doc typo plus a new endpoint, a missing test case, or a small bug. Document at \texttt{docs/starter-tasks.md} with the diff outline for each.
+\depends{T4.2}
+\acceptance{Three candidates documented with diff outlines; one designated as the demo default.}
+\end{task}
+
+\begin{task}{T5.8 -- Outline the Slide Deck}{10 min}
+Author \texttt{slides/onboardops.md} as a 12-slide outline in markdown (one heading per slide): Cover, Problem, Solution, 60-Second Demo, Architecture, Feature Tour, Bob-Specific Originality, Business Value, Tech Stack, Team, Asks, Thank-You. Bullet points per slide are placeholders; structure is the deliverable.
+\depends{T5.2}
+\acceptance{12 slide headers committed; aligned with the storyboard.}
+\end{task}
+
+\begin{task}{T5.9 -- Author Cover Image Placeholder}{10 min}
+Create a 1280$\times$720 cover image placeholder for the README and the Lablab submission. Stopwatch icon plus the wordmark plus the tagline ``The 10-Minute Repo Whisperer.'' Save to \texttt{docs/cover.png}. The polished version replaces this in Phase 5; a placeholder is fine for now.
+\depends{T5.2}
+\acceptance{\texttt{cover.png} committed; renders correctly in the README preview.}
+\end{task}
+
+% =====================================================================
+\section{H+2 Sync Meeting Protocol}
+% =====================================================================
+
+\textbf{Duration:} 15 minutes, hard cap. \textbf{Format:} video call with shared screen.
+
+The sync is structured as a round-robin demo. Each developer takes 2 minutes to show their working artifact -- not slides, the actual artifact running on their machine. The remaining 5 minutes are reserved for resolving any gate failures.
+
+\begin{enumerate}
+  \item \textbf{Dev 1} (2 min): show the \texttt{/onboard} slash command appearing in Bob; tour the \texttt{.bob/} directory.
+  \item \textbf{Dev 2} (2 min): show \texttt{curl localhost:8765/health} returning 200; show the seven MCP tool stubs responding with mock data.
+  \item \textbf{Dev 3} (2 min): show the dashboard at \texttt{localhost:3000}; show the stopwatch ticking; show the WebSocket connection indicator turning green when Dev 2's backend is up.
+  \item \textbf{Dev 4} (2 min): show the demo repo fork; tour the friction document; demonstrate Bob Shell piping.
+  \item \textbf{Dev 5} (2 min): read the demo storyboard aloud to the team; show the Makefile targets.
+  \item \textbf{Gate review} (3 min): confirm each gate G1.1 -- G1.7 is met. Any miss becomes a Phase 2 P0.
+  \item \textbf{Phase 2 kickoff} (2 min): confirm everyone has their Phase 2 instructions and proceed.
+\end{enumerate}
+
+% =====================================================================
+\section{Anti-Patterns to Avoid in Phase 1}
+% =====================================================================
+
+\begin{warning}
+\textbf{Do not write production logic.} Phase 1 produces scaffolding only. If you are tempted to implement actual cartography logic, real MCP tool bodies, or live grading rubrics in Phase 1, you are stealing time from later phases when you will need it more.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not over-design.} The MCP tool contracts you author in T2.3 will change in Phase 2. That is fine. Write the simplest contracts that match Dev 1's T1.10 doc, ship them, and iterate.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not skip the storyboard review.} Every developer reads the storyboard at H+2. If even one person disagrees with a beat, fix it now. Storyboard drift after Phase 1 is the most expensive thing that can go wrong in this hackathon.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not commit secrets.} Gitleaks runs in CI, but the cheapest defense is the pre-commit hook from T2.8. Anyone who pushes a token triggers an immediate IBM account deactivation, and the team loses Bob access for the remainder of the hackathon. Use \texttt{.env.example}, never \texttt{.env}.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not work past H+2 without syncing.} If any developer is at risk of missing their task list by H+2, they raise the flag in the team channel by H+1:30. Silent slippage compounds. Ask for help loudly and early.
+\end{warning}
+
+\vfill
+
+\begin{center}
+\rule{0.6\textwidth}{0.6pt}\\
+\vspace{0.3em}
+{\small\itshape\color{ibmgray} End of Phase 1 Task Breakdown.\\}
+{\small\itshape\color{ibmgray} Next document: Phase 2 -- Vertical Slice (H+2 to H+10).}
+\end{center}
+
+\end{document}

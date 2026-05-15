@@ -1,0 +1,1067 @@
+% =====================================================================
+% OnboardOps -- Software Requirements Specification (IEEE 830)
+% IBM Bob Hackathon 2026
+% Compile with: pdflatex onboardops_srs.tex (run twice for TOC)
+% =====================================================================
+
+\documentclass[11pt,letterpaper]{article}
+
+% ---------- Page geometry ----------
+\usepackage[margin=1in,top=1.1in,bottom=1.1in]{geometry}
+
+% ---------- Encoding & fonts ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[protrusion=true,expansion=false]{microtype}
+
+% ---------- Colors ----------
+\usepackage{xcolor}
+\definecolor{ibmblue}{HTML}{0F62FE}
+\definecolor{ibmdark}{HTML}{161616}
+\definecolor{ibmgray}{HTML}{6F6F6F}
+\definecolor{ibmlight}{HTML}{F4F4F4}
+\definecolor{ibmaccent}{HTML}{8A3FFC}
+\definecolor{ibmgreen}{HTML}{24A148}
+\definecolor{ibmred}{HTML}{DA1E28}
+
+% ---------- Hyperlinks ----------
+\usepackage[colorlinks=true,linkcolor=ibmblue,urlcolor=ibmblue,citecolor=ibmblue]{hyperref}
+
+% ---------- Headers / footers ----------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{ibmgray}{OnboardOps SRS}}
+\fancyhead[R]{\small\textcolor{ibmgray}{Version 1.0 \textbar{} May 2026}}
+\fancyfoot[C]{\small\textcolor{ibmgray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------- Section formatting ----------
+\usepackage{titlesec}
+\titleformat{\section}
+  {\Large\bfseries\color{ibmblue}}{\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{ibmdark}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{ibmdark}}{\thesubsubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4\baselineskip}{0.6\baselineskip}
+
+% ---------- Tables & lists ----------
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\setlist{nosep,topsep=2pt,partopsep=2pt}
+
+% ---------- Code listings ----------
+\usepackage{listings}
+\lstdefinestyle{shellstyle}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{ibmlight},
+  frame=single,
+  framerule=0pt,
+  rulecolor=\color{ibmgray!20},
+  breaklines=true,
+  showstringspaces=false,
+  columns=flexible,
+  keywordstyle=\color{ibmblue}\bfseries,
+  commentstyle=\color{ibmgreen}\itshape,
+  stringstyle=\color{ibmaccent},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+}
+\lstset{style=shellstyle}
+
+% ---------- Requirement callout boxes ----------
+\usepackage[most]{tcolorbox}
+\newtcolorbox{reqbox}[1]{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmblue,
+  fonttitle=\bfseries\color{white},
+  coltitle=white,
+  title={#1},
+  boxrule=0pt,arc=2pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+  attach boxed title to top left={xshift=4pt,yshift=-2mm},
+  boxed title style={colback=ibmblue,arc=2pt,boxrule=0pt},
+}
+\newtcolorbox{notebox}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmaccent,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+% ---------- Misc ----------
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup{labelfont={bf,color=ibmblue},textfont=it,font=small}
+
+% Custom commands
+\newcommand{\req}[1]{\textbf{\textcolor{ibmblue}{#1}}}
+\newcommand{\shall}{\textbf{shall}}
+\newcommand{\should}{\textbf{should}}
+\newcommand{\may}{\textbf{may}}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+% =====================================================================
+\begin{document}
+% =====================================================================
+
+% ---------- Title page ----------
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\vspace*{1.5cm}
+
+{\color{ibmblue}\rule{\textwidth}{2pt}}
+\vspace{0.8cm}
+
+{\fontsize{42}{50}\selectfont\bfseries\color{ibmblue} OnboardOps\par}
+\vspace{0.3cm}
+{\Large\itshape\color{ibmgray} The 10-Minute Repo Whisperer\par}
+\vspace{0.4cm}
+
+{\color{ibmblue}\rule{\textwidth}{2pt}}
+\vspace{2.2cm}
+
+{\huge\bfseries Software Requirements Specification\par}
+\vspace{0.4cm}
+{\large IEEE Std 830-1998 Compliant\par}
+\vspace{3cm}
+
+\begin{tabularx}{0.7\textwidth}{lX}
+\toprule
+\textbf{Document Version} & 1.0 \\
+\textbf{Status} & Approved for Implementation \\
+\textbf{Date} & May 15, 2026 \\
+\textbf{Classification} & Public (Hackathon Submission) \\
+\textbf{Product} & OnboardOps \\
+\textbf{Platform Anchor} & IBM Bob IDE \\
+\bottomrule
+\end{tabularx}
+
+\vfill
+
+{\large Prepared for the \textbf{IBM Bob Hackathon 2026}\par}
+{\normalsize Lablab.ai $\cdot$ IBM $\cdot$ NativelyAI\par}
+\vspace{0.6cm}
+{\small\color{ibmgray} This document describes the software requirements for OnboardOps, an AI-driven engineering onboarding accelerator built on the IBM Bob platform. It is the authoritative reference for scope, behavior, interfaces, and acceptance criteria during the 48-hour hackathon build window and any subsequent productization.\par}
+\end{titlepage}
+
+% ---------- Revision History ----------
+\section*{Revision History}
+\addcontentsline{toc}{section}{Revision History}
+
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{>{\bfseries}l l l X}
+\toprule
+Version & Date & Author & Summary of Changes \\
+\midrule
+0.1 & 2026-05-15 & Engineering Team & Initial outline; scope locked to 48-hour MVP. \\
+0.5 & 2026-05-15 & Engineering Team & Functional requirements for nine features drafted. \\
+0.9 & 2026-05-15 & Engineering Team & Non-functional requirements, interfaces, and appendices completed. \\
+1.0 & 2026-05-15 & Engineering Team & Approved baseline for hackathon submission. \\
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1.0}
+
+\vspace{1em}
+
+\section*{Approvers}
+\addcontentsline{toc}{section}{Approvers}
+
+\begin{tabularx}{\textwidth}{>{\bfseries}l X}
+\toprule
+Role & Signatory \\
+\midrule
+Product Owner & Team Lead, OnboardOps \\
+Technical Lead & Architect, OnboardOps \\
+Hackathon Mentor & IBM Bob Hackathon Mentor (advisory) \\
+\bottomrule
+\end{tabularx}
+
+\newpage
+
+% ---------- TOC ----------
+{\hypersetup{linkcolor=ibmdark}\tableofcontents}
+\newpage
+
+% =====================================================================
+\section{Introduction}
+% =====================================================================
+
+\subsection{Purpose}
+
+This Software Requirements Specification (SRS) defines the functional and non-functional requirements for \textbf{OnboardOps}, an AI-driven engineering onboarding accelerator that uses the IBM Bob IDE as its execution backbone. The document establishes a single, authoritative reference against which the OnboardOps team can plan, build, test, and demonstrate the system during the 48-hour IBM Bob Hackathon build window.
+
+OnboardOps reduces the time required for a new engineer to reach a productive, code-shipping state inside an unfamiliar repository from the industry median of three to nine months down to a verifiable target of ten minutes for a well-scoped first contribution. It accomplishes this through a custom Bob IDE mode, a structured codebase-cartography skill, a project-scoped Model Context Protocol (MCP) server that exposes institutional knowledge, an automated dev-environment bootstrap orchestrated by Bob Shell, and a live web dashboard that visualizes the new hire's learning path and certifies completion.
+
+This SRS is binding on all software produced for the hackathon submission and is the basis for the demo, judging, and any post-hackathon continuation of the project.
+
+\subsection{Document Conventions}
+
+This document follows IEEE Std 830-1998. The key conventions are listed below.
+
+\begin{itemize}
+  \item The words \shall, \should, and \may{} carry the meanings defined in IETF RFC 2119: \shall{} denotes an absolute requirement; \should{} denotes a recommendation that may be deviated from with documented justification; \may{} denotes an optional capability.
+  \item Functional requirements are identified as \textbf{FR-\textit{nn}}. Non-functional requirements are identified as \textbf{NFR-\textit{nn}}. Each requirement is uniquely numbered, traceable, and testable.
+  \item Features are identified as \textbf{F\textit{n}} (F1 through F9). Each feature contains a set of functional requirements.
+  \item Direct references to IBM Bob features (modes, skills, slash commands, MCP, Bob Shell, checkpoints, Bobcoins) are rendered in monospace where they refer to a concrete artifact and in normal text where they refer to the general concept.
+  \item File paths beginning with \texttt{.bob/} refer to project-scoped Bob configuration files committed to the OnboardOps repository.
+  \item Time-window claims (for example, ``ten minutes'') are measured from the moment the onboardee issues the \texttt{/onboard} command in a freshly cloned repository on a laptop with prerequisites installed.
+\end{itemize}
+
+\subsection{Intended Audience and Reading Suggestions}
+
+The document is written for four overlapping audiences.
+
+\begin{itemize}
+  \item \textbf{Hackathon judges} (IBM, Lablab.ai, NativelyAI). Read Sections 1, 2, and 3 in full; skim Section 5; review Appendix D for the demo script.
+  \item \textbf{The five-person engineering team} that will build OnboardOps in 48 hours. Read the document end-to-end; treat Sections 3, 4, and 5 as the build contract; use Appendix E as the schedule.
+  \item \textbf{A future product team} that may continue OnboardOps after the hackathon. Read Sections 2 and 6 first to understand the product perspective and constraints; then drill into individual features as needed.
+  \item \textbf{IBM Bob platform owners} who may evaluate OnboardOps as a reference exemplar of deep Bob configuration. Pay particular attention to Sections 3.1, 3.2, 3.3, and 3.4, which exercise custom modes, skills, Bob Shell, and MCP server integration respectively.
+\end{itemize}
+
+\subsection{Product Scope}
+
+OnboardOps is a software product comprising five logically cohesive components:
+
+\begin{enumerate}
+  \item A \textbf{custom Bob IDE mode} named \texttt{onboard} (invocable as \texttt{/onboard}) that turns Bob from a code-writing assistant into a Socratic mentor for new engineers.
+  \item A \textbf{Bob skill library} (under \texttt{.bob/skills/}) encoding the structured repo-cartography walk, the certification rubric, and the AGENTS.md generation recipe.
+  \item A \textbf{project-scoped MCP server} (the \textit{Institutional Knowledge Server}) that exposes git history, GitHub pull-request metadata, and, optionally, Slack and Linear context as structured tools Bob can call.
+  \item A \textbf{Bob Shell driver} that bootstraps the local development environment headlessly, with auto-recovery for common setup failures.
+  \item A \textbf{live web dashboard} (Next.js) that renders the onboardee's learning path, stopwatch, certification status, and the running session report, with bidirectional WebSocket communication to the Bob session.
+\end{enumerate}
+
+\subsubsection*{In Scope}
+
+\begin{itemize}
+  \item Onboarding a developer to one pre-selected demo repository (a public open-source FastAPI starter) end-to-end in under ten minutes.
+  \item Producing a passing ``first PR'' that the onboardee opens against a demo fork.
+  \item Generating a personalized \texttt{AGENTS.md} that captures the onboardee's mental model of the repo.
+  \item Exporting Bob task session reports into the \texttt{bob\_sessions/} folder for hackathon judging.
+  \item Operating against any Bob-supported operating system (macOS, Linux, Windows with WSL2).
+\end{itemize}
+
+\subsubsection*{Out of Scope}
+
+\begin{itemize}
+  \item Multi-repository or monorepo orchestration (single repository only).
+  \item Enterprise SSO, role-based access control, or multi-tenant deployments.
+  \item Persistent storage of onboardee data beyond the live session and exported artifacts.
+  \item Integration with proprietary enterprise systems (Jira beyond a stub, ServiceNow, internal corporate wikis).
+  \item Languages other than English in the onboardee-facing UI and Bob responses.
+  \item Mobile or tablet form factors for the dashboard.
+\end{itemize}
+
+\subsection{References}
+
+\begin{enumerate}
+  \item IEEE Std 830-1998, \textit{IEEE Recommended Practice for Software Requirements Specifications}.
+  \item IETF RFC 2119, \textit{Key words for use in RFCs to Indicate Requirement Levels}.
+  \item IBM Bob Hackathon Guide, \textit{IBM Bob Hackathon (May 2026)}, IBM Corporation, 2026.
+  \item IBM Bob Documentation, \texttt{bob.ibm.com/docs} (custom modes, skills, slash commands, MCP servers, Bob Shell, checkpoints, AGENTS.md initialization).
+  \item Model Context Protocol Specification, Anthropic, 2024--2026.
+  \item Atlassian, \textit{State of Developer Experience Report 2025}.
+  \item Stack Overflow, \textit{Developer Survey 2025}, AI Tools and Trust section.
+  \item LinkedIn Talent Solutions, \textit{Time-to-Productivity Benchmarks for Software Engineers}, 2024.
+  \item IBM watsonx.ai documentation, Granite model family.
+  \item IBM watsonx Orchestrate Agent Development Kit (ADK), \textit{Reference Guide}.
+\end{enumerate}
+
+% =====================================================================
+\section{Overall Description}
+% =====================================================================
+
+\subsection{Product Perspective}
+
+OnboardOps is a \textbf{client-side composite product} that sits on top of an existing IBM Bob IDE installation. It is not a replacement for Bob and it is not a standalone IDE. Rather, it is a curated set of Bob configuration artifacts (modes, skills, slash commands, MCP server bindings) plus two adjacent processes: a backend MCP server and a web dashboard.
+
+The product perspective can be summarized by the following deployment view:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Component} & \textbf{Hosting and Role} \\
+\hline
+Bob IDE (host) & The onboardee's local machine. Loads OnboardOps' \texttt{.bob/} configuration on workspace open. \\
+\hline
+Onboard custom mode & A markdown file at \texttt{.bob/modes/onboard.md} committed in the demo repository. \\
+\hline
+Repo-cartography skill & A markdown file at \texttt{.bob/skills/repo-cartography.md}; auto-activated by the onboard mode. \\
+\hline
+Certification rubric skill & A markdown file at \texttt{.bob/skills/certification.md}. \\
+\hline
+AGENTS.md recipe skill & A markdown file at \texttt{.bob/skills/agents-md-recipe.md}. \\
+\hline
+Institutional Knowledge MCP Server & A Python FastAPI process on the onboardee's localhost (port 8765). Bound to Bob via \texttt{.bob/mcp.json}. \\
+\hline
+Bob Shell driver & A Bash script \texttt{scripts/bootstrap.sh} that wraps non-interactive Bob Shell calls to set up the development environment. \\
+\hline
+Learning Path Dashboard & A Next.js application on localhost (port 3000). Connects to Bob via a WebSocket bridge served by the MCP server. \\
+\hline
+WebSocket Bridge & Co-located with the MCP server. Relays structured events from Bob (turn-start, tool-call, checkpoint, certification-step-complete) to the dashboard. \\
+\hline
+\end{tabularx}
+\end{center}
+
+The product depends on Bob's published configuration surface and does not modify Bob's binary, source, or installation. All Bob extensibility is achieved through documented mechanisms (custom modes as files, skills as files, slash commands as files, MCP servers via project-scoped configuration).
+
+\subsection{Product Functions}
+
+At the highest level, OnboardOps performs the following functions:
+
+\begin{enumerate}
+  \item \textbf{Initiate} a structured onboarding session via the \texttt{/onboard} slash command.
+  \item \textbf{Inventory} the target repository's architecture, entry points, hotspots, and conventions.
+  \item \textbf{Bootstrap} the local development environment with auto-recovery from common failures.
+  \item \textbf{Surface} institutional knowledge (git blame, PR rationale, communication history) on demand via Bob's MCP tool calls.
+  \item \textbf{Guide} the onboardee Socratically through a four-step learning path, with questions chosen by Bob based on what it has learned about the repo.
+  \item \textbf{Visualize} the live session and stopwatch on a web dashboard.
+  \item \textbf{Certify} the onboardee by verifying correct answers to three architecture questions and a passing starter pull request.
+  \item \textbf{Persist} the session as a personalized \texttt{AGENTS.md} that the onboardee keeps as a lasting reference and a context anchor for future Bob sessions.
+  \item \textbf{Export} all task session reports to the \texttt{bob\_sessions/} folder per hackathon submission requirements.
+\end{enumerate}
+
+\subsection{User Classes and Characteristics}
+
+OnboardOps recognizes three user classes.
+
+\begin{reqbox}{Primary: New Engineering Hire (the Onboardee)}
+The onboardee is an engineer of any seniority joining a new team. The onboardee has between zero and five years of professional experience, is comfortable in a terminal and a code editor, and is familiar with at least one general-purpose programming language (Python is preferred for the demo repository). The onboardee has IBM Bob installed and authenticated and has network access. The onboardee \shall{} be able to use OnboardOps with no prior knowledge of the target repository.
+\end{reqbox}
+
+\begin{reqbox}{Secondary: Engineering Manager / Onboarding Coordinator}
+The manager is responsible for the onboardee's productivity ramp and is the buyer in a productized future. The manager does not run OnboardOps directly during the demo, but they configure the demo repository's \texttt{.bob/} files (modes, skills, MCP server endpoints) once. The manager \shall{} be able to install OnboardOps in a repository by copying a single directory and editing one configuration file.
+\end{reqbox}
+
+\begin{reqbox}{Tertiary: Repository Maintainer}
+The maintainer is a senior contributor who curates which questions the certification rubric asks and which Slack channels and Linear projects the MCP server may read. The maintainer \shall{} be able to edit the skill files and the MCP server's allow-list in plain text and have those changes take effect on the next Bob session.
+\end{reqbox}
+
+\subsection{Operating Environment}
+
+\begin{itemize}
+  \item \textbf{Operating systems:} macOS 13+ (Apple Silicon and Intel), Ubuntu 22.04+, Windows 11 with WSL2.
+  \item \textbf{IBM Bob IDE:} a version supporting custom modes from files, project-scoped MCP servers, Bob Shell non-interactive sessions, and checkpoints. The version used at the hackathon (May 2026) is presumed.
+  \item \textbf{Runtimes:} Node.js 20 LTS or later; Python 3.11 or later; Git 2.40 or later.
+  \item \textbf{Network:} outbound HTTPS to the Bob inference endpoint, GitHub's REST and GraphQL APIs, and (optionally) Slack and Linear public APIs. Inbound: none required; all OnboardOps processes bind to \texttt{127.0.0.1}.
+  \item \textbf{Browsers:} the latest two stable versions of Chromium-based browsers and Firefox for the dashboard. Safari support is best-effort.
+\end{itemize}
+
+\subsection{Design and Implementation Constraints}
+
+\begin{itemize}
+  \item \textbf{C-1:} The hackathon submission window is 48 hours. Any requirement that cannot be completed within the window \shall{} be marked as \textit{stretch} in the build plan (Appendix E).
+  \item \textbf{C-2:} The team has a combined budget of \textbf{200 Bobcoins} (forty per team member). All product flows \shall{} be designed for Bobcoin economy. At least 25\% of the budget \shall{} be reserved for the final demo and video recording sessions.
+  \item \textbf{C-3:} The IBM Bob IDE is mandatory in the runtime path of the product, not merely the build path. Bob task session reports \shall{} be exported to \texttt{bob\_sessions/} as part of the submission.
+  \item \textbf{C-4:} No API keys, cloud credentials, or personally identifiable information \shall{} be committed to the public repository. IBM Security scanners run continuously and will deactivate the team's accounts if credentials are detected.
+  \item \textbf{C-5:} The following foundation models are out of scope for this hackathon and \shall{} not be used: \texttt{llama-3-405b-instruct}, \texttt{mistral-medium-2505}, \texttt{mistral-small-3-1-24b-instruct-2503}.
+  \item \textbf{C-6:} The product \shall{} be MIT-licensed (or compatible) and \shall{} use only dependencies whose licenses permit such redistribution.
+  \item \textbf{C-7:} The product \shall{} run entirely on the onboardee's local machine. No managed backend service is provisioned for the hackathon submission.
+  \item \textbf{C-8:} The demo repository is a public fork of an open-source FastAPI project, selected for its representative complexity (10--30 source files, a small but real test suite, at least one obvious onboarding ``trap'').
+  \item \textbf{C-9:} Bob's checkpoint mechanism \shall{} be used to wrap every step that can modify user files. The onboardee \shall{} always be able to roll back to a known-good state without manual git intervention.
+\end{itemize}
+
+\subsection{User Documentation}
+
+The following user-facing documentation \shall{} be delivered as part of the submission:
+
+\begin{itemize}
+  \item A repository \texttt{README.md} with installation, prerequisites, the 60-second demo script, and a screenshot of the dashboard.
+  \item A repository \texttt{AGENTS.md} (the OnboardOps team's own, separate from the personalized one produced for the onboardee) that gives Bob persistent context about the OnboardOps codebase itself.
+  \item A \texttt{docs/} folder containing this SRS (PDF), the slide deck, and a one-page architecture diagram.
+  \item Inline help in the dashboard that explains each stage of the onboarding journey.
+\end{itemize}
+
+\subsection{Assumptions and Dependencies}
+
+\begin{itemize}
+  \item \textbf{A-1:} The onboardee has installed IBM Bob IDE and signed in with the hackathon-provisioned account.
+  \item \textbf{A-2:} The onboardee has Git, Node.js 20+, Python 3.11+, and Docker (for one optional stretch feature) installed.
+  \item \textbf{A-3:} The demo machine has outbound HTTPS access to Bob's inference endpoint and to GitHub.
+  \item \textbf{A-4:} The demo repository's hosting service (GitHub) is operational and the team's read access is unrevoked at demo time.
+  \item \textbf{A-5:} The IBM Bob platform's behavior during the hackathon matches the published documentation referenced in Section 1.5.
+  \item \textbf{A-6:} The Lablab.ai submission portal is operational; the team will submit at least six hours before the deadline to absorb upload-related risk.
+\end{itemize}
+
+% =====================================================================
+\section{System Features}
+% =====================================================================
+
+This section enumerates the nine system features of OnboardOps. Each feature is described with a priority, a stimulus/response sequence, and a complete set of functional requirements.
+
+\subsection{F1 -- Custom Onboard Mode}
+
+\subsubsection{Description and Priority}
+
+The Onboard Mode is the entrypoint of the product. It is a custom Bob mode authored as a markdown file at \texttt{.bob/modes/onboard.md} and invoked by the onboardee as \texttt{/onboard} in the Bob chat panel.
+
+\textbf{Priority:} Critical (P0). Without this feature, the product does not exist.
+
+\subsubsection{Stimulus/Response Sequence}
+
+\begin{enumerate}
+  \item The onboardee opens a freshly cloned demo repository in Bob.
+  \item The onboardee types \texttt{/onboard} in the chat panel.
+  \item Bob activates the onboard mode, prints a one-paragraph greeting, asks for the onboardee's name and intended first day, and immediately invokes the repo-cartography skill (F2).
+  \item Throughout the session, the onboard mode rejects requests for direct code generation and instead returns Socratic prompts. The mode is a guide, not a coder.
+\end{enumerate}
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-1.1 -- Mode Activation}
+The system \shall{} register the \texttt{onboard} mode as a project-scoped custom mode loadable by Bob from \texttt{.bob/modes/onboard.md} without any manual installation step beyond cloning the repository.
+\end{reqbox}
+
+\begin{reqbox}{FR-1.2 -- Slash Invocation}
+The system \shall{} make the mode invocable via the slash command \texttt{/onboard}, leveraging Bob's documented mode-to-slash mapping.
+\end{reqbox}
+
+\begin{reqbox}{FR-1.3 -- Socratic Stance}
+The onboard mode \shall{} respond to direct code-writing requests (``write me the auth handler'') by redirecting the onboardee back to discovery (``before we write it, where would you expect it to live, and why?''). The mode \shall{} permit code generation only inside the explicit Starter PR step of F7.
+\end{reqbox}
+
+\begin{reqbox}{FR-1.4 -- Tool Authorization}
+The onboard mode \shall{} have read-only access to the workspace and the Institutional Knowledge MCP Server (F4). The mode \shall{} not have write access to source files except inside checkpoint-wrapped steps explicitly authorized by F3, F7, and F8.
+\end{reqbox}
+
+\begin{reqbox}{FR-1.5 -- Skill Auto-Activation}
+The onboard mode \shall{} auto-activate the \texttt{repo-cartography} skill (F2) on the first turn of the session and the \texttt{certification} skill (F6) when the onboardee declares readiness.
+\end{reqbox}
+
+\begin{reqbox}{FR-1.6 -- Mode Metadata}
+The mode file \shall{} include front-matter declaring its name, description, the skills it activates, the MCP servers it requires, and the maximum context window it should use (set conservatively to manage Bobcoin spend).
+\end{reqbox}
+
+\begin{reqbox}{FR-1.7 -- Greeting Contract}
+The first response from the onboard mode \shall{} contain exactly four elements: a one-line greeting, the OnboardOps stopwatch start signal, a request for the onboardee's name and preferred pronoun, and the first cartography prompt. It \shall{} not exceed 120 words.
+\end{reqbox}
+
+\subsection{F2 -- Repo Cartography Skill}
+
+\subsubsection{Description and Priority}
+
+The Repo Cartography Skill is a structured ``recipe'' (a Bob skill, in the platform's terminology) that takes Bob through a deterministic, four-stage walk of the target repository: dependency graph, entry points, hotspots, and conventions. It is the single most token-intensive feature; its design is the largest single influence on Bobcoin economy.
+
+\textbf{Priority:} Critical (P0).
+
+\subsubsection{Stimulus/Response Sequence}
+
+\begin{enumerate}
+  \item The onboard mode invokes the skill on its first turn.
+  \item The skill executes four sub-procedures in order and surfaces one summary card per procedure to the dashboard.
+  \item After each card, the skill emits one Socratic question for the onboardee.
+  \item On the onboardee's answer, the skill either advances or branches to a remedial micro-explanation.
+\end{enumerate}
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-2.1 -- Four-Stage Walk}
+The skill \shall{} execute, in order: (1) Dependency Graph, (2) Entry Points, (3) Change Hotspots, (4) Project Conventions.
+\end{reqbox}
+
+\begin{reqbox}{FR-2.2 -- Dependency Graph}
+The skill \shall{} produce a directed graph of top-level modules and their inbound and outbound imports, derived by parsing source files. The output \shall{} be a JSON object emitted to the dashboard and a one-paragraph human-readable summary in the chat panel.
+\end{reqbox}
+
+\begin{reqbox}{FR-2.3 -- Entry Points}
+The skill \shall{} identify CLI entry points, HTTP route handlers, scheduled jobs, and message consumers. For a FastAPI demo repository, this \shall{} include enumeration of all \texttt{@app.\textit{verb}()} decorators and any \texttt{if \_\_name\_\_ == "\_\_main\_\_"} blocks.
+\end{reqbox}
+
+\begin{reqbox}{FR-2.4 -- Change Hotspots}
+The skill \shall{} query the Institutional Knowledge MCP Server (F4) for the ten files with the highest commit frequency in the last 180 days and emit a ``hotspots'' card. Each hotspot \shall{} display change count, distinct authors, and a one-sentence Bob-generated rationale for why the file changes so often.
+\end{reqbox}
+
+\begin{reqbox}{FR-2.5 -- Project Conventions}
+The skill \shall{} infer at least three project conventions (naming, error-handling pattern, test layout) by reading representative files and emitting them as a ``conventions'' card.
+\end{reqbox}
+
+\begin{reqbox}{FR-2.6 -- Socratic Branching}
+After each card, the skill \shall{} emit exactly one Socratic question whose answer is checkable from the cartography output. On a wrong answer, the skill \shall{} respond with a single remedial paragraph (no more than 80 words) and re-ask; on the second wrong answer, it \shall{} reveal the answer and continue.
+\end{reqbox}
+
+\begin{reqbox}{FR-2.7 -- Token Discipline}
+The skill \shall{} cap its total turn cost at 25 Bobcoins per onboarding session under the demo repository. The mode \shall{} terminate the cartography stage early if the budget is exceeded and emit a ``cartography curtailed'' card to the dashboard with rationale.
+\end{reqbox}
+
+\subsection{F3 -- Environment Bootstrap Engine}
+
+\subsubsection{Description and Priority}
+
+The Environment Bootstrap Engine is the only OnboardOps feature that mutates the onboardee's local machine. It uses Bob Shell in non-interactive mode to install dependencies, run database migrations, seed test data, and verify the dev server boots. It is wrapped end-to-end in a Bob checkpoint so the onboardee can roll back any failed install.
+
+\textbf{Priority:} High (P1). The product can degrade gracefully without F3, but the ten-minute target requires it.
+
+\subsubsection{Stimulus/Response Sequence}
+
+\begin{enumerate}
+  \item After the cartography stage completes (F2), the onboard mode asks the onboardee for permission to bootstrap the environment.
+  \item On consent, Bob creates a checkpoint named \texttt{pre-bootstrap}.
+  \item Bob Shell is invoked non-interactively to run \texttt{scripts/bootstrap.sh}, which detects the project's package manager and runtime versions.
+  \item The script's stdout and stderr are piped to Bob, which interprets errors and, where possible, fixes them autonomously (for example, \texttt{nvm install} on a Node version mismatch).
+  \item On success, the dev server boots and a health-check endpoint returns 200; Bob commits the checkpoint.
+\end{enumerate}
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-3.1 -- Non-Interactive Invocation}
+The system \shall{} drive Bob Shell exclusively in non-interactive mode (\texttt{bob -p "..."}) during bootstrap; no interactive prompts \shall{} block the onboarding flow.
+\end{reqbox}
+
+\begin{reqbox}{FR-3.2 -- Checkpoint Wrapping}
+A Bob checkpoint named \texttt{pre-bootstrap} \shall{} be created before any file or environment mutation. On any non-recoverable failure, the checkpoint \shall{} be restored automatically.
+\end{reqbox}
+
+\begin{reqbox}{FR-3.3 -- Auto-Recovery Patterns}
+The engine \shall{} recognize and auto-recover from at least the following five failure modes: (a) Node version mismatch, (b) missing Python virtualenv, (c) port-in-use on the dev server, (d) missing seed data, (e) database not running. Each recovery \shall{} be logged to the dashboard as a discrete event.
+\end{reqbox}
+
+\begin{reqbox}{FR-3.4 -- Health Check}
+On completion, the engine \shall{} verify a dev-server health-check endpoint returns HTTP 200 within 30 seconds. Failure \shall{} surface a ``bootstrap incomplete'' state and prevent advancement to F6 certification.
+\end{reqbox}
+
+\begin{reqbox}{FR-3.5 -- Idempotence}
+The bootstrap engine \shall{} be safe to run twice. Running it on an already-bootstrapped environment \shall{} complete in under five seconds and not modify any files.
+\end{reqbox}
+
+\begin{reqbox}{FR-3.6 -- Time Budget}
+The bootstrap \shall{} complete in under three minutes on the reference hardware (Apple M-series with 16 GB RAM, on a 100 Mbps link). Failures that exceed this budget \shall{} abort and roll back.
+\end{reqbox}
+
+\subsection{F4 -- Institutional Knowledge MCP Server}
+
+\subsubsection{Description and Priority}
+
+The Institutional Knowledge MCP Server is a localhost FastAPI process that exposes structured tools Bob can call to enrich its narration: git blame summaries, PR rationales, change frequency, and (in the stretch implementation) Slack thread and Linear issue lookups scoped to the repository. It is the feature that turns the cartography from a generic LLM-tour into a team-specific one.
+
+\textbf{Priority:} Critical (P0).
+
+\subsubsection{Stimulus/Response Sequence}
+
+\begin{enumerate}
+  \item Bob, while running any skill, decides it needs context (for example, ``who last changed this file and why?'').
+  \item Bob calls the appropriate MCP tool with structured arguments.
+  \item The server queries the local git history (and, optionally, GitHub or Slack) and returns a structured response.
+  \item Bob incorporates the response into its narration.
+\end{enumerate}
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-4.1 -- Tool Surface}
+The server \shall{} expose at minimum the following MCP tools, all returning typed JSON: \texttt{git\_blame\_summary}, \texttt{commit\_frequency}, \texttt{recent\_authors}, \texttt{pr\_for\_file}, \texttt{file\_changelog}, \texttt{rationale\_for\_commit}, \texttt{incident\_for\_file}.
+\end{reqbox}
+
+\begin{reqbox}{FR-4.2 -- Project Binding}
+The server \shall{} be bound to Bob via a project-scoped \texttt{.bob/mcp.json} configuration committed in the repository. The configuration \shall{} not contain any secrets.
+\end{reqbox}
+
+\begin{reqbox}{FR-4.3 -- Allow-List}
+The server \shall{} read its data-source allow-list (which Slack channels, which Linear projects, which GitHub repositories) from \texttt{.onboardops/allowlist.yaml}. The server \shall{} refuse to expose data not on the allow-list.
+\end{reqbox}
+
+\begin{reqbox}{FR-4.4 -- Authentication}
+The server \shall{} authenticate to GitHub using a fine-grained personal access token loaded from the \texttt{ONBOARDOPS\_GITHUB\_TOKEN} environment variable. The server \shall{} refuse to start if the token is absent and the demo repository is not public.
+\end{reqbox}
+
+\begin{reqbox}{FR-4.5 -- Caching}
+The server \shall{} cache responses to identical tool calls for the duration of a single onboarding session (typically 10 minutes). The cache \shall{} live entirely in process memory and be discarded on server shutdown.
+\end{reqbox}
+
+\begin{reqbox}{FR-4.6 -- Performance}
+Each MCP tool call \shall{} return in under 800 ms at the 95th percentile against the demo repository.
+\end{reqbox}
+
+\begin{reqbox}{FR-4.7 -- Read-Only}
+The server \shall{} expose no tools that mutate git state, GitHub state, or external systems. It is strictly read-only.
+\end{reqbox}
+
+\begin{reqbox}{FR-4.8 -- Slack and Linear (Stretch)}
+The server \may{} expose \texttt{slack\_thread\_for\_topic} and \texttt{linear\_issue\_for\_file} tools when configured with valid tokens. If not configured, the tools \shall{} return a typed ``not configured'' response rather than failing the call.
+\end{reqbox}
+
+\subsection{F5 -- Live Learning Path Dashboard}
+
+\subsubsection{Description and Priority}
+
+The dashboard is a single-page Next.js application served at \texttt{http://localhost:3000} that renders the live learning path, the stopwatch, the current cartography card, the certification rubric, and the running session report. It is the feature that makes the product visually demonstrable on video.
+
+\textbf{Priority:} High (P1). The product can be judged on terminal output alone, but the dashboard is the largest single contributor to the demo's presentation score.
+
+\subsubsection{Stimulus/Response Sequence}
+
+\begin{enumerate}
+  \item The dashboard opens automatically when the onboardee runs \texttt{/onboard}.
+  \item The dashboard subscribes to the WebSocket bridge exposed by the MCP server.
+  \item As Bob emits structured events (turn-start, tool-call, card-emit, certification-step-complete), the dashboard renders them in real time.
+  \item On completion, the dashboard displays the final stopwatch time, the PR URL, and a download link for the personalized AGENTS.md.
+\end{enumerate}
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-5.1 -- Live Path}
+The dashboard \shall{} render the four cartography cards (dependency graph, entry points, hotspots, conventions) as the onboarding progresses, updating without page reload.
+\end{reqbox}
+
+\begin{reqbox}{FR-5.2 -- Stopwatch}
+The dashboard \shall{} display a stopwatch that starts on the first \texttt{/onboard} turn and stops on certification success. The stopwatch \shall{} be visible at 24 px or larger so it reads clearly on a 1080p video frame.
+\end{reqbox}
+
+\begin{reqbox}{FR-5.3 -- Event Stream}
+The dashboard \shall{} display a chronological event stream of Bob's tool calls and checkpoint events. The stream \shall{} support search and filtering by event type.
+\end{reqbox}
+
+\begin{reqbox}{FR-5.4 -- Certification Panel}
+The dashboard \shall{} expose a certification panel showing the three architecture questions, the onboardee's answers, and pass/fail indicators with green and red status colors.
+\end{reqbox}
+
+\begin{reqbox}{FR-5.5 -- Connection Resilience}
+On WebSocket disconnect, the dashboard \shall{} attempt reconnection at 1, 2, 4, and 8 second intervals and display a non-blocking banner indicating reconnection state.
+\end{reqbox}
+
+\begin{reqbox}{FR-5.6 -- Offline Replay}
+The dashboard \shall{} support replaying a completed session from a JSON file (the exported session report) without requiring a live Bob session. This is essential for the video and for judging.
+\end{reqbox}
+
+\begin{reqbox}{FR-5.7 -- Visual Identity}
+The dashboard \shall{} adopt the IBM design language (IBM Plex Sans, the IBM blue palette referenced in this document) without infringing IBM trademarks.
+\end{reqbox}
+
+\subsection{F6 -- Socratic Certification Workflow}
+
+\subsubsection{Description and Priority}
+
+The certification workflow gates the end of the onboarding session. Bob asks three architecture questions personalized to what the cartography revealed; the onboardee answers in free text; Bob grades the answers using a rubric encoded in a skill file. A passing grade plus a green dev server enables F7.
+
+\textbf{Priority:} High (P1).
+
+\subsubsection{Stimulus/Response Sequence}
+
+\begin{enumerate}
+  \item The onboardee declares readiness by saying ``certify me'' or clicking a button on the dashboard.
+  \item Bob loads the \texttt{certification} skill, selects three questions from its rubric calibrated against the cartography output, and asks them one by one in the chat.
+  \item For each question, Bob grades the answer as \textit{pass}, \textit{partial}, or \textit{fail}, providing a one-paragraph rationale.
+  \item Three passes or partials advance the onboardee to F7. Any fail loops back to the relevant cartography card for review.
+\end{enumerate}
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-6.1 -- Question Sourcing}
+The certification \shall{} draw questions from a pool of at least twelve question templates defined in \texttt{.bob/skills/certification.md}, parameterized by the cartography output.
+\end{reqbox}
+
+\begin{reqbox}{FR-6.2 -- Grading Rubric}
+Each question \shall{} have a rubric specifying the minimum content of a passing answer. The rubric \shall{} be machine-readable (YAML embedded in the skill file) so judges can inspect it.
+\end{reqbox}
+
+\begin{reqbox}{FR-6.3 -- Pass Threshold}
+The onboardee \shall{} be certified when at least two of three answers are graded \textit{pass} and none are graded \textit{fail}.
+\end{reqbox}
+
+\begin{reqbox}{FR-6.4 -- Remediation Loop}
+On any \textit{fail}, Bob \shall{} re-surface the relevant cartography card and ask one targeted follow-up before re-grading.
+\end{reqbox}
+
+\begin{reqbox}{FR-6.5 -- Anti-Sycophancy}
+The grading prompt \shall{} include explicit instructions to penalize plausible-but-shallow answers and to require evidence drawn from the cartography output or MCP responses.
+\end{reqbox}
+
+\subsection{F7 -- Starter PR Generator}
+
+\subsubsection{Description and Priority}
+
+The starter PR generator is the only stage where Bob is allowed to write code. It produces a small, scoped change to the demo repository (typically a documentation fix or a trivial endpoint), guides the onboardee through reviewing the diff, and helps them open a real pull request to the demo fork.
+
+\textbf{Priority:} High (P1).
+
+\subsubsection{Stimulus/Response Sequence}
+
+\begin{enumerate}
+  \item Certification (F6) passes.
+  \item The onboard mode hands off to a brief sub-routine: ``Now let's ship your first contribution.''
+  \item Bob proposes one of three pre-baked starter tasks (selected pseudo-randomly to defeat memorization on repeated demos).
+  \item Under a checkpoint named \texttt{starter-pr}, Bob produces a diff, runs the test suite, and opens a PR via the GitHub MCP integration (or, if unavailable, prints the PR URL the onboardee should click).
+\end{enumerate}
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-7.1 -- Bounded Diff}
+The generated diff \shall{} not exceed thirty lines of changed code (excluding tests) and \shall{} be confined to a single file unless the task explicitly requires more.
+\end{reqbox}
+
+\begin{reqbox}{FR-7.2 -- Test Coverage}
+Bob \shall{} run the test suite locally before opening the PR. A failed test \shall{} abort the PR and roll back to the checkpoint.
+\end{reqbox}
+
+\begin{reqbox}{FR-7.3 -- Task Pool}
+A pool of at least three distinct starter tasks \shall{} be defined in \texttt{.bob/skills/starter-tasks.md}.
+\end{reqbox}
+
+\begin{reqbox}{FR-7.4 -- Branch Naming}
+The PR branch \shall{} be named \texttt{onboardops/\textit{onboardee-name}-\textit{timestamp}}.
+\end{reqbox}
+
+\begin{reqbox}{FR-7.5 -- PR Body}
+The PR body \shall{} include the onboardee's name, the certification result, the stopwatch time, and a link to the exported \texttt{AGENTS.md}.
+\end{reqbox}
+
+\subsection{F8 -- Personalized AGENTS.md Builder}
+
+\subsubsection{Description and Priority}
+
+The AGENTS.md builder produces a personalized markdown file that captures the onboardee's mental model of the repository: the cartography output, their answers to certification questions, their open questions, and a list of teammates to ask about specific files. The file is written to the repository root as \texttt{AGENTS.md} (overwriting any prior version, with the previous version preserved at \texttt{AGENTS.md.bak}).
+
+\textbf{Priority:} Medium (P2). This is the lowest-priority core feature; without it the product still works, but it loses its lasting-artifact story.
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-8.1 -- Composition}
+The personalized \texttt{AGENTS.md} \shall{} include sections for: Repo Cartography Summary, Hotspots and Their Owners, Project Conventions, Open Questions, Recommended Next Reading.
+\end{reqbox}
+
+\begin{reqbox}{FR-8.2 -- Length Cap}
+The generated file \shall{} not exceed 4{,}000 tokens to ensure Bob can load it as future context without dominating its window.
+\end{reqbox}
+
+\begin{reqbox}{FR-8.3 -- Idempotence}
+On repeated runs, the builder \shall{} preserve sections the onboardee has manually edited (denoted by an HTML comment marker) and refresh only the auto-generated sections.
+\end{reqbox}
+
+\begin{reqbox}{FR-8.4 -- /init Compatibility}
+The output \shall{} be a valid input to Bob's \texttt{/init} mechanism, such that loading the file as context produces a Bob session with full awareness of the onboardee's prior session.
+\end{reqbox}
+
+\subsection{F9 -- Onboarding Telemetry and Session Export}
+
+\subsubsection{Description and Priority}
+
+This feature is the bridge between the live product and the hackathon submission deliverables. It records every Bob turn, tool call, checkpoint, and dashboard event into a JSON file that doubles as the offline-replay source for F5 and the basis for the \texttt{bob\_sessions/} exports.
+
+\textbf{Priority:} Critical (P0). Without this feature, the team cannot submit a compliant entry.
+
+\subsubsection{Functional Requirements}
+
+\begin{reqbox}{FR-9.1 -- Event Capture}
+The system \shall{} capture every turn-start, turn-end, tool-call, tool-response, checkpoint-create, checkpoint-restore, mode-switch, and certification-grade event into an append-only log file at \texttt{.onboardops/sessions/\textit{session-id}.jsonl}.
+\end{reqbox}
+
+\begin{reqbox}{FR-9.2 -- Stopwatch Capture}
+Each event \shall{} carry a monotonic timestamp relative to session start.
+\end{reqbox}
+
+\begin{reqbox}{FR-9.3 -- Bob Task Export}
+The system \shall{} export Bob task session reports (markdown plus the consumption-summary screenshot) to \texttt{bob\_sessions/} as part of the submission. The repository \shall{} include a Makefile target \texttt{make export-bob-sessions} that orchestrates this for the entire team.
+\end{reqbox}
+
+\begin{reqbox}{FR-9.4 -- PII Scrubbing}
+Before any commit, all session files \shall{} pass a PII scrub that removes API keys, OAuth tokens, email addresses outside the team's allow-list, and absolute file paths containing usernames. A CI check \shall{} enforce this.
+\end{reqbox}
+
+\begin{reqbox}{FR-9.5 -- Reproducibility}
+A session log \shall{} be sufficient to replay the dashboard timeline (F5.6) without access to Bob's internal state.
+\end{reqbox}
+
+% =====================================================================
+\section{External Interface Requirements}
+% =====================================================================
+
+\subsection{User Interfaces}
+
+OnboardOps exposes two surfaces to the user: the Bob IDE chat panel and the Learning Path Dashboard. Both \shall{} share the same visual identity (typography and palette derived from IBM Plex Sans and IBM Blue 60).
+
+\subsubsection*{Bob IDE Chat Panel}
+
+The chat panel is owned by Bob; OnboardOps influences it only through the onboard mode's response formatting. Messages from the onboard mode \shall{} follow a four-part structure where applicable: (1) a one-sentence status, (2) the cartography card body, (3) a Socratic question in bold, (4) a hint that the dashboard has updated.
+
+\subsubsection*{Learning Path Dashboard}
+
+The dashboard \shall{} be a single-page Next.js application with the following layout:
+
+\begin{itemize}
+  \item A header band containing the stopwatch (left), the OnboardOps wordmark (center), and the onboardee's name (right).
+  \item A main panel with the four cartography cards in a horizontal stepper.
+  \item A right sidebar with the certification panel.
+  \item A footer with the event stream toggle and a ``replay this session'' button.
+\end{itemize}
+
+The dashboard \shall{} be usable on a 13-inch laptop screen at 1440$\times$900 resolution without horizontal scrolling.
+
+\subsection{Hardware Interfaces}
+
+OnboardOps has no direct hardware interface requirements beyond those imposed by Bob IDE and the runtimes listed in Section 2.4.
+
+\subsection{Software Interfaces}
+
+\begin{longtable}{|p{3.4cm}|p{3.2cm}|p{7.4cm}|}
+\hline
+\textbf{System} & \textbf{Direction} & \textbf{Description} \\
+\hline
+\endhead
+IBM Bob IDE & In/out & Custom mode loaded at workspace open; chat turns flow in and out via Bob's documented APIs. \\
+\hline
+Bob Shell & Out & Invoked non-interactively from \texttt{scripts/bootstrap.sh}; stdout/stderr captured for auto-recovery. \\
+\hline
+MCP (Model Context Protocol) & In & Bob calls MCP tools exposed by the Institutional Knowledge Server. \\
+\hline
+GitHub REST/GraphQL & Out & Reading PR history, opening starter PRs. Authenticated via fine-grained PAT. \\
+\hline
+Slack Web API & Out (stretch) & Reading public channel history for the allow-listed channels. \\
+\hline
+Linear GraphQL & Out (stretch) & Reading issues linked to the demo repository. \\
+\hline
+IBM watsonx.ai (Granite) & Out (stretch) & Optional inference fallback for low-cost summarization, configured by URL/key. \\
+\hline
+Local file system & In/out & Reading source files; writing AGENTS.md, session logs, and Bob's checkpoint metadata. \\
+\hline
+\end{longtable}
+
+\subsection{Communications Interfaces}
+
+\begin{itemize}
+  \item All inter-process communication \shall{} occur over loopback (\texttt{127.0.0.1}). No port \shall{} bind to an external interface during the hackathon.
+  \item The MCP server \shall{} listen on TCP port 8765 by default, configurable via \texttt{ONBOARDOPS\_MCP\_PORT}.
+  \item The dashboard \shall{} listen on TCP port 3000 by default, configurable via \texttt{PORT}.
+  \item The WebSocket bridge \shall{} be served at \texttt{ws://127.0.0.1:8765/events} and \shall{} emit newline-delimited JSON events.
+  \item Outbound HTTPS traffic \shall{} use TLS 1.2 or higher.
+\end{itemize}
+
+% =====================================================================
+\section{Non-Functional Requirements}
+% =====================================================================
+
+\subsection{Performance Requirements}
+
+\begin{reqbox}{NFR-1 -- End-to-End Time}
+The system \shall{} complete a full onboarding session (initiation through PR open) in under \textbf{ten minutes} of wall-clock time on the reference hardware described in Section 2.4. The 95th-percentile target \shall{} be 12 minutes.
+\end{reqbox}
+
+\begin{reqbox}{NFR-2 -- Per-Turn Latency}
+Each Bob turn (excluding tool calls) \shall{} return its first token in under 3 seconds and complete in under 15 seconds at the 95th percentile.
+\end{reqbox}
+
+\begin{reqbox}{NFR-3 -- Dashboard Responsiveness}
+The dashboard \shall{} render incoming WebSocket events within 200 ms of receipt. The dashboard \shall{} not block the main thread for more than 50 ms in any single operation.
+\end{reqbox}
+
+\begin{reqbox}{NFR-4 -- Bobcoin Budget}
+A complete onboarding session \shall{} consume no more than \textbf{15 Bobcoins} (averaged across demo runs) so the team can afford at least 13 full runs within the 200-Bobcoin budget.
+\end{reqbox}
+
+\begin{reqbox}{NFR-5 -- Bootstrap Time}
+The environment bootstrap (F3) \shall{} complete in under three minutes on the reference hardware.
+\end{reqbox}
+
+\subsection{Safety Requirements}
+
+\begin{reqbox}{NFR-6 -- File Mutation Safety}
+The system \shall{} not delete user files. All file writes \shall{} occur inside a Bob checkpoint, and the onboardee \shall{} retain the ability to restore the checkpoint at any time during the session and for at least 24 hours after.
+\end{reqbox}
+
+\begin{reqbox}{NFR-7 -- Network Egress Whitelist}
+The MCP server \shall{} refuse to make outbound HTTPS calls to any host not on a configured allow-list (\texttt{api.github.com}, \texttt{slack.com}, \texttt{api.linear.app}, and the configured Bob inference endpoint).
+\end{reqbox}
+
+\begin{reqbox}{NFR-8 -- No Destructive Git Operations}
+The system \shall{} not execute \texttt{git push --force}, \texttt{git reset --hard} outside of checkpoint operations, or any other destructive git operation. All branch operations \shall{} be confined to OnboardOps-prefixed branches.
+\end{reqbox}
+
+\subsection{Security Requirements}
+
+\begin{reqbox}{NFR-9 -- No Secrets in Repository}
+The repository \shall{} contain no API keys, tokens, passwords, or other credentials. All secrets \shall{} be supplied via environment variables documented in \texttt{.env.example}. A pre-commit hook \shall{} enforce this with a regex scan plus \texttt{gitleaks}.
+\end{reqbox}
+
+\begin{reqbox}{NFR-10 -- Local Binding Only}
+All OnboardOps processes \shall{} bind exclusively to \texttt{127.0.0.1} during the hackathon. Binding to \texttt{0.0.0.0} \shall{} be a failing CI check.
+\end{reqbox}
+
+\begin{reqbox}{NFR-11 -- Token Scope Minimization}
+The GitHub fine-grained PAT used by the MCP server \shall{} grant only the minimum scopes required: \texttt{contents:read}, \texttt{metadata:read}, \texttt{pull-requests:read+write} (the last only if F7 opens a PR on behalf of the onboardee).
+\end{reqbox}
+
+\begin{reqbox}{NFR-12 -- PII Hygiene}
+Session logs and exported Bob task reports \shall{} pass a PII scrub before any commit. The scrub \shall{} remove email addresses outside an allow-list, OAuth tokens, and absolute paths containing usernames.
+\end{reqbox}
+
+\begin{reqbox}{NFR-13 -- Defense in Depth}
+The dashboard \shall{} set conservative Content-Security-Policy headers (\texttt{default-src 'self'}; no inline scripts; no third-party origins).
+\end{reqbox}
+
+\subsection{Software Quality Attributes}
+
+\begin{itemize}
+  \item \textbf{Reliability:} the product \shall{} complete a full session successfully on at least 9 of 10 attempts during the final 24 hours of the build window.
+  \item \textbf{Maintainability:} all non-trivial code \shall{} be accompanied by a one-paragraph header comment generated or reviewed by Bob; the team \shall{} target a code-review-to-merge time under 10 minutes for changes inside the hackathon window.
+  \item \textbf{Portability:} the product \shall{} run unchanged across macOS, Linux, and Windows-via-WSL2; platform-specific paths \shall{} be avoided in favor of cross-platform libraries.
+  \item \textbf{Testability:} the MCP server, the dashboard, and the bootstrap script \shall{} each have at least one happy-path automated test runnable by \texttt{make test} in under 60 seconds.
+  \item \textbf{Auditability:} every Bob session \shall{} be exportable to a deterministic JSON log that fully reconstructs the dashboard timeline.
+  \item \textbf{Internationalization:} not a requirement for the hackathon; all strings \shall{} live in a single \texttt{strings.ts} module to enable later i18n.
+\end{itemize}
+
+\subsection{Business Rules}
+
+\begin{itemize}
+  \item Only the maintainer (Section 2.3) may modify the certification rubric and the allow-list. A CODEOWNERS file \shall{} enforce this.
+  \item No commit may exceed 400 lines of net change without a documented exception in the PR body.
+  \item The team \shall{} not commit any artifact larger than 10 MB; assets above this threshold \shall{} be hosted externally and referenced by URL.
+\end{itemize}
+
+% =====================================================================
+\section{Other Requirements}
+% =====================================================================
+
+\subsection{Hackathon Submission Requirements}
+
+The repository, as submitted to Lablab.ai, \shall{} contain at minimum:
+
+\begin{itemize}
+  \item A public GitHub repository URL with the MIT license file at the root.
+  \item A \texttt{bob\_sessions/} folder with task session markdown exports and consumption-summary screenshots for each significant feature build.
+  \item A \texttt{docs/} folder containing this SRS as \texttt{onboardops\_srs.pdf}, the slide deck (\texttt{onboardops\_deck.pdf}), and the architecture diagram (\texttt{architecture.svg}).
+  \item A \texttt{README.md} including a cover image, the 60-second demo script, prerequisites, install steps, and the team roster.
+  \item A demo application URL (the dashboard's deployed instance) or, if local-only, a clearly documented \texttt{make demo} target.
+  \item A 5-minute video presentation linked from the README.
+\end{itemize}
+
+\subsection{Licensing}
+
+OnboardOps \shall{} be licensed under MIT. All third-party dependencies \shall{} be MIT-, Apache-2.0-, or BSD-compatible. GPL and AGPL dependencies \shall{} not be introduced.
+
+\subsection{Data Privacy}
+
+OnboardOps does not collect or transmit personally identifiable information beyond what the user voluntarily types into Bob during the session. All session data lives on the onboardee's local machine. No analytics, telemetry, or crash reports are sent to OnboardOps-controlled endpoints.
+
+% =====================================================================
+\appendix
+\section{Glossary}
+% =====================================================================
+
+\begin{description}
+  \item[Bob.] The IBM AI-powered development partner that hosts OnboardOps' runtime: a VS-Code-derived IDE plus a CLI (Bob Shell), with first-class support for custom modes, skills, slash commands, MCP servers, and checkpoints.
+  \item[Bobcoin.] The unit of Bob inference consumption. The hackathon allots 40 Bobcoins per team member.
+  \item[Cartography.] The structured four-stage walk of a repository performed by F2.
+  \item[Certification.] The three-question assessment that gates F7.
+  \item[Checkpoint.] A Bob-managed snapshot of the workspace that the user can restore. Used by F3 and F7 to make destructive operations safe.
+  \item[MCP.] Model Context Protocol; the open standard by which Bob calls structured external tools.
+  \item[Mode.] A Bob persona defined by a markdown file, invocable as a slash command.
+  \item[Onboardee.] The new engineering hire who runs OnboardOps. The primary user class.
+  \item[Skill.] A reusable instruction recipe in markdown that Bob loads on demand to perform a specialized task.
+  \item[Starter PR.] The bounded, ship-able pull request produced by F7 as the onboarding session's lasting artifact.
+\end{description}
+
+\section{Use Case Summary}
+
+\begin{longtable}{|p{2.5cm}|p{3.2cm}|p{4cm}|p{4.5cm}|}
+\hline
+\textbf{ID} & \textbf{Name} & \textbf{Actor} & \textbf{Outcome} \\
+\hline
+UC-1 & Initiate onboarding & Onboardee & Bob loads the onboard mode and stopwatch starts. \\
+\hline
+UC-2 & Walk the repo & Onboardee \& Bob & Four cartography cards rendered to dashboard. \\
+\hline
+UC-3 & Bootstrap environment & Onboardee \& Bob Shell & Dev server up, checkpoint committed. \\
+\hline
+UC-4 & Query institutional knowledge & Bob, via MCP & Structured git/PR/Slack context returned. \\
+\hline
+UC-5 & Certify the onboardee & Onboardee \& Bob & Three architecture questions graded. \\
+\hline
+UC-6 & Ship starter PR & Onboardee \& Bob & PR opened against demo fork. \\
+\hline
+UC-7 & Persist AGENTS.md & Bob & Personalized markdown committed locally. \\
+\hline
+UC-8 & Export session report & Team & \texttt{bob\_sessions/} populated for judging. \\
+\hline
+\end{longtable}
+
+\section{Data Dictionary (Selected Entities)}
+
+\begin{longtable}{|p{3.2cm}|p{3.2cm}|p{7.6cm}|}
+\hline
+\textbf{Entity} & \textbf{Type} & \textbf{Description} \\
+\hline
+\texttt{Session} & object & A single onboarding run. Fields: \texttt{id}, \texttt{onboardee\_name}, \texttt{repo\_url}, \texttt{started\_at}, \texttt{ended\_at}, \texttt{status}. \\
+\hline
+\texttt{CartographyCard} & object & One of four card types. Fields: \texttt{type} (graph$|$entry$|$hotspot$|$convention), \texttt{title}, \texttt{body\_markdown}, \texttt{data}, \texttt{emitted\_at}. \\
+\hline
+\texttt{Hotspot} & object & A high-churn file. Fields: \texttt{path}, \texttt{commit\_count\_180d}, \texttt{distinct\_authors}, \texttt{rationale}. \\
+\hline
+\texttt{Question} & object & A certification prompt. Fields: \texttt{id}, \texttt{text}, \texttt{rubric}, \texttt{answer}, \texttt{grade}, \texttt{rationale}. \\
+\hline
+\texttt{Event} & object & A log line in the session JSONL. Fields: \texttt{ts}, \texttt{kind}, \texttt{payload}. \\
+\hline
+\texttt{Checkpoint} & object & A Bob-managed snapshot reference. Fields: \texttt{id}, \texttt{name}, \texttt{created\_at}, \texttt{restored\_at}. \\
+\hline
+\end{longtable}
+
+\section{Demo Script (60-Second Climax)}
+
+The video's central 60 seconds \shall{} consist of the following beats. The script is the spec for both editing and live presentation.
+
+\begin{enumerate}
+  \item \textbf{[0:00]} A laptop screen with a freshly cloned repository (\texttt{git clone}'d on camera). No prior context. Bob IDE open, chat empty.
+  \item \textbf{[0:03]} Onboardee types \texttt{/onboard}. Stopwatch begins (visible on the dashboard, second monitor).
+  \item \textbf{[0:08]} Bob's first message renders: greeting plus the first cartography card forming live (animated dependency graph).
+  \item \textbf{[0:15]} Cards 2, 3, 4 stream in as Bob narrates. The MCP server lights up in the event stream with three tool calls.
+  \item \textbf{[0:25]} Bootstrap runs: a flash of terminal output, an auto-recovery (port-in-use), and a green health check.
+  \item \textbf{[0:35]} Certification panel slides in. Three questions asked. Onboardee answers; two pass, one partial. The dashboard turns green.
+  \item \textbf{[0:48]} Starter PR generated. Test suite runs. A real PR URL appears on screen.
+  \item \textbf{[0:55]} Onboardee clicks. GitHub opens. ``Onboarded: 9 min 12 sec'' stamped on the PR description.
+  \item \textbf{[1:00]} Cut to credits with the OnboardOps wordmark and the line: \textit{Six months of onboarding, compressed into one cup of coffee.}
+\end{enumerate}
+
+\section{48-Hour Build Plan}
+
+\begin{longtable}{|p{2.0cm}|p{2.8cm}|p{5cm}|p{4.6cm}|}
+\hline
+\textbf{Window} & \textbf{Owner} & \textbf{Deliverable} & \textbf{Exit Criteria} \\
+\hline
+H+0 \mbox{--} H+2 & All five & Lock SRS scope; choose demo repo; record 60-second demo script as storyboard. & Storyboard reviewed by all. \\
+\hline
+H+2 \mbox{--} H+6 & Dev 1 (Bob lead) & Author \texttt{.bob/modes/onboard.md} and \texttt{.bob/skills/repo-cartography.md}; first run on demo repo. & First card emits in Bob chat. \\
+\hline
+H+2 \mbox{--} H+8 & Dev 2 (backend) & Stand up FastAPI Institutional Knowledge MCP Server with three tools. & Bob successfully calls \texttt{git\_blame\_summary}. \\
+\hline
+H+2 \mbox{--} H+10 & Dev 3 (frontend) & Next.js dashboard skeleton; WebSocket bridge stub. & Stopwatch ticks; event stream renders fake events. \\
+\hline
+H+6 \mbox{--} H+14 & Dev 1 \& Dev 2 & End-to-end cartography on demo repo; remaining four MCP tools. & All four cartography cards render. \\
+\hline
+H+10 \mbox{--} H+20 & Dev 4 (infra) & Bob Shell bootstrap script; five auto-recovery patterns; checkpoint wrapping. & Bootstrap completes in $<$ 3 min on reference laptop. \\
+\hline
+H+14 \mbox{--} H+24 & Dev 1 & Certification skill and rubric; twelve question templates. & 3-of-3 happy-path certification passes end-to-end. \\
+\hline
+H+20 \mbox{--} H+30 & Dev 5 (full-stack \& design) & Polish dashboard (IBM design language); replay mode; certification panel. & Replay from JSON works without Bob session. \\
+\hline
+H+24 \mbox{--} H+32 & Dev 1 \& Dev 5 & Starter PR generator; AGENTS.md builder. & A real PR opens against the demo fork. \\
+\hline
+H+32 \mbox{--} H+40 & All five & Three full end-to-end demo runs; export \texttt{bob\_sessions/}; write README. & 3 of 3 runs succeed under 10 min. \\
+\hline
+H+40 \mbox{--} H+44 & Dev 3 \& Dev 5 & Record video; finalize slide deck. & Video uploaded as draft. \\
+\hline
+H+44 \mbox{--} H+48 & All five & Submit. Soft buffer for upload issues. & Submission confirmation received. \\
+\hline
+\end{longtable}
+
+\section{Open Issues}
+
+\begin{enumerate}
+  \item Choice of demo repository to be locked at H+1. Candidate set: \texttt{tiangolo/full-stack-fastapi-template}, \texttt{encode/starlette}, \texttt{tiangolo/sqlmodel}.
+  \item Decision on whether to invoke watsonx.ai Granite as a cost-reduction fallback for cartography summaries (pending Bobcoin burn measurement after first end-to-end run).
+  \item Decision on whether Slack and Linear stretch MCP tools ship in v1.0 or are deferred (target: defer unless H+24 status is ahead of plan).
+\end{enumerate}
+
+\vfill
+
+\begin{center}
+\rule{0.6\textwidth}{0.6pt}\\
+\vspace{0.3em}
+{\small\itshape\color{ibmgray} End of Software Requirements Specification, Version 1.0.\\}
+{\small\itshape\color{ibmgray} OnboardOps -- The 10-Minute Repo Whisperer.\\}
+{\small\itshape\color{ibmgray} Built for the IBM Bob Hackathon 2026.}
+\end{center}
+
+\end{document}
