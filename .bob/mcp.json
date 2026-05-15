@@ -1,0 +1,59 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp-config.json",
+  "mcpServers": {
+    "institutional-knowledge": {
+      "name": "Institutional Knowledge Server",
+      "description": "Exposes git history, PR metadata, and team communication context as structured tools for OnboardOps cartography",
+      "transport": "http",
+      "url": "http://127.0.0.1:8765/mcp",
+      "timeout": 30000,
+      "retries": 3,
+      "tools": [
+        {
+          "name": "git_blame_summary",
+          "description": "Returns aggregated blame data for a file: top contributors, line ownership percentages, last modified dates"
+        },
+        {
+          "name": "commit_frequency",
+          "description": "Returns commit count per file over a time window (default: 180 days), sorted by frequency"
+        },
+        {
+          "name": "recent_authors",
+          "description": "Returns list of distinct authors who modified a file in the last N days, with commit counts"
+        },
+        {
+          "name": "pr_for_file",
+          "description": "Returns most recent pull request that modified a given file, with title, author, and merge date"
+        },
+        {
+          "name": "file_changelog",
+          "description": "Returns chronological list of commits affecting a file, with commit message, author, and date"
+        },
+        {
+          "name": "rationale_for_commit",
+          "description": "Returns commit message and PR description for a given commit SHA, explaining why the change was made"
+        },
+        {
+          "name": "incident_for_file",
+          "description": "Returns linked incidents or issues (from Linear, Jira, GitHub Issues) that mention the file"
+        }
+      ],
+      "authentication": {
+        "type": "none",
+        "note": "Server authenticates to GitHub via ONBOARDOPS_GITHUB_TOKEN env var; no auth required from Bob to server"
+      },
+      "caching": {
+        "enabled": true,
+        "ttl": 600,
+        "note": "Server caches responses for 10 minutes to reduce GitHub API calls and Bobcoin spend"
+      }
+    }
+  },
+  "settings": {
+    "autoConnect": true,
+    "reconnectOnFailure": true,
+    "logLevel": "info"
+  }
+}
+
+// Made with Bob
