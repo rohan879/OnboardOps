@@ -2,9 +2,37 @@
 
 import { Stopwatch } from '@/components/Stopwatch';
 import { EventStream } from '@/components/EventStream';
+import { CartographyCard } from '@/components/CartographyCard';
+import { DependencyGraph, GraphData } from '@/components/DependencyGraph';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventsStore } from '@/store/events';
 import { useState } from 'react';
+
+// Sample graph data for testing
+const sampleGraphData: GraphData = {
+  nodes: [
+    { id: 'app', name: 'app.py', group: 1, val: 15 },
+    { id: 'models', name: 'models.py', group: 1, val: 12 },
+    { id: 'views', name: 'views.py', group: 1, val: 10 },
+    { id: 'utils', name: 'utils.py', group: 2, val: 8 },
+    { id: 'config', name: 'config.py', group: 2, val: 8 },
+    { id: 'auth', name: 'auth.py', group: 3, val: 10 },
+    { id: 'db', name: 'database.py', group: 3, val: 12 },
+    { id: 'api', name: 'api.py', group: 1, val: 10 },
+  ],
+  edges: [
+    { source: 'app', target: 'models' },
+    { source: 'app', target: 'views' },
+    { source: 'app', target: 'config' },
+    { source: 'views', target: 'models' },
+    { source: 'views', target: 'auth' },
+    { source: 'models', target: 'db' },
+    { source: 'auth', target: 'db' },
+    { source: 'api', target: 'models' },
+    { source: 'api', target: 'auth' },
+    { source: 'utils', target: 'config' },
+  ],
+};
 
 export default function Home() {
   const [sessionStart] = useState(new Date());
@@ -29,31 +57,36 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex max-w-[1440px] mx-auto w-full">
-        {/* Main Panel - 4-card stepper */}
-        <main className="flex-1 p-6">
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            {[1, 2, 3, 4].map((step) => (
-              <div
-                key={step}
-                className="bg-ibm-gray-10 rounded-lg p-6 border-2 border-transparent hover:border-ibm-blue-60 transition-colors"
-              >
-                <div className="text-sm font-semibold text-ibm-gray-70 mb-2">
-                  Step {step}
-                </div>
-                <div className="text-xs text-ibm-gray-70">
-                  Placeholder card
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <div className="bg-ibm-gray-10 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-ibm-gray-100 mb-2">
-              Main Content Area
-            </h2>
-            <p className="text-sm text-ibm-gray-70">
-              This area will display onboarding progress and insights.
-            </p>
+        {/* Main Panel - Cartography Cards */}
+        <main className="flex-1 p-6 space-y-6">
+          {/* Dependency Graph Card with real visualization */}
+          <CartographyCard
+            type="graph"
+            title="Dependency Graph"
+            state="complete"
+          >
+            <DependencyGraph data={sampleGraphData} width={700} height={500} />
+          </CartographyCard>
+
+          {/* Other cards */}
+          <div className="grid grid-cols-3 gap-4">
+            <CartographyCard
+              type="entry"
+              title="Entry Points"
+              state="in-progress"
+            />
+
+            <CartographyCard
+              type="hotspot"
+              title="Change Hotspots"
+              state="pending"
+            />
+
+            <CartographyCard
+              type="convention"
+              title="Project Conventions"
+              state="pending"
+            />
           </div>
         </main>
 
