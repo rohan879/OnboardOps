@@ -10,6 +10,7 @@ import { BobcoinMeter } from '@/components/BobcoinMeter';
 import { LoadingState, SkeletonLoader } from '@/components/LoadingState';
 import { ErrorState, ErrorBanner, EmptyState } from '@/components/ErrorState';
 import { useEvents } from '@/hooks/useEvents';
+import { useEventHandlers } from '@/hooks/useEventHandlers';
 import { useEventsStore } from '@/store/events';
 import { useState } from 'react';
 
@@ -43,6 +44,7 @@ export default function Home() {
   const [sessionStart] = useState(new Date());
   const [showEventStream, setShowEventStream] = useState(false);
   const { isConnected } = useEvents();
+  useEventHandlers(); // Process WebSocket events and update state
   const connectionState = useEventsStore((state) => state.connectionState);
   const cartographySteps = useEventsStore((state) => state.cartographySteps);
   const updateStepStatus = useEventsStore((state) => state.updateStepStatus);

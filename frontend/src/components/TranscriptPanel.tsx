@@ -23,13 +23,33 @@ export function TranscriptPanel({ className = '', maxHeight = 400 }: TranscriptP
 
   // Convert events to transcript messages
   const messages: TranscriptMessage[] = events
-    .filter((event) => event.type === 'TurnEnd' || event.type === 'QuestionAsk')
-    .map((event) => ({
-      id: event.id,
-      role: event.type === 'QuestionAsk' ? 'bob' : 'bob',
-      content: (event.data.message || event.data.question || 'Processing...') as string,
-      timestamp: event.timestamp,
-    }));
+    .filter((event) =>
+      event.type === 'turn_end' ||
+      event.type === 'card_emit' ||
+      event.type === 'certification_grade'
+    )
+    .map((event) => {
+      let content = 'Processing...';
+      
+      if (event.type === 'turn_end') {
+        const tokensUsed = event.data.tokens_used as number || 0;
+        const duration = event.data.duration_ms as number || 0;
+        content = `Turn ${event.data.turn_number} completed (${tokensUsed} tokens, ${duration}ms)`;
+      } else if (event.type === 'card_emit') {
+        const title = event.data.title as string || 'Card';
+        content = `Generated: ${title}`;
+      } else if (event.type === 'certification_grade') {
+        const grade = event.data.grade as string || 'unknown';
+        content = `Certification: ${grade}`;
+      }
+      
+      return {
+        id: event.id,
+        role: 'bob' as const,
+        content,
+        timestamp: event.timestamp,
+      };
+    });
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

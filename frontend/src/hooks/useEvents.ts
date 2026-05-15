@@ -51,13 +51,26 @@ export function useEvents() {
   useEffect(() => {
     if (lastMessage !== null) {
       try {
-        const event = JSON.parse(lastMessage.data);
-        addEvent({
-          id: event.id || crypto.randomUUID(),
-          type: event.type || 'unknown',
-          timestamp: event.timestamp || new Date().toISOString(),
-          data: event,
-        });
+        const envelope = JSON.parse(lastMessage.data) as Record<string, unknown>;
+        
+        // Handle EventEnvelope structure from backend
+        if (envelope.event && typeof envelope.event === 'object') {
+          const event = envelope.event as Record<string, unknown>;
+          addEvent({
+            id: (event.event_id as string) || crypto.randomUUID(),
+            type: (event.event_type as string) || 'unknown',
+            timestamp: event.timestamp ? new Date((event.timestamp as number) * 1000).toISOString() : new Date().toISOString(),
+            data: event,
+          });
+        } else {
+          // Fallback for direct event format
+          addEvent({
+            id: (envelope.event_id as string) || crypto.randomUUID(),
+            type: (envelope.event_type as string) || 'unknown',
+            timestamp: envelope.timestamp ? new Date((envelope.timestamp as number) * 1000).toISOString() : new Date().toISOString(),
+            data: envelope,
+          });
+        }
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
       }
