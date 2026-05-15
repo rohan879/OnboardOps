@@ -4,7 +4,7 @@ Returns deterministic mock data for incidents related to a file
 """
 
 from datetime import datetime, timedelta
-from backend.mcp.contracts import (
+from mcp.contracts import (
     IncidentForFileInput,
     IncidentForFileOutput,
     IncidentInfo,

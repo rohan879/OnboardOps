@@ -4,7 +4,7 @@ Returns deterministic mock data for file commit history
 """
 
 from datetime import datetime, timedelta
-from backend.mcp.contracts import FileChangelogInput, FileChangelogOutput, CommitInfo
+from mcp.contracts import FileChangelogInput, FileChangelogOutput, CommitInfo
 
 
 def file_changelog(input_data: FileChangelogInput) -> FileChangelogOutput:
