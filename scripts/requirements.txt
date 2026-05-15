@@ -1,0 +1,11 @@
+# OnboardOps Scripts Dependencies
+# Install with: pip install -r scripts/requirements.txt
+
+# Telemetry capture (T5.1)
+websockets>=12.0
+
+# GitHub API integration (T5.7)
+PyGithub>=2.1.1
+
+# General utilities
+python-dotenv>=1.0.0
