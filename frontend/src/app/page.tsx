@@ -4,6 +4,7 @@ import { Stopwatch } from '@/components/Stopwatch';
 import { EventStream } from '@/components/EventStream';
 import { CartographyCard } from '@/components/CartographyCard';
 import { DependencyGraph, GraphData } from '@/components/DependencyGraph';
+import { CartographyStepper } from '@/components/CartographyStepper';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventsStore } from '@/store/events';
 import { useState } from 'react';
@@ -39,6 +40,8 @@ export default function Home() {
   const [showEventStream, setShowEventStream] = useState(false);
   const { isConnected } = useEvents();
   const connectionState = useEventsStore((state) => state.connectionState);
+  const cartographySteps = useEventsStore((state) => state.cartographySteps);
+  const updateStepStatus = useEventsStore((state) => state.updateStepStatus);
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -54,6 +57,13 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* Stepper Section */}
+      <div className="border-b border-ibm-gray-10 px-6 py-6 bg-ibm-gray-10/30">
+        <div className="max-w-[1440px] mx-auto">
+          <CartographyStepper steps={cartographySteps} />
+        </div>
+      </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex max-w-[1440px] mx-auto w-full">
@@ -74,31 +84,79 @@ export default function Home() {
               type="entry"
               title="Entry Points"
               state="in-progress"
-            />
+            >
+              <div className="text-sm text-ibm-gray-70">
+                Analyzing entry points...
+              </div>
+            </CartographyCard>
 
             <CartographyCard
               type="hotspot"
               title="Change Hotspots"
               state="pending"
-            />
+            >
+              <div className="text-sm text-ibm-gray-70">
+                Waiting to analyze hotspots
+              </div>
+            </CartographyCard>
 
             <CartographyCard
               type="convention"
               title="Project Conventions"
               state="pending"
-            />
+            >
+              <div className="text-sm text-ibm-gray-70">
+                Waiting to analyze conventions
+              </div>
+            </CartographyCard>
           </div>
         </main>
 
-        {/* Right Sidebar - Certification Panel */}
-        <aside className="w-80 border-l border-ibm-gray-10 p-6">
-          <h2 className="text-lg font-semibold text-ibm-gray-100 mb-4">
-            Certification
-          </h2>
-          <div className="bg-ibm-gray-10 rounded-lg p-4">
-            <p className="text-sm text-ibm-gray-70">
-              Socratic quiz panel placeholder
-            </p>
+        {/* Right Sidebar - Test Controls & Certification */}
+        <aside className="w-80 border-l border-ibm-gray-10 p-6 space-y-6">
+          {/* Test Controls */}
+          <div>
+            <h2 className="text-sm font-semibold text-ibm-gray-100 mb-3">
+              Test Controls
+            </h2>
+            <div className="space-y-2">
+              <button
+                onClick={() => updateStepStatus('graph', 'in-progress')}
+                className="w-full px-3 py-2 text-xs bg-ibm-blue-60 text-white rounded hover:bg-ibm-blue-70 transition-colors"
+              >
+                Start Graph
+              </button>
+              <button
+                onClick={() => updateStepStatus('graph', 'complete')}
+                className="w-full px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              >
+                Complete Graph
+              </button>
+              <button
+                onClick={() => updateStepStatus('entry', 'in-progress')}
+                className="w-full px-3 py-2 text-xs bg-ibm-blue-60 text-white rounded hover:bg-ibm-blue-70 transition-colors"
+              >
+                Start Entry Points
+              </button>
+              <button
+                onClick={() => updateStepStatus('entry', 'complete')}
+                className="w-full px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              >
+                Complete Entry
+              </button>
+            </div>
+          </div>
+
+          {/* Certification Panel */}
+          <div>
+            <h2 className="text-lg font-semibold text-ibm-gray-100 mb-4">
+              Certification
+            </h2>
+            <div className="bg-ibm-gray-10 rounded-lg p-4">
+              <p className="text-sm text-ibm-gray-70">
+                Socratic quiz panel placeholder
+              </p>
+            </div>
           </div>
         </aside>
       </div>
