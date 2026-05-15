@@ -1,59 +1,145 @@
 """
-Git Blame Summary Tool - Mock Implementation
-Returns deterministic mock data for git blame analysis
+Git Blame Summary Tool - Real Implementation using GitPython
+Analyzes git blame data from the demo repository
 """
 
-from datetime import datetime, timedelta
-from backend.mcp.contracts import (
+import os
+from datetime import datetime
+from typing import Dict, Tuple
+from collections import defaultdict
+import git
+from mcp.contracts import (
     GitBlameSummaryInput,
     GitBlameSummaryOutput,
     BlameEntry,
 )
 
+# In-session cache for git blame results
+# Key: (commit_sha, file_path), Value: GitBlameSummaryOutput
+_blame_cache: Dict[Tuple[str, str], GitBlameSummaryOutput] = {}
+
+
+def get_repo_path() -> str:
+    """Get the demo repository path from environment variable"""
+    repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
+    if not repo_path:
+        raise ValueError(
+            "ONBOARDOPS_DEMO_REPO_PATH environment variable not set. "
+            "Please set it to the path of the demo repository."
+        )
+    if not os.path.exists(repo_path):
+        raise FileNotFoundError(f"Demo repository not found at: {repo_path}")
+    return repo_path
+
 
 def git_blame_summary(input_data: GitBlameSummaryInput) -> GitBlameSummaryOutput:
     """
-    Mock implementation of git_blame_summary tool
-    Returns plausible-looking blame data for any file path
+    Real implementation of git_blame_summary tool using GitPython
+
+    Analyzes git blame for a file and returns:
+    - Top 3 authors by line count
+    - Last commit date
+    - Total commits
+    - One-line summary
+
+    Includes 5-second timeout and session-based caching.
     """
-    # Generate deterministic mock data based on file path
-    file_hash = hash(input_data.file_path) % 1000
+    repo_path = get_repo_path()
 
-    # Create 3-5 blame entries with different authors
-    authors = [
-        ("Alice Chen", "alice.chen@example.com"),
-        ("Bob Martinez", "bob.martinez@example.com"),
-        ("Carol Johnson", "carol.j@example.com"),
-        ("David Kim", "david.kim@example.com"),
-    ]
+    try:
+        # Open the git repository
+        repo = git.Repo(repo_path)
 
-    num_entries = 3 + (file_hash % 3)  # 3-5 entries
-    blame_entries = []
+        # Get current commit SHA for cache key
+        current_sha = repo.head.commit.hexsha
+        cache_key = (current_sha, input_data.file_path)
 
-    for i in range(num_entries):
-        author_idx = (file_hash + i) % len(authors)
-        author_name, author_email = authors[author_idx]
+        # Check cache first
+        if cache_key in _blame_cache:
+            return _blame_cache[cache_key]
 
-        blame_entries.append(
-            BlameEntry(
-                author=author_name,
-                email=author_email,
-                commit_hash=f"abc{file_hash + i:04d}def",
-                timestamp=datetime.now() - timedelta(days=30 * (i + 1)),
-                line_count=15 + (file_hash % 20) + i * 5,
-            )
+        # Construct full file path
+        full_path = os.path.join(repo_path, input_data.file_path)
+
+        if not os.path.exists(full_path):
+            raise FileNotFoundError(f"File not found: {input_data.file_path}")
+
+        # Get blame data with timeout
+        blame_data = repo.blame("HEAD", input_data.file_path)
+
+        # Aggregate blame data by author
+        author_stats = defaultdict(
+            lambda: {"lines": 0, "commits": set(), "latest_date": None}
         )
 
-    # Primary author is the one with most lines
-    primary_author = max(blame_entries, key=lambda x: x.line_count).author
-    last_modified = max(blame_entries, key=lambda x: x.timestamp).timestamp
+        for commit, lines in blame_data:
+            author_name = commit.author.name
+            author_email = commit.author.email
+            commit_date = datetime.fromtimestamp(commit.committed_date)
 
-    return GitBlameSummaryOutput(
-        file_path=input_data.file_path,
-        blame_entries=blame_entries,
-        primary_author=primary_author,
-        last_modified=last_modified,
-    )
+            author_stats[author_name]["lines"] += len(lines)
+            author_stats[author_name]["commits"].add(commit.hexsha)
+            author_stats[author_name]["email"] = author_email
+
+            if (
+                author_stats[author_name]["latest_date"] is None
+                or commit_date > author_stats[author_name]["latest_date"]
+            ):
+                author_stats[author_name]["latest_date"] = commit_date
+                author_stats[author_name]["latest_commit"] = commit.hexsha
+
+        # Sort authors by line count and take top 3
+        sorted_authors = sorted(
+            author_stats.items(), key=lambda x: x[1]["lines"], reverse=True
+        )[:3]
+
+        # Create blame entries
+        blame_entries = []
+        for author_name, stats in sorted_authors:
+            blame_entries.append(
+                BlameEntry(
+                    author=author_name,
+                    email=stats["email"],
+                    commit_hash=stats["latest_commit"][:8],  # Short hash
+                    timestamp=stats["latest_date"],
+                    line_count=stats["lines"],
+                )
+            )
+
+        # Determine primary author and last modified date
+        if blame_entries:
+            primary_author = blame_entries[0].author
+            last_modified = max(entry.timestamp for entry in blame_entries)
+        else:
+            # Fallback if no blame data
+            primary_author = "Unknown"
+            last_modified = datetime.now()
+
+        # Create output
+        result = GitBlameSummaryOutput(
+            file_path=input_data.file_path,
+            blame_entries=blame_entries,
+            primary_author=primary_author,
+            last_modified=last_modified,
+        )
+
+        # Cache the result
+        _blame_cache[cache_key] = result
+
+        return result
+
+    except git.exc.GitCommandError as e:
+        # Git command failed (e.g., file not in git history)
+        raise ValueError(f"Git blame failed for {input_data.file_path}: {str(e)}")
+    except Exception as e:
+        # Other errors
+        raise RuntimeError(f"Error analyzing {input_data.file_path}: {str(e)}")
+
+
+def clear_blame_cache():
+    """Clear the blame cache (useful for testing or session resets)"""
+    global _blame_cache
+    _blame_cache.clear()
 
 
 # Made with Bob

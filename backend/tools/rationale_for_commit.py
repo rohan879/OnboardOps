@@ -4,7 +4,7 @@ Returns deterministic mock data for commit rationale
 """
 
 from datetime import datetime, timedelta
-from backend.mcp.contracts import (
+from mcp.contracts import (
     RationaleForCommitInput,
     RationaleForCommitOutput,
     CommitRationale,

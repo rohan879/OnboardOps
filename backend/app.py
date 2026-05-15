@@ -3,13 +3,16 @@ OnboardOps Backend - Main FastAPI Application
 Institutional Knowledge MCP Server with WebSocket Bridge
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+import time
+import hashlib
+import json
 
 # Import MCP tool implementations
-from backend.tools import (
+from tools import (
     git_blame_summary,
     commit_frequency,
     recent_authors,
@@ -18,7 +21,16 @@ from backend.tools import (
     rationale_for_commit,
     incident_for_file,
 )
-from backend.mcp import contracts
+from mcp import contracts
+from tools.emit_event import emit_event, EmitEventInput
+from ws.handler import websocket_handler
+from session_manager import session_manager
+from cache_manager import cache_manager
+from observability import (
+    logger,
+    metrics_collector,
+    log_mcp_call,
+)
 
 app = FastAPI(
     title="OnboardOps Institutional Knowledge MCP Server",
@@ -45,6 +57,34 @@ app.add_middleware(
 async def health_check():
     """Health check endpoint for bootstrap verification"""
     return {"status": "ok", "service": "onboardops-mcp-server", "version": "1.0.0"}
+
+
+@app.get("/cache/stats")
+async def cache_stats():
+    """Get cache statistics for observability"""
+    stats = await cache_manager.get_stats()
+    return {
+        "cache": stats,
+        "sessions": {
+            "active_count": session_manager.get_active_session_count(),
+            "session_ids": session_manager.get_all_session_ids(),
+        },
+    }
+
+
+@app.get("/metrics")
+async def metrics():
+    """
+    Metrics endpoint exposing per-tool counters and latency statistics
+
+    Returns:
+        - Per-tool call counts
+        - Per-tool error rates
+        - Per-tool cache hit rates
+        - Per-tool latency (p50, p95, p99)
+        - Uptime
+    """
+    return await metrics_collector.get_metrics()
 
 
 # ============================================================================
@@ -206,6 +246,28 @@ async def mcp_discovery():
                 "required": ["file_path"],
             },
         ),
+        MCPTool(
+            name="emit_event",
+            description="Emit a structured event to the WebSocket bridge for dashboard display. Auto-creates session if session_id not provided.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "event_type": {
+                        "type": "string",
+                        "description": "Type of event (turn_start, turn_end, tool_call, card_emit, etc.)",
+                    },
+                    "event_data": {
+                        "type": "object",
+                        "description": "Event-specific data payload",
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Session ID for routing (auto-generated if not provided)",
+                    },
+                },
+                "required": ["event_type", "event_data"],
+            },
+        ),
     ]
 
     return MCPDiscoveryResponse(
@@ -234,15 +296,56 @@ class MCPToolResponse(BaseModel):
 
 
 @app.post("/mcp/invoke", response_model=MCPToolResponse)
-async def invoke_mcp_tool(request: MCPToolRequest):
+async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
     """
     Invoke a specific MCP tool with given arguments
-    Returns mock data from the tool implementations
+    Implements in-session response caching with X-Cache header
+    Logs all calls with structured logging and records metrics
     """
     tool_name = request.tool_name
     arguments = request.arguments
 
+    # Extract session_id from arguments if present (for caching)
+    session_id = arguments.get("session_id")
+
+    # Compute input hash for logging
+    input_hash = hashlib.sha256(
+        json.dumps(arguments, sort_keys=True).encode()
+    ).hexdigest()[:16]
+
+    # Start timing for latency tracking
+    start_time = time.time()
+    cache_hit = False
+
     try:
+        # Check cache if session_id is present and tool is cacheable
+        # emit_event is not cacheable (side effects)
+        if session_id and tool_name != "emit_event":
+            cached_result = await cache_manager.get(session_id, tool_name, arguments)
+            if cached_result is not None:
+                cache_hit = True
+                response.headers["X-Cache"] = "HIT"
+                latency_ms = (time.time() - start_time) * 1000
+
+                # Log with structured logging
+                log_mcp_call(session_id, tool_name, input_hash, latency_ms, cache_hit)
+
+                # Record metrics
+                await metrics_collector.record_call(tool_name, latency_ms, cache_hit)
+
+                # Check if cached result is an error response
+                if "error" in cached_result and len(cached_result) == 1:
+                    return MCPToolResponse(
+                        tool_name=tool_name, result={}, error=cached_result["error"]
+                    )
+                else:
+                    return MCPToolResponse(
+                        tool_name=tool_name, result=cached_result, error=None
+                    )
+
+        # Cache miss or not cacheable - execute tool
+        response.headers["X-Cache"] = "MISS"
+
         # Route to the appropriate tool based on tool_name
         if tool_name == "git_blame_summary":
             input_data = contracts.GitBlameSummaryInput(**arguments)
@@ -265,15 +368,48 @@ async def invoke_mcp_tool(request: MCPToolRequest):
         elif tool_name == "incident_for_file":
             input_data = contracts.IncidentForFileInput(**arguments)
             result = incident_for_file(input_data)
+        elif tool_name == "emit_event":
+            # Special handling for emit_event (async, not cacheable)
+            input_data = EmitEventInput(**arguments)
+            result = await emit_event(input_data)
         else:
             raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
 
         # Convert Pydantic model to dict for JSON response
-        return MCPToolResponse(
-            tool_name=tool_name, result=result.model_dump(), error=None
-        )
+        result_dict = result.model_dump()
+
+        # Cache the result if session_id present and tool is cacheable
+        if session_id and tool_name != "emit_event":
+            await cache_manager.set(session_id, tool_name, arguments, result_dict)
+
+        latency_ms = (time.time() - start_time) * 1000
+
+        # Log with structured logging
+        log_mcp_call(session_id, tool_name, input_hash, latency_ms, cache_hit)
+
+        # Record metrics
+        await metrics_collector.record_call(tool_name, latency_ms, cache_hit)
+
+        return MCPToolResponse(tool_name=tool_name, result=result_dict, error=None)
 
     except Exception as e:
+        latency_ms = (time.time() - start_time) * 1000
+
+        # Log with structured logging
+        log_mcp_call(
+            session_id, tool_name, input_hash, latency_ms, cache_hit, error=str(e)
+        )
+
+        # Record metrics (with error flag)
+        await metrics_collector.record_call(
+            tool_name, latency_ms, cache_hit, error=True
+        )
+
+        # Cache error responses too (to avoid repeated failures)
+        error_response = {"error": str(e)}
+        if session_id and tool_name != "emit_event":
+            await cache_manager.set(session_id, tool_name, arguments, error_response)
+
         return MCPToolResponse(tool_name=tool_name, result={}, error=str(e))
 
 
@@ -283,23 +419,18 @@ async def invoke_mcp_tool(request: MCPToolRequest):
 
 
 @app.websocket("/events")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, session_id: Optional[str] = None):
     """
     WebSocket endpoint for real-time event streaming to the dashboard
-    This is a stub that echoes received messages
+
+    Clients can optionally provide a session_id query parameter to subscribe
+    to events from a specific session. Without session_id, clients receive
+    all events (global subscription).
+
+    Example:
+        ws://localhost:8765/events?session_id=abc123
     """
-    await websocket.accept()
-    try:
-        while True:
-            # Receive message from client
-            data = await websocket.receive_text()
-
-            # Echo it back (stub behavior)
-            # In production, this would relay events from Bob sessions
-            await websocket.send_text(f"Echo: {data}")
-
-    except WebSocketDisconnect:
-        print("WebSocket client disconnected")
+    await websocket_handler(websocket, session_id)
 
 
 # ============================================================================
@@ -310,10 +441,18 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.on_event("startup")
 async def startup_event():
     """Initialize application on startup"""
-    print("OnboardOps MCP Server starting...")
-    print("Health check available at: http://127.0.0.1:8765/health")
-    print("MCP discovery available at: http://127.0.0.1:8765/mcp")
-    print("WebSocket events available at: ws://127.0.0.1:8765/events")
+    logger.info(
+        "server_startup",
+        message="OnboardOps MCP Server starting",
+        health_endpoint="http://127.0.0.1:8765/health",
+        mcp_endpoint="http://127.0.0.1:8765/mcp",
+        metrics_endpoint="http://127.0.0.1:8765/metrics",
+        websocket_endpoint="ws://127.0.0.1:8765/events",
+    )
+
+    # Start session manager cleanup task
+    await session_manager.start_cleanup_task()
+    logger.info("session_manager_initialized", timeout_minutes=30)
 
 
 if __name__ == "__main__":

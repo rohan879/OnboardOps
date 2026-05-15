@@ -4,7 +4,7 @@ Returns deterministic mock data for recent author activity
 """
 
 from datetime import datetime, timedelta
-from backend.mcp.contracts import (
+from mcp.contracts import (
     RecentAuthorsInput,
     RecentAuthorsOutput,
     AuthorActivity,
