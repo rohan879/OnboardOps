@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 import time
 import hashlib
 import json
+import os
 
 # Import MCP tool implementations
 from tools import (
@@ -22,6 +23,7 @@ from tools import (
     incident_for_file,
 )
 from mcp import contracts
+from mcp.errors import MCPToolError
 from tools.emit_event import emit_event, EmitEventInput
 from ws.handler import websocket_handler
 from session_manager import session_manager
@@ -86,6 +88,148 @@ async def metrics():
         - Uptime
     """
     return await metrics_collector.get_metrics()
+
+
+# ============================================================================
+# Tool Health Check Endpoints
+# ============================================================================
+
+
+@app.get("/tools/{tool_name}/healthz")
+async def tool_health_check(tool_name: str):
+    """
+    Health check endpoint for individual MCP tools
+
+    Returns 200 if tool is healthy, 503 if unhealthy
+    Used by preflight script before demo recordings
+    """
+    import time
+
+    start_time = time.time()
+
+    try:
+        # Route to appropriate health check based on tool name
+        if tool_name == "git_blame_summary":
+            # Test: Can we access the demo repo and run git blame?
+            repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
+            if not repo_path or not os.path.exists(repo_path):
+                return {
+                    "tool": tool_name,
+                    "status": "unhealthy",
+                    "error": "Demo repo not configured or not found",
+                    "retryable": False,
+                }, 503
+
+            # Try to run git blame on README
+            try:
+                input_data = contracts.GitBlameSummaryInput(file_path="README.md")
+                result = git_blame_summary(input_data)
+                if isinstance(result, MCPToolError):
+                    return {
+                        "tool": tool_name,
+                        "status": "unhealthy",
+                        "error": result.message,
+                        "retryable": result.retryable,
+                    }, 503
+            except Exception as e:
+                return {
+                    "tool": tool_name,
+                    "status": "unhealthy",
+                    "error": str(e),
+                    "retryable": False,
+                }, 503
+
+        elif tool_name == "commit_frequency":
+            # Test: Can we get commit frequency?
+            repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
+            if not repo_path or not os.path.exists(repo_path):
+                return {
+                    "tool": tool_name,
+                    "status": "unhealthy",
+                    "error": "Demo repo not configured or not found",
+                    "retryable": False,
+                }, 503
+
+            try:
+                input_data = contracts.CommitFrequencyInput(days=180)
+                result = commit_frequency(input_data)
+                if isinstance(result, MCPToolError):
+                    return {
+                        "tool": tool_name,
+                        "status": "unhealthy",
+                        "error": result.message,
+                        "retryable": result.retryable,
+                    }, 503
+            except Exception as e:
+                return {
+                    "tool": tool_name,
+                    "status": "unhealthy",
+                    "error": str(e),
+                    "retryable": False,
+                }, 503
+
+        elif tool_name == "recent_authors":
+            # Mock-only tool, always healthy
+            pass
+
+        elif tool_name == "pr_for_file":
+            # Test: Check if GitHub token is set (optional)
+            github_token = os.getenv("ONBOARDOPS_GITHUB_TOKEN")
+            if not github_token:
+                # Not an error - will fall back to mock
+                pass
+
+        elif tool_name == "file_changelog":
+            # Test: Can we access the demo repo?
+            repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
+            if not repo_path or not os.path.exists(repo_path):
+                # Not an error - will fall back to mock
+                pass
+
+        elif tool_name == "rationale_for_commit":
+            # Test: Can we access the demo repo?
+            repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
+            if not repo_path or not os.path.exists(repo_path):
+                # Not an error - will fall back to mock
+                pass
+
+        elif tool_name == "incident_for_file":
+            # Test: Can we access the demo repo?
+            repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
+            if not repo_path or not os.path.exists(repo_path):
+                # Not an error - will fall back to mock
+                pass
+
+        elif tool_name == "emit_event":
+            # Always healthy (no external dependencies)
+            pass
+
+        else:
+            return {
+                "tool": tool_name,
+                "status": "unknown",
+                "error": f"Unknown tool: {tool_name}",
+                "retryable": False,
+            }, 404
+
+        # If we get here, tool is healthy
+        latency_ms = (time.time() - start_time) * 1000
+        return {
+            "tool": tool_name,
+            "status": "healthy",
+            "latency_ms": round(latency_ms, 2),
+            "details": "Self-test passed",
+        }, 200
+
+    except Exception as e:
+        latency_ms = (time.time() - start_time) * 1000
+        return {
+            "tool": tool_name,
+            "status": "unhealthy",
+            "error": str(e),
+            "latency_ms": round(latency_ms, 2),
+            "retryable": False,
+        }, 503
 
 
 # ============================================================================
@@ -465,6 +609,37 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
             result = await emit_event(input_data)
         else:
             raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
+
+        # Check if result is an MCPToolError (structured error response)
+        if isinstance(result, MCPToolError):
+            latency_ms = (time.time() - start_time) * 1000
+
+            # Log the error
+            log_mcp_call(
+                session_id,
+                tool_name,
+                input_hash,
+                latency_ms,
+                cache_hit,
+                error=f"{result.error_code}: {result.message}",
+            )
+
+            # Record metrics
+            await metrics_collector.record_call(
+                tool_name, latency_ms, cache_hit, error=True
+            )
+
+            # Cache the error if session present
+            error_dict = result.model_dump()
+            if session_id and tool_name != "emit_event":
+                await cache_manager.set(session_id, tool_name, arguments, error_dict)
+
+            # Return error response (not raising exception - graceful degradation)
+            return MCPToolResponse(
+                tool_name=tool_name,
+                result={},
+                error=f"{result.error_code}: {result.message}",
+            )
 
         # Convert Pydantic model to dict for JSON response
         result_dict = result.model_dump()

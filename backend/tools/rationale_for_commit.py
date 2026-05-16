@@ -6,13 +6,16 @@ Bridges "what changed" to "why it changed"
 
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 import git
 import httpx
 from mcp.contracts import (
     RationaleForCommitInput,
     RationaleForCommitOutput,
     CommitRationale,
+)
+from mcp.errors import (
+    MCPToolError,
 )
 
 
@@ -62,7 +65,7 @@ def extract_pr_number_from_message(message: str) -> Optional[int]:
 
 def rationale_for_commit(
     input_data: RationaleForCommitInput,
-) -> RationaleForCommitOutput:
+) -> Union[RationaleForCommitOutput, MCPToolError]:
     """
     Get detailed information and rationale for a specific commit
 
@@ -73,6 +76,9 @@ def rationale_for_commit(
     - Any issue numbers referenced
 
     This is the bridge from "what changed" to "why it changed"
+
+    Returns RationaleForCommitOutput on success or MCPToolError on failure.
+    Falls back to mock data if repo unavailable.
     """
     commit_hash = input_data.commit_hash
 

@@ -6,13 +6,16 @@ Sources: CHANGELOG.md, GitHub issues with incident/bug labels, revert commits
 
 import os
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Union
 import git
 import httpx
 from mcp.contracts import (
     IncidentForFileInput,
     IncidentForFileOutput,
     IncidentInfo,
+)
+from mcp.errors import (
+    MCPToolError,
 )
 
 
@@ -205,7 +208,9 @@ def parse_changelog_for_file(
     return incidents
 
 
-def incident_for_file(input_data: IncidentForFileInput) -> IncidentForFileOutput:
+def incident_for_file(
+    input_data: IncidentForFileInput,
+) -> Union[IncidentForFileOutput, MCPToolError]:
     """
     Get incidents that touched a given file in the last N days
 
@@ -216,6 +221,9 @@ def incident_for_file(input_data: IncidentForFileInput) -> IncidentForFileOutput
 
     Returns list of {date, summary, link, severity}
     Powers "Future-You Bob" narration (e.g., "this file was rolled back twice last quarter")
+
+    Returns IncidentForFileOutput on success or MCPToolError on failure.
+    Falls back to mock data if repo unavailable.
     """
     file_path = input_data.file_path
     days = input_data.days

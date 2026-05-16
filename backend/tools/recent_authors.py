@@ -4,14 +4,18 @@ Returns deterministic mock data for recent author activity
 """
 
 from datetime import datetime, timedelta
+from typing import Union
 from mcp.contracts import (
     RecentAuthorsInput,
     RecentAuthorsOutput,
     AuthorActivity,
 )
+from mcp.errors import MCPToolError
 
 
-def recent_authors(input_data: RecentAuthorsInput) -> RecentAuthorsOutput:
+def recent_authors(
+    input_data: RecentAuthorsInput,
+) -> Union[RecentAuthorsOutput, MCPToolError]:
     """
     Mock implementation of recent_authors tool
     Returns plausible author activity data

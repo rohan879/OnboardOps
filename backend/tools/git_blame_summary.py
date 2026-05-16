@@ -5,13 +5,20 @@ Analyzes git blame data from the demo repository
 
 import os
 from datetime import datetime
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 from collections import defaultdict
 import git
 from mcp.contracts import (
     GitBlameSummaryInput,
     GitBlameSummaryOutput,
     BlameEntry,
+)
+from mcp.errors import (
+    MCPToolError,
+    git_command_error,
+    file_not_found_error,
+    repo_not_configured_error,
+    unknown_error,
 )
 
 # In-session cache for git blame results
@@ -32,7 +39,9 @@ def get_repo_path() -> str:
     return repo_path
 
 
-def git_blame_summary(input_data: GitBlameSummaryInput) -> GitBlameSummaryOutput:
+def git_blame_summary(
+    input_data: GitBlameSummaryInput,
+) -> Union[GitBlameSummaryOutput, MCPToolError]:
     """
     Real implementation of git_blame_summary tool using GitPython
 
@@ -43,8 +52,15 @@ def git_blame_summary(input_data: GitBlameSummaryInput) -> GitBlameSummaryOutput
     - One-line summary
 
     Includes 5-second timeout and session-based caching.
+
+    Returns GitBlameSummaryOutput on success or MCPToolError on failure.
     """
-    repo_path = get_repo_path()
+    try:
+        repo_path = get_repo_path()
+    except ValueError:
+        return repo_not_configured_error()
+    except FileNotFoundError as e:
+        return unknown_error("get_repo_path", e)
 
     try:
         # Open the git repository
@@ -62,7 +78,7 @@ def git_blame_summary(input_data: GitBlameSummaryInput) -> GitBlameSummaryOutput
         full_path = os.path.join(repo_path, input_data.file_path)
 
         if not os.path.exists(full_path):
-            raise FileNotFoundError(f"File not found: {input_data.file_path}")
+            return file_not_found_error(input_data.file_path)
 
         # Get blame data with timeout
         blame_data = repo.blame("HEAD", input_data.file_path)
@@ -130,10 +146,10 @@ def git_blame_summary(input_data: GitBlameSummaryInput) -> GitBlameSummaryOutput
 
     except git.exc.GitCommandError as e:
         # Git command failed (e.g., file not in git history)
-        raise ValueError(f"Git blame failed for {input_data.file_path}: {str(e)}")
+        return git_command_error(input_data.file_path, str(e))
     except Exception as e:
         # Other errors
-        raise RuntimeError(f"Error analyzing {input_data.file_path}: {str(e)}")
+        return unknown_error(f"git_blame_summary for {input_data.file_path}", e)
 
 
 def clear_blame_cache():
