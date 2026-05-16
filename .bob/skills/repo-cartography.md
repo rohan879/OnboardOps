@@ -11,8 +11,87 @@ max_remediation_attempts: 2
 
 # Repository Cartography Skill
 
-Load `.bob/rules/cartography-style.md` once, then keep all chat output terse.
-Emit dashboard data through the `emit_event` MCP tool whenever it is available.
+Load these rules once per session (Phase 4 T1.6 compression):
+- `.bob/rules/cartography-style.md` - Tone, voice, forbidden phrases
+- `.bob/rules/cartography-output-format.md` - Card format, narration templates
+- `.bob/rules/remediation-templates.md` - Pre-written remediation text
+
+Keep all chat output terse. Emit dashboard data through the `emit_event` MCP tool.
+
+## Output Validation and Safety Rails (Phase 4 T1.5)
+
+Before emitting any `card_emit` event, validate the JSON structure:
+
+1. **Required fields present**: `card_type`, `title`, `data`
+2. **Valid card_type**: One of `dependency_graph`, `entry_points`, `hotspots`, `conventions`
+3. **Data is object**: `data` field must be a JSON object, not string or array
+4. **No malformed JSON**: All nested objects properly closed
+
+If validation fails:
+- **First attempt**: Re-generate the card with stricter format instructions
+- **Second attempt failure**: Emit placeholder card (see Error Handling section)
+- **Never crash**: Always continue to next stage
+
+### JSON Schema Enforcement
+
+When calling `emit_event`, use this exact structure:
+
+```json
+{
+  "event_type": "card_emit",
+  "event_data": {
+    "card_type": "dependency_graph",
+    "title": "Dependency Graph",
+    "body_markdown": "One-sentence summary",
+    "data": {
+      "nodes": [],
+      "edges": []
+    },
+    "summary": "One-sentence summary"
+  }
+}
+```
+
+**Common malformations to avoid:**
+- Missing closing braces: `{"data": {"nodes": []}`
+- String instead of object: `"data": "nodes: []"`
+- Unquoted keys: `{data: {...}}`
+- Trailing commas: `{"nodes": [],}`
+- Mixed quotes: `{'key': "value"}`
+
+### Re-Ask Pattern on Parse Failure
+
+If the MCP server or dashboard reports a parse error:
+
+1. **Detect failure**: Look for error response containing "parse", "JSON", or "malformed"
+2. **Re-ask with stricter format**:
+   ```
+   The previous card emission failed due to malformed JSON.
+   Regenerate the card using this exact template:
+   
+   {
+     "event_type": "card_emit",
+     "event_data": {
+       "card_type": "[TYPE]",
+       "title": "[TITLE]",
+       "data": { [DATA_HERE] },
+       "summary": "[SUMMARY]"
+     }
+   }
+   
+   Ensure all braces are closed and all keys are quoted.
+   ```
+3. **Retry once**: Generate card again with template
+4. **On second failure**: Emit placeholder card and continue
+
+### Output Token Cap Enforcement
+
+Front matter specifies `output_token_cap: 700` per stage. If a response exceeds this:
+- Truncate narration (keep data intact)
+- Prioritize structured data over prose
+- Use template-based remediation (already in rules)
+
+This cap prevents runaway responses that waste Bobcoins.
 
 ## Flow
 
@@ -87,29 +166,13 @@ Validation:
 4. On first wrong answer, apply remediation (see Remediation Loop below).
 5. On second wrong answer, reveal the hub in one sentence and continue.
 
-### Remediation Loop (Stage 1)
+### Remediation Loop (Stage 1) - Phase 4 T1.6 optimized
 
 **State tracking**: Maintain `attempt_count` for this question (1 or 2).
 
 **On first wrong answer** (attempt 1):
-1. Emit `question_remediation` event:
-   ```json
-   {
-     "event_type": "question_remediation",
-     "event_data": {
-       "stage": "dependency-graph",
-       "attempt": 1,
-       "remediation_text": "<80-word guidance>",
-       "hint": "Review the fan-in values in the dependency graph card."
-     }
-   }
-   ```
-2. Provide 80-word remediation pointing to the graph card data:
-   "The dependency graph card shows fan-in values for each module. Fan-in
-   represents how many other modules import this one. Look for the module with
-   the highest number in the fan-in column. This module is the hub because many
-   other parts of the codebase depend on it. Review the graph visualization or
-   the nodes list to find the maximum fan-in value."
+1. Emit `question_remediation` event with template text
+2. Use "Highest Fan-In" template from remediation-templates.md (no placeholders)
 3. Re-ask the same question
 4. Increment `attempt_count` to 2
 
@@ -196,16 +259,13 @@ Validation:
 4. On first wrong answer, apply remediation (see below).
 5. On second wrong answer, reveal the correct route and continue.
 
-### Remediation Loop (Stage 2)
+### Remediation Loop (Stage 2) - Phase 4 T1.6 optimized
 
 **On first wrong answer** (attempt 1):
-1. Emit `question_remediation` event with 80-word guidance
-2. Provide remediation:
-   "The Entry Points card lists all HTTP routes discovered in the codebase. Each
-   route shows the HTTP method (GET, POST, etc.), the path pattern, and the
-   handler function. Look for the route that matches the path `[SPECIFIC_PATH]`
-   with method GET. The handler function name or file location will tell you
-   which code handles this request. Review the routes list in the card."
+1. Emit `question_remediation` event with template text
+2. Use "Route Handler" template from remediation-templates.md
+   - Fill {PATH} with actual route path
+   - Fill {METHOD} with HTTP method (GET)
 3. Re-ask the same question
 4. Increment `attempt` to 2
 
@@ -214,40 +274,37 @@ Validation:
    handles GET requests to `<path>`."
 2. Continue to Stage 3
 
-## Stage 3: Change Hotspots
+## Stage 3: Change Hotspots (Phase 4 T1.6 optimized)
 
 Goal: identify high-churn files using git history, rank by change frequency, and
 provide rationales for why each file changes often.
 
-Steps:
+Steps (optimized for Bobcoin efficiency):
 
 1. Call `commit_frequency` MCP tool with no file_path (repo-wide) and days=180.
    This returns the top 5 most frequently changed files.
    **Error handling**: If tool fails or returns empty, retry once. If retry fails,
    emit placeholder card (see Error Handling section below) and continue to Stage 4.
-2. For each file in the top 5 (or up to 10 if available):
+2. For the top 5 files only (reduced from 10 for efficiency):
    - Call `recent_authors` with the file_path to get top contributors
-   - Call `pr_for_file` with the file_path to get recent merged PRs
-   - Call `file_changelog` with the file_path and limit=5 to get recent commits
+   - Call `pr_for_file` with the file_path and limit=1 (only most recent PR)
    **Error handling**: If any tool fails for a specific file, use partial data
    (e.g., commit count only, no authors). Do not skip the file entirely.
-3. For each hotspot file, generate a one-sentence rationale explaining why it
-   changes frequently. Use evidence from:
+3. Generate all 5 rationales in a single batch (not one-by-one). For each hotspot
+   file, create a one-sentence rationale explaining why it changes frequently.
+   Use evidence from:
    - File role (config, auth, core business logic)
-   - Recent PR titles (feature additions, bug fixes)
-   - Number of distinct authors (shared ownership vs. single owner)
+   - Recent PR title (from pr_for_file)
+   - Number of distinct authors (from recent_authors)
    Example: "This file changes often because it owns authentication logic, and
    recent PRs touched the JWT handler."
 4. Build hotspots data:
-   - `files`: `[{ path, commit_count, distinct_authors, top_author, last_pr_title, last_pr_url, rationale }]`
-   - Rank by `commit_count` descending
-5. Call `emit_event` with `event_type: "card_emit"` and `event_data` containing
-   `card_type: "hotspots"`, `title: "Change Hotspots"`, `body_markdown`, and
-   hotspots `data`.
-6. Narrate in one sentence:
-   - "`<file>` is the top hotspot with `<n>` commits in 180 days."
-   - "The top 5 hotspots account for `<n>%` of recent changes."
-   - "`<n>` files show high churn, indicating active development areas."
+   - `files`: `[{ path, changes, authors, last_pr, rationale }]`
+   - Rank by `changes` descending
+   - Schema: See cartography-output-format.md
+5. Call `emit_event` with card_type "hotspots" (see output format rules).
+6. Narrate using template from cartography-output-format.md:
+   - Multiple hotspots: "Top hotspots: `[file1]` (`[n1]` commits), `[file2]` (`[n2]` commits)."
 
 Acceptance:
 
