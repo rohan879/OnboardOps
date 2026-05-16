@@ -51,13 +51,17 @@ export function useEvents() {
   useEffect(() => {
     if (lastMessage !== null) {
       try {
-        const message = JSON.parse(lastMessage.data);
-        const event = message.event || message;
+        const envelope = JSON.parse(lastMessage.data) as Record<string, unknown>;
+        const event =
+          envelope.event && typeof envelope.event === 'object'
+            ? (envelope.event as Record<string, unknown>)
+            : envelope;
+
         addEvent({
-          id: event.event_id || event.id || crypto.randomUUID(),
-          type: event.event_type || event.type || 'unknown',
+          id: (event.event_id as string) || (event.id as string) || crypto.randomUUID(),
+          type: (event.event_type as string) || (event.type as string) || 'unknown',
           timestamp: event.timestamp
-            ? new Date(event.timestamp * 1000).toISOString()
+            ? new Date((event.timestamp as number) * 1000).toISOString()
             : new Date().toISOString(),
           data: event,
         });
