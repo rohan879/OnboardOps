@@ -45,6 +45,25 @@ class BootstrapRelay:
         message = bootstrap_event.get('message', '')
         duration_ms = bootstrap_event.get('duration_ms', 0)
         timestamp = bootstrap_event.get('timestamp', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
+        details = bootstrap_event.get('details', {})
+        
+        # Use severity from event if present, otherwise map from status
+        if 'severity' in bootstrap_event:
+            severity = bootstrap_event['severity']
+        else:
+            # Map status to severity (legacy support)
+            severity_map = {
+                'start': 'info',
+                'info': 'info',
+                'warning': 'warn',
+                'warn': 'warn',
+                'error': 'error',
+                'complete': 'info',
+                'success': 'info',
+                'recovery': 'recovery',
+                'recovering': 'recovery'
+            }
+            severity = severity_map.get(status, 'info')
         
         # Map bootstrap stages to dashboard event types
         event_type_map = {
@@ -59,19 +78,7 @@ class BootstrapRelay:
         
         event_type = event_type_map.get(stage, 'BootstrapEvent')
         
-        # Map status to severity
-        severity_map = {
-            'start': 'info',
-            'info': 'info',
-            'warning': 'warning',
-            'error': 'error',
-            'complete': 'success',
-            'success': 'success'
-        }
-        
-        severity = severity_map.get(status, 'info')
-        
-        # Build canonical event
+        # Build canonical event with enhanced payload
         canonical_event = {
             'type': event_type,
             'session_id': self.session_id,
@@ -84,6 +91,10 @@ class BootstrapRelay:
                 'severity': severity
             }
         }
+        
+        # Add details if present
+        if details:
+            canonical_event['data']['details'] = details
         
         return canonical_event
     

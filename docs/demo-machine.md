@@ -535,3 +535,330 @@ pkill -f "onboardops"
 # Reference Demo Machine Specification - T4.7 / Phase 3 T4.8
 
 **Updated:** Phase 3 T4.8 - Added demo machine reset procedure
+
+
+---
+
+## Demo Machine Reset Procedure (Phase 3 T4.11)
+
+### Overview
+
+The demo machine must be reset to a pristine state between recording takes to ensure consistent, reproducible demos. The reset script handles all cleanup automatically.
+
+### Reset Script
+
+**Location:** `scripts/reset-demo-machine.sh`  
+**Duration:** <3 minutes (full reset), <5 seconds (fast-path)  
+**Purpose:** Clean all artifacts, stop services, reset git state
+
+### When to Reset
+
+Reset the demo machine:
+- **Before each recording take**
+- **After a failed demo run**
+- **When switching between demo scenarios**
+- **Before stress testing**
+- **Before handing off to another team member**
+
+### Reset Procedure
+
+#### Quick Reset (Recommended)
+
+```bash
+# Run the reset script
+./scripts/reset-demo-machine.sh
+
+# Expected output:
+# ╔═══════════════════════════════════════════════════════╗
+# ║  OnboardOps Demo Machine Reset                        ║
+# ╚═══════════════════════════════════════════════════════╝
+#
+# [INFO] Checking what needs to be reset...
+# [INFO] Stopping development servers...
+# [INFO] Cleaning build artifacts...
+# [INFO] Resetting git repository...
+# [SUCCESS] Demo machine reset complete
+#
+# Reset Summary:
+#   Servers stopped: 2
+#   Artifacts cleaned: 156 MB
+#   Git status: clean
+#   Duration: 2.3s
+```
+
+#### Verification After Reset
+
+```bash
+# Verify clean state
+git status
+# Should show: "nothing to commit, working tree clean"
+
+# Verify no processes on demo ports
+lsof -i :3000 -i :8000 -i :8765
+# Should show: no output (ports free)
+
+# Verify no Docker containers running
+docker ps
+# Should show: no OnboardOps containers
+
+# Verify no stale virtualenv
+ls -la .venv venv 2>/dev/null
+# Should show: directories don't exist or are empty
+```
+
+### What Gets Reset
+
+The reset script cleans:
+
+1. **Development Servers**
+   - Frontend dev server (port 3000)
+   - Backend API server (port 8000)
+   - WebSocket server (port 8765)
+
+2. **Docker Containers**
+   - PostgreSQL database
+   - Any other OnboardOps containers
+
+3. **Build Artifacts**
+   - `node_modules/` (frontend)
+   - `.next/` (Next.js build cache)
+   - `__pycache__/` (Python bytecode)
+   - `.venv/` or `venv/` (Python virtualenv)
+   - `*.pyc` files
+
+4. **Database State**
+   - Drops and recreates database
+   - Removes migration state
+   - Clears seed data markers
+
+5. **Git Repository**
+   - Discards uncommitted changes
+   - Removes untracked files
+   - Resets to HEAD
+
+6. **Temporary Files**
+   - `/tmp/onboardops-*` files
+   - Log files
+   - Telemetry data
+
+### Reset Modes
+
+#### Fast-Path Reset (< 5 seconds)
+
+Used when only minor cleanup is needed:
+
+```bash
+./scripts/reset-demo-machine.sh --fast
+```
+
+Checks what's dirty and only resets those items:
+- Stops only running servers
+- Cleans only existing artifacts
+- Skips git reset if tree is clean
+
+#### Full Reset (< 3 minutes)
+
+Used for complete cleanup:
+
+```bash
+./scripts/reset-demo-machine.sh --full
+```
+
+Performs all cleanup operations regardless of current state.
+
+#### Dry Run
+
+Preview what would be reset without making changes:
+
+```bash
+./scripts/reset-demo-machine.sh --dry-run
+```
+
+### Troubleshooting
+
+#### Reset Script Fails
+
+If the reset script fails:
+
+1. **Check for permission errors:**
+   ```bash
+   chmod +x ./scripts/reset-demo-machine.sh
+   ```
+
+2. **Manually stop stubborn processes:**
+   ```bash
+   # Find processes on demo ports
+   lsof -ti :3000 :8000 :8765 | xargs kill -9
+   ```
+
+3. **Force Docker cleanup:**
+   ```bash
+   docker-compose down -v
+   docker system prune -f
+   ```
+
+4. **Nuclear option (last resort):**
+   ```bash
+   # Re-clone the repository
+   cd ..
+   rm -rf OnboardOps
+   git clone <repo-url> OnboardOps
+   cd OnboardOps
+   ```
+
+#### Ports Still in Use After Reset
+
+```bash
+# Identify the process
+lsof -i :3000
+
+# Kill it forcefully
+kill -9 <PID>
+```
+
+#### Git Reset Fails
+
+```bash
+# Force reset to clean state
+git reset --hard HEAD
+git clean -fdx
+
+# If that fails, stash everything
+git stash --include-untracked
+```
+
+### Pre-Recording Checklist
+
+Before starting a recording session:
+
+1. ✅ Run reset script: `./scripts/reset-demo-machine.sh`
+2. ✅ Verify clean state (see verification commands above)
+3. ✅ Check Bob auth: `bob --version`
+4. ✅ Check network: `ping -c 1 google.com`
+5. ✅ Check disk space: `df -h .`
+6. ✅ Close unnecessary applications
+7. ✅ Set display resolution (if recording)
+8. ✅ Disable notifications (if recording)
+
+### Post-Recording Checklist
+
+After completing a recording session:
+
+1. ✅ Save recording files
+2. ✅ Export Bob sessions
+3. ✅ Run reset script for next session
+4. ✅ Document any issues encountered
+5. ✅ Update timing data if needed
+
+### Integration with Preflight Script
+
+In Phase 4, the preflight script will automatically verify that the reset script was run recently:
+
+```bash
+# Phase 4 preflight check
+./scripts/preflight.sh
+
+# Checks include:
+# - Reset script ran in last 60 seconds
+# - All services stopped
+# - Git tree clean
+# - Ports available
+```
+
+### Reset Script Output Format
+
+The reset script provides structured output:
+
+```
+╔═══════════════════════════════════════════════════════╗
+║  OnboardOps Demo Machine Reset                        ║
+╚═══════════════════════════════════════════════════════╝
+
+[INFO] Checking what needs to be reset...
+[INFO] Stopping development servers...
+  ✓ Stopped frontend server (PID 12345)
+  ✓ Stopped backend server (PID 12346)
+  ✓ Stopped WebSocket server (PID 12347)
+
+[INFO] Stopping Docker containers...
+  ✓ Stopped postgresql container
+
+[INFO] Cleaning build artifacts...
+  ✓ Removed node_modules/ (145 MB)
+  ✓ Removed .next/ (8 MB)
+  ✓ Removed .venv/ (3 MB)
+
+[INFO] Resetting database...
+  ✓ Dropped database onboardops_dev
+  ✓ Removed migration markers
+
+[INFO] Resetting git repository...
+  ✓ Discarded uncommitted changes
+  ✓ Removed untracked files
+  ✓ Working tree clean
+
+[INFO] Cleaning temporary files...
+  ✓ Removed /tmp/onboardops-* files
+
+[SUCCESS] Demo machine reset complete
+
+Reset Summary:
+  Servers stopped: 3
+  Containers stopped: 1
+  Artifacts cleaned: 156 MB
+  Git status: clean
+  Duration: 2.3s
+```
+
+### Known Limitations
+
+1. **Docker Required:** Reset script assumes Docker is installed for database cleanup
+2. **Git Repository:** Assumes project is a git repository
+3. **Permissions:** May require sudo for some operations (script will prompt)
+4. **Platform:** Optimized for macOS/Linux; Windows support limited
+
+### Emergency Reset
+
+If the standard reset fails completely:
+
+```bash
+# Emergency reset procedure
+cd /path/to/OnboardOps
+
+# 1. Kill all processes
+pkill -f "node.*3000"
+pkill -f "python.*8000"
+pkill -f "python.*8765"
+
+# 2. Stop Docker
+docker-compose down -v
+
+# 3. Clean everything
+rm -rf node_modules .next __pycache__ .venv venv
+rm -f /tmp/onboardops-*
+
+# 4. Reset git
+git reset --hard HEAD
+git clean -fdx
+
+# 5. Verify
+git status
+lsof -i :3000 -i :8000 -i :8765
+```
+
+### Handoff to Dev 5 (Phase 4)
+
+When handing off the demo machine to Dev 5 for Phase 5 video recording:
+
+1. Run full reset: `./scripts/reset-demo-machine.sh --full`
+2. Verify all checks pass
+3. Confirm Bob authentication works
+4. Test one complete bootstrap run
+5. Document any machine-specific quirks
+6. Transfer ownership in this document
+
+---
+
+**Reset Procedure Added:** Phase 3 T4.11  
+**Last Updated:** 2026-05-16  
+**Maintained By:** Dev 4 → Dev 5 (Phase 5)

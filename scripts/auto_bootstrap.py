@@ -91,13 +91,30 @@ class BootstrapOrchestrator:
         except Exception as e:
             return 1, "", str(e)
     
-    def _log_telemetry(self, event_type: str, data: Dict):
-        """Log telemetry event to JSONL file."""
+    def _log_telemetry(self, event_type: str, data: Dict, severity: str = "info"):
+        """Log telemetry event to JSONL file with enhanced payload."""
         try:
+            # Map event types to human-readable summaries
+            summary_map = {
+                'bob_api_call': f"Calling Bob Shell for error diagnosis (attempt {data.get('attempt', 1)})",
+                'bob_diagnosis_success': f"Bob diagnosed: {data.get('category', 'unknown')} ({data.get('confidence', 0):.0%} confidence)",
+                'bob_json_error': f"Bob returned invalid JSON (attempt {data.get('attempt', 1)})",
+                'recovery_attempt': f"Attempting recovery: {data.get('category', 'unknown')}",
+                'recovery_success': f"Recovery successful: {data.get('category', 'unknown')}",
+                'recovery_failed': f"Recovery failed: {data.get('category', 'unknown')}",
+                'bootstrap_start': "Bootstrap process started",
+                'bootstrap_complete': "Bootstrap completed successfully",
+                'bootstrap_failed': f"Bootstrap failed: {data.get('reason', 'unknown')}"
+            }
+            
+            summary = summary_map.get(event_type, event_type)
+            
             event = {
                 "timestamp": time.time(),
                 "event_type": event_type,
-                "data": data
+                "severity": severity,
+                "message": summary,
+                "details": data
             }
             
             # Append to telemetry log (JSONL format)
@@ -370,7 +387,31 @@ IMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations, just the 
         }
         
         recovery_func = recovery_actions.get(category, self._recover_unknown)
+        
+        # Log recovery attempt start
+        self._log_telemetry('recovery_attempt', {
+            "category": category,
+            "diagnosis": diagnosis['diagnosis'],
+            "confidence": diagnosis.get('confidence', 0),
+            "attempt": self.retry_count + 1
+        }, severity="recovery")
+        
         success = recovery_func(diagnosis)
+        
+        # Log recovery result
+        if success:
+            self._log_telemetry('recovery_success', {
+                "category": category,
+                "diagnosis": diagnosis['diagnosis'],
+                "attempt": self.retry_count + 1
+            }, severity="info")
+        else:
+            self._log_telemetry('recovery_failed', {
+                "category": category,
+                "diagnosis": diagnosis['diagnosis'],
+                "attempt": self.retry_count + 1,
+                "reason": "recovery_function_returned_false"
+            }, severity="error")
         
         # Log recovery attempt
         self.recovery_history.append({

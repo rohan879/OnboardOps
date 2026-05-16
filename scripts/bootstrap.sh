@@ -25,17 +25,35 @@ NC='\033[0m' # No Color
 # Logging Functions
 # =====================================================================
 
-# Emit structured JSON log line
+# Emit structured JSON log line with enhanced payload
 log_json() {
     local stage="$1"
     local status="$2"
     local message="$3"
     local duration="${4:-0}"
+    local details="${5:-}"
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     
-    cat <<EOF
-{"timestamp":"$timestamp","stage":"$stage","status":"$status","message":"$message","duration_ms":$duration,"version":"$SCRIPT_VERSION"}
+    # Map status to severity
+    local severity="info"
+    case "$status" in
+        error|failed) severity="error" ;;
+        warning|warn) severity="warn" ;;
+        recovery|recovering) severity="recovery" ;;
+        success|complete|ok) severity="info" ;;
+        start|info) severity="info" ;;
+    esac
+    
+    # Build JSON with optional details field
+    if [ -n "$details" ]; then
+        cat <<EOF
+{"timestamp":"$timestamp","stage":"$stage","status":"$status","message":"$message","duration_ms":$duration,"severity":"$severity","details":$details,"version":"$SCRIPT_VERSION"}
 EOF
+    else
+        cat <<EOF
+{"timestamp":"$timestamp","stage":"$stage","status":"$status","message":"$message","duration_ms":$duration,"severity":"$severity","version":"$SCRIPT_VERSION"}
+EOF
+    fi
 }
 
 # Log to both stdout (JSON) and log file (human-readable)
@@ -44,9 +62,10 @@ log_stage() {
     local status="$2"
     local message="$3"
     local duration="${4:-0}"
+    local details="${5:-}"
     
     # JSON to stdout
-    log_json "$stage" "$status" "$message" "$duration"
+    log_json "$stage" "$status" "$message" "$duration" "$details"
     
     # Human-readable to log file
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] [$stage] $status: $message" >> "$LOG_FILE"
@@ -70,20 +89,27 @@ auto_recover_port() {
     local pid=$(lsof -ti ":$port" 2>/dev/null | head -1)
     local process_name=$(ps -p "$pid" -o comm= 2>/dev/null || echo "unknown")
     
-    log_stage "recovery" "warning" "Port $port is in use by process $pid ($process_name)"
-    
-    # Emit structured recovery event
-    local recovery_event=$(cat <<EOF
-{"timestamp":"$(date -u +"%Y-%m-%dT%H:%M:%SZ")","event":"recovery","type":"port-in-use","port":$port,"pid":$pid,"process":"$process_name","action":"terminate"}
+    # Build detailed recovery information
+    local details=$(cat <<EOF
+{"port":$port,"pid":$pid,"process":"$process_name","action":"terminate","recovery_pattern":"port-in-use"}
 EOF
 )
-    echo "$recovery_event"
+    
+    log_stage "recovery" "warn" "Port $port blocked by $process_name (PID $pid)" 0 "$details"
     
     # Prompt or auto-recover
     if [ "$auto_recover" = "--auto-recover" ]; then
-        log_stage "recovery" "info" "Auto-recovery enabled, terminating process $pid"
+        local recovery_details=$(cat <<EOF
+{"port":$port,"pid":$pid,"process":"$process_name","action":"terminating","method":"SIGTERM"}
+EOF
+)
+        log_stage "recovery" "recovery" "Terminating $process_name to free port $port" 0 "$recovery_details"
         kill "$pid" 2>/dev/null || {
-            log_stage "recovery" "warning" "Failed to terminate process $pid, trying SIGKILL"
+            local sigkill_details=$(cat <<EOF
+{"port":$port,"pid":$pid,"process":"$process_name","action":"force_kill","method":"SIGKILL"}
+EOF
+)
+            log_stage "recovery" "warn" "SIGTERM failed, using SIGKILL on $process_name" 0 "$sigkill_details"
             kill -9 "$pid" 2>/dev/null || {
                 log_stage "recovery" "error" "Failed to terminate process $pid"
                 return 1
@@ -98,11 +124,19 @@ EOF
         done
         
         if lsof -i ":$port" > /dev/null 2>&1; then
-            log_stage "recovery" "error" "Port $port still in use after termination"
+            local fail_details=$(cat <<EOF
+{"port":$port,"pid":$pid,"process":"$process_name","result":"failed","reason":"port_still_in_use"}
+EOF
+)
+            log_stage "recovery" "error" "Recovery failed: Port $port still blocked" 0 "$fail_details"
             return 1
         fi
         
-        log_stage "recovery" "success" "Port $port recovered successfully"
+        local success_details=$(cat <<EOF
+{"port":$port,"pid":$pid,"process":"$process_name","result":"success","recovery_time_ms":$((retries * 500))}
+EOF
+)
+        log_stage "recovery" "success" "Port $port recovered successfully" 0 "$success_details"
         return 0
     else
         # Interactive prompt
