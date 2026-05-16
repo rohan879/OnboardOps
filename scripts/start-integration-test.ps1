@@ -17,18 +17,64 @@ if (-not (Test-Path ".bob/modes/onboard.md")) {
 
 Write-Host "Step 1: Starting backend MCP server..." -ForegroundColor Green
 
-try {
-    $pythonVersion = python --version 2>&1
-    Write-Host "  Python found: $pythonVersion" -ForegroundColor Gray
-} catch {
-    Write-Host "  ERROR: Python not found. Install Python 3.11+ first." -ForegroundColor Red
+$defaultDemoRepo = Resolve-Path (Join-Path $repoRoot "..\demo-repo") -ErrorAction SilentlyContinue
+if (-not $env:ONBOARDOPS_DEMO_REPO_PATH -and $defaultDemoRepo) {
+    $env:ONBOARDOPS_DEMO_REPO_PATH = $defaultDemoRepo.Path
+}
+
+if (-not $env:ONBOARDOPS_DEMO_REPO_PATH) {
+    Write-Host "  ERROR: ONBOARDOPS_DEMO_REPO_PATH is not set and ../demo-repo was not found." -ForegroundColor Red
     exit 1
 }
 
-if (-not (Test-Path "backend/.venv")) {
+$demoRepoPath = Resolve-Path -LiteralPath $env:ONBOARDOPS_DEMO_REPO_PATH
+$demoRepoPathString = $demoRepoPath.Path
+Write-Host "  Demo repo: $($demoRepoPath.Path)" -ForegroundColor Gray
+
+$gitExe = (Get-Command git.exe -ErrorAction SilentlyContinue).Source
+if ($gitExe) {
+    $env:GIT_PYTHON_GIT_EXECUTABLE = $gitExe
+    $env:GIT_CONFIG_COUNT = "1"
+    $env:GIT_CONFIG_KEY_0 = "safe.directory"
+    $env:GIT_CONFIG_VALUE_0 = $demoRepoPath.Path
+}
+
+try {
+    $pythonCmd = Get-Command python -ErrorAction Stop
+    $pythonExe = $pythonCmd.Source
+    $pythonVersion = & $pythonExe --version 2>&1
+    Write-Host "  Python found: $pythonVersion" -ForegroundColor Gray
+} catch {
+    $bundledPython = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+    if (Test-Path $bundledPython) {
+        $pythonExe = $bundledPython
+        $pythonVersion = & $pythonExe --version 2>&1
+        Write-Host "  Python found: $pythonVersion" -ForegroundColor Gray
+    } else {
+        Write-Host "  ERROR: Python not found. Install Python 3.11+ first." -ForegroundColor Red
+        exit 1
+    }
+}
+
+$venvPython = Join-Path $repoRoot "backend\.venv\Scripts\python.exe"
+$venvHealthy = $false
+if (Test-Path $venvPython) {
+    try {
+        & $venvPython --version *> $null
+        $venvHealthy = ($LASTEXITCODE -eq 0)
+    } catch {
+        $venvHealthy = $false
+    }
+}
+
+if (-not $venvHealthy) {
+    if (Test-Path "backend/.venv") {
+        Write-Host "  Existing virtual environment is broken; recreating..." -ForegroundColor Yellow
+        Remove-Item -LiteralPath "backend/.venv" -Recurse -Force
+    }
     Write-Host "  Creating Python virtual environment..." -ForegroundColor Yellow
     Push-Location backend
-    python -m venv .venv
+    & $pythonExe -m venv .venv
     Pop-Location
 }
 
@@ -42,6 +88,11 @@ Write-Host "  Starting backend on port 8765..." -ForegroundColor Yellow
 $backendPath = Join-Path $repoRoot "backend"
 $backendJob = Start-Job -ScriptBlock {
     Set-Location $using:backendPath
+    $env:ONBOARDOPS_DEMO_REPO_PATH = $using:demoRepoPathString
+    $env:GIT_PYTHON_GIT_EXECUTABLE = $using:gitExe
+    $env:GIT_CONFIG_COUNT = "1"
+    $env:GIT_CONFIG_KEY_0 = "safe.directory"
+    $env:GIT_CONFIG_VALUE_0 = $using:demoRepoPathString
     & .\.venv\Scripts\Activate.ps1
     python -m uvicorn app:app --host 127.0.0.1 --port 8765 --reload
 }

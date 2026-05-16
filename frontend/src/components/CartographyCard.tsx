@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { ReactNode } from 'react';
 import { Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { cardVariants } from '@/lib/animations';
+import { cardVariants } from '@/components/animations';
 
 export type CardType = 'graph' | 'entry' | 'hotspot' | 'convention';
 export type CardState = 'pending' | 'in-progress' | 'complete' | 'error';

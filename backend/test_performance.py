@@ -5,10 +5,13 @@ Target: p95 < 800ms for all tools
 """
 
 import httpx
+import sys
 import time
 import statistics
 from typing import List, Dict, Any
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 BASE_URL = "http://127.0.0.1:8765"
 NUM_RUNS = 10  # Run each tool 10 times for statistical significance
@@ -29,10 +32,14 @@ def measure_tool_latency(
             response = client.post(f"{BASE_URL}/mcp/invoke", json=payload)
             latency_ms = (time.time() - start) * 1000
 
-            if response.status_code == 200:
+            body = response.json() if response.status_code == 200 else {}
+
+            if response.status_code == 200 and body.get("error") is None:
                 latencies.append(latency_ms)
                 cache_status = response.headers.get("X-Cache", "UNKNOWN")
                 print(f"  Run {i+1}: {latency_ms:.1f}ms ({cache_status})")
+            elif response.status_code == 200:
+                print(f"  Run {i+1}: TOOL ERROR {body.get('error')}")
             else:
                 print(f"  Run {i+1}: ERROR {response.status_code}")
         except Exception as e:

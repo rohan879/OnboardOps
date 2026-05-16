@@ -6,6 +6,7 @@ Tests cache hits, misses, and X-Cache headers
 import httpx
 import time
 import json
+from uuid import uuid4
 
 BASE_URL = "http://127.0.0.1:8765"
 
@@ -22,10 +23,10 @@ def test_cache_functionality():
 
     # Test 1: Cache MISS on first call
     print("\n[TEST 1] First call - should be CACHE MISS")
-    session_id = "test-session-123"
+    session_id = f"test-session-{uuid4()}"
     payload = {
         "tool_name": "git_blame_summary",
-        "arguments": {"file_path": "app/main.py", "session_id": session_id},
+        "arguments": {"file_path": "backend/app.py", "session_id": session_id},
     }
 
     start = time.time()
@@ -36,8 +37,10 @@ def test_cache_functionality():
     print(f"X-Cache: {response1.headers.get('X-Cache', 'NOT SET')}")
     print(f"Latency: {latency1:.1f}ms")
     print(f"Result preview: {json.dumps(response1.json(), indent=2)[:200]}...")
+    body1 = response1.json()
 
     assert response1.status_code == 200, "First call should succeed"
+    assert body1.get("error") is None, f"First call returned tool error: {body1.get('error')}"
     assert response1.headers.get("X-Cache") == "MISS", "First call should be cache MISS"
 
     # Test 2: Cache HIT on second call with same arguments
@@ -54,6 +57,7 @@ def test_cache_functionality():
     print(f"Speedup: {latency1/latency2:.1f}x faster")
 
     assert response2.status_code == 200, "Second call should succeed"
+    assert response2.json().get("error") is None, "Second call should not return tool error"
     assert response2.headers.get("X-Cache") == "HIT", "Second call should be cache HIT"
     assert latency2 < 50, f"Cache hit should be <50ms, got {latency2:.1f}ms"
     assert response1.json() == response2.json(), "Results should be identical"
@@ -63,7 +67,7 @@ def test_cache_functionality():
     payload3 = {
         "tool_name": "git_blame_summary",
         "arguments": {
-            "file_path": "app/different.py",  # Different file
+            "file_path": "backend/README.md",  # Different file
             "session_id": session_id,
         },
     }
@@ -82,8 +86,8 @@ def test_cache_functionality():
     payload4 = {
         "tool_name": "git_blame_summary",
         "arguments": {
-            "file_path": "app/main.py",  # Same file as test 1
-            "session_id": "different-session-456",  # Different session
+            "file_path": "backend/app.py",  # Same file as test 1
+            "session_id": f"different-session-{uuid4()}",  # Different session
         },
     }
 
@@ -101,7 +105,7 @@ def test_cache_functionality():
     payload5 = {
         "tool_name": "git_blame_summary",
         "arguments": {
-            "file_path": "app/main.py"
+            "file_path": "backend/app.py"
             # No session_id
         },
     }
@@ -123,9 +127,7 @@ def test_cache_functionality():
     print(f"Cache stats: {json.dumps(stats, indent=2)}")
 
     assert stats["cache"]["total_entries"] >= 3, "Should have at least 3 cached entries"
-    assert (
-        len(stats["cache"]["unique_sessions"]) >= 2
-    ), "Should have at least 2 sessions"
+    assert stats["cache"]["unique_sessions"] >= 2, "Should have at least 2 sessions"
 
     print("\n" + "=" * 60)
     print("[OK] All cache tests passed!")

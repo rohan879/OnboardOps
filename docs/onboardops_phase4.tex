@@ -1,0 +1,834 @@
+% =====================================================================
+% OnboardOps Phase 4 -- Detailed Task Breakdown
+% IBM Bob Hackathon 2026
+% Compile with: pdflatex onboardops_phase4.tex (run twice for TOC)
+% =====================================================================
+
+\documentclass[11pt,letterpaper]{article}
+
+% ---------- Page geometry ----------
+\usepackage[margin=1in,top=1.1in,bottom=1.1in]{geometry}
+
+% ---------- Encoding & fonts ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[protrusion=true,expansion=false]{microtype}
+
+% ---------- Colors (with table support) ----------
+\usepackage[table]{xcolor}
+\definecolor{ibmblue}{HTML}{0F62FE}
+\definecolor{ibmdark}{HTML}{161616}
+\definecolor{ibmgray}{HTML}{6F6F6F}
+\definecolor{ibmlight}{HTML}{F4F4F4}
+\definecolor{ibmaccent}{HTML}{8A3FFC}
+\definecolor{ibmgreen}{HTML}{24A148}
+\definecolor{ibmred}{HTML}{DA1E28}
+\definecolor{ibmorange}{HTML}{FF832B}
+\definecolor{ibmteal}{HTML}{009D9A}
+
+% ---------- Hyperlinks ----------
+\usepackage[colorlinks=true,linkcolor=ibmblue,urlcolor=ibmblue,citecolor=ibmblue]{hyperref}
+
+% ---------- Headers / footers ----------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{ibmgray}{OnboardOps -- Phase 4 Tasks}}
+\fancyhead[R]{\small\textcolor{ibmgray}{H+28 to H+40}}
+\fancyfoot[C]{\small\textcolor{ibmgray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------- Section formatting ----------
+\usepackage{titlesec}
+\titleformat{\section}
+  {\Large\bfseries\color{ibmblue}}{\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{ibmdark}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{ibmdark}}{\thesubsubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4\baselineskip}{0.6\baselineskip}
+
+% ---------- Tables & lists ----------
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\setlist{nosep,topsep=2pt,partopsep=2pt}
+
+% ---------- Code listings ----------
+\usepackage{listings}
+\lstdefinestyle{shellstyle}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{ibmlight},
+  frame=single,
+  framerule=0pt,
+  rulecolor=\color{ibmgray!20},
+  breaklines=true,
+  showstringspaces=false,
+  columns=flexible,
+  keywordstyle=\color{ibmblue}\bfseries,
+  commentstyle=\color{ibmgreen}\itshape,
+  stringstyle=\color{ibmaccent},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+}
+\lstset{style=shellstyle}
+
+% ---------- Callout boxes ----------
+\usepackage[most]{tcolorbox}
+
+\newtcolorbox{task}[2]{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmblue,
+  fonttitle=\bfseries\color{white},
+  coltitle=white,
+  title={#1 \hfill \normalfont\itshape #2},
+  boxrule=0pt,arc=2pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+  attach boxed title to top left={xshift=4pt,yshift=-2mm},
+  boxed title style={colback=ibmblue,arc=2pt,boxrule=0pt},
+}
+
+\newtcolorbox{warning}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmorange,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+\newtcolorbox{gate}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmgreen,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+\newtcolorbox{principle}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmaccent,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+\newtcolorbox{danger}{
+  enhanced,breakable,
+  colback=ibmlight,colframe=ibmred,
+  boxrule=0pt,leftrule=3pt,arc=0pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+}
+
+% ---------- Misc ----------
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup{labelfont={bf,color=ibmblue},textfont=it,font=small}
+
+% Custom commands
+\newcommand{\acceptance}[1]{\par\smallskip\textcolor{ibmgreen}{\textbf{Done when:}} #1}
+\newcommand{\depends}[1]{\par\smallskip\textcolor{ibmorange}{\textbf{Depends on:}} #1}
+\newcommand{\nodep}{\par\smallskip\textcolor{ibmgray}{\textit{No dependencies.}}}
+\newcommand{\bobcost}[1]{\par\smallskip\textcolor{ibmaccent}{\textbf{Bobcoin budget:}} #1}
+\newcommand{\shall}{\textbf{shall}}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+% =====================================================================
+\begin{document}
+% =====================================================================
+
+% ---------- Title page ----------
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\vspace*{1.5cm}
+
+{\color{ibmblue}\rule{\textwidth}{2pt}}
+\vspace{0.8cm}
+
+{\fontsize{38}{46}\selectfont\bfseries\color{ibmblue} OnboardOps\par}
+\vspace{0.3cm}
+{\Large\itshape\color{ibmgray} The 10-Minute Repo Whisperer\par}
+\vspace{0.4cm}
+
+{\color{ibmblue}\rule{\textwidth}{2pt}}
+\vspace{2.0cm}
+
+{\huge\bfseries Phase 4: Hardening \& Polish\par}
+\vspace{0.3cm}
+{\large Stop Building. Start Making the Demo Unforgettable.\par}
+\vspace{2.5cm}
+
+\begin{tabularx}{0.78\textwidth}{lX}
+\toprule
+\textbf{Phase Window} & H+28 to H+40 (twelve hours wall-clock) \\
+\textbf{Effective Work / Dev} & ${\sim}$10 hours (allowing for sleep continuity) \\
+\textbf{Team Composition} & Five implementers \\
+\textbf{Parallelism Model} & Parallel across persons; sequential within each person \\
+\textbf{Total Person-Hours} & ${\sim}$50 effective (5 devs $\times$ 10 hours) \\
+\textbf{Phase Type} & Hardening + visual polish + first-cut video \\
+\textbf{Gate Criterion} & Five consecutive E2E runs $\leq$ 10 minutes each; rough video cut exists \\
+\bottomrule
+\end{tabularx}
+
+\vfill
+
+{\large IBM Bob Hackathon 2026\par}
+{\normalsize Companion document to the OnboardOps SRS v1.0\par}
+\vspace{0.6cm}
+{\small\color{ibmgray} Phase 4 is the most important phase for the team's final score. A flawless 5-minute video built on a flaky demo always loses to a clean demo with a rough video. Every hour of Phase 4 \shall{} make the demo more reliable, the visuals more legible, and the team more rehearsed. Building new features in Phase 4 is forbidden.\par}
+\end{titlepage}
+
+{\hypersetup{linkcolor=ibmdark}\tableofcontents}
+\newpage
+
+% =====================================================================
+\section{Phase 4 Overview}
+% =====================================================================
+
+By the end of Phase 3, every P0 and P1 feature is implemented. Phase 4 \textit{does not add features}. Phase 4 takes the implemented system and makes it reliable, beautiful, and demo-ready.
+
+The phase reorganizes the team's mental model around three converging deliverables:
+
+\begin{enumerate}
+  \item \textbf{Reliability.} The full E2E pipeline \shall{} complete successfully on five consecutive runs in under 10 minutes each. Phase 3 demonstrated correctness; Phase 4 demonstrates consistency. Flakiness is the failure mode that kills hackathon demos.
+  \item \textbf{Polish.} Every visual element \shall{} read clearly on a 1080p video frame. Animation timing, layout spacing, color contrast, typography, and the small ``story beat'' moments are tuned here.
+  \item \textbf{First cut of the video.} A rough but complete 4--5 minute video assembled from existing footage. The Phase 4 video is not the final submission video (that is Phase 5), but it surfaces every gap the team must close.
+\end{enumerate}
+
+By H+40, the team \shall{} have:
+
+\begin{enumerate}
+  \item Five consecutive E2E runs each in $<$ 10 minutes, captured in session logs.
+  \item Zero outstanding defects from the H+28 sync.
+  \item A bulletproof demo machine reset script and preflight checklist.
+  \item A rough video cut (4--5 minutes) with placeholder narration.
+  \item A complete slide deck (all twelve slides, real content).
+  \item A final cover image, architecture diagram, and README.
+  \item All Bob task sessions curated; \texttt{bob\_sessions/} index complete.
+  \item Cumulative Bobcoin spend $\leq$ 105 of 200 (53\%).
+\end{enumerate}
+
+\begin{principle}
+\textbf{The Hardening Mindset.} If a change does not make the demo more reliable, more legible, or more compelling, do not make it. Phase 4 is not the time to refactor a module you have always wanted to clean up. It is not the time to ship the second cartography theme you thought would be cool. Resist the urge.
+\end{principle}
+
+% =====================================================================
+\section{Replay Mode: Your Bobcoin Savior}
+% =====================================================================
+
+Phase 4 introduces a new operating discipline: \textbf{most demo iteration in this phase \shall{} happen against the replay endpoint, not against live Bob sessions}. Replay mode (built by Dev 5 in Phase 2 task T5.4 and polished in Phase 3 task T3.10) replays a recorded JSONL session through the dashboard at zero Bobcoin cost.
+
+\begin{principle}
+\textbf{Replay First, Live Last.} Animation timing, layout shifts, screenshot capture, video editing, and slide deck B-roll all happen against replay mode. Live Bob sessions are reserved for: (a) the five mandated reliability E2E runs, (b) the final video shot recording, and (c) anything that requires a real PR opening or a real AGENTS.md output.
+\end{principle}
+
+A typical Phase 4 dev day burns far fewer Bobcoins than Phase 3 if discipline holds. The team \shall{} record one ``hero'' session early in Phase 4 and iterate against its replay for the rest of the phase. Only when a polished version is ready do we record a fresh live session for the final video in Phase 5.
+
+\begin{warning}
+\textbf{Replay is not free of all costs.} It does not exercise the live MCP server, the live WebSocket bridge, or the live Bob inference path. The five mandated live E2E runs remain mandatory. Replay covers everything \textit{else}.
+\end{warning}
+
+% =====================================================================
+\section{Cumulative Bobcoin Status Check}
+% =====================================================================
+
+Entering Phase 4, the team has spent an estimated 65 Bobcoins of the 200-coin budget. Phase 4's target spend is 35 Bobcoins, bringing the cumulative to 100 (50\%). Phase 5 (video recording with multiple final takes) and Phase 6 (submission buffer) need the remaining 100.
+
+\begin{longtable}{|p{1.4cm}|p{2.3cm}|p{2.2cm}|p{2.2cm}|p{2.0cm}|p{2.7cm}|}
+\hline
+\rowcolor{ibmblue!10}
+\textbf{Dev} & \textbf{Cumulative (P2+P3)} & \textbf{Phase 4 target} & \textbf{Cumulative} & \textbf{Personal Cap (40)} & \textbf{Headroom for P5--P6} \\
+\hline
+Dev 1 & 24 & 13 & 37 & 40 & 3 \\
+\hline
+Dev 2 & 10 & 3 & 13 & 40 & 27 \\
+\hline
+Dev 3 & 8 & 2 & 10 & 40 & 30 \\
+\hline
+Dev 4 & 13 & 7 & 20 & 40 & 20 \\
+\hline
+Dev 5 & 10 & 10 & 20 & 40 & 20 \\
+\hline
+\rowcolor{ibmblue!5}
+\textbf{Total} & \textbf{65} & \textbf{35} & \textbf{100 / 200} & \textbf{200} & \textbf{100} \\
+\hline
+\end{longtable}
+
+\begin{danger}
+\textbf{Dev 1 Bobcoin Alarm.} Dev 1 enters Phase 4 with the tightest personal headroom (16 coins left). After Phase 4's target, Dev 1 has only \textbf{3 coins left} for Phase 5. This is intentional: by Phase 5, Dev 1's contribution is monitoring and supporting demos, not iterating on prompts. If Dev 1 finds themselves running prompt iterations in Phase 4, they \shall{} switch immediately to Plan or Ask mode. Advanced and Orchestrator modes are reserved exclusively for the five mandated live E2E runs.
+\end{danger}
+
+% =====================================================================
+\section{Cross-Person Dependency Map}
+% =====================================================================
+
+Phase 4 has the lightest cross-person coupling of any phase. Most work is independent polish. The dependencies that remain are clustered around the live E2E runs, which all five devs participate in.
+
+\begin{longtable}{|p{1.4cm}|p{2.6cm}|p{4cm}|p{6cm}|}
+\hline
+\rowcolor{ibmblue!10}
+\textbf{When} & \textbf{Producer} & \textbf{Artifact} & \textbf{Consumer} \\
+\hline
+H+28 -- H+29 & All & Defect triage list (from H+28 sync) & Phase 4 task ordering for everyone \\
+\hline
+H+29 -- H+30 & Dev 4 & Updated demo machine reset script & Used before every E2E run \\
+\hline
+H+30 -- H+31 & Dev 4 & Preflight checklist script & Used before every E2E run and recording \\
+\hline
+H+31 -- H+34 & Dev 1 & Live E2E run \#1 + session capture & Dev 5's first rough video cut \\
+\hline
+H+34 -- H+38 & All & Live E2E runs \#2--\#5 & Phase 4 gate G4.1 satisfaction \\
+\hline
+H+36 -- H+40 & Dev 5 & First rough video cut & Phase 5 final video starts here \\
+\hline
+\end{longtable}
+
+% =====================================================================
+\section{H+34 Mid-Phase Sync (15 minutes)}
+% =====================================================================
+
+At the six-hour mark of Phase 4, the team holds a brief sync. The agenda is tactical:
+
+\begin{enumerate}
+  \item \textbf{E2E reliability status} (5 min). How many of the five mandated runs have completed? What was the time? What broke?
+  \item \textbf{Bobcoin checkpoint} (3 min). Each dev states their remaining personal headroom and whether they project a safe finish to Phase 6.
+  \item \textbf{Video defect log} (5 min). From the first rough cut (Dev 5's T5.2), what visual gaps have emerged? Which require live re-shoots vs.~replay-based fixes?
+  \item \textbf{Phase 5 hand-off prep} (2 min). What needs to be in Dev 5's hands by H+40 to start Phase 5 video editing without further team blocking?
+\end{enumerate}
+
+% =====================================================================
+\section{Phase 4 Gate (H+40 Sync)}
+% =====================================================================
+
+Phase 4 graduates the team from ``building'' to ``shipping.'' Pass this gate and Phase 5 is mechanical asset production. Fail it and the team is in damage control with twelve hours left.
+
+\begin{gate}
+\textbf{Gate G4.1 -- Five Consecutive E2E Runs.} Five complete E2E runs (initiation through PR open through AGENTS.md generation) have been executed on the demo machine within Phase 4, each completing in under 10 minutes with zero manual intervention. Session logs are in \texttt{bob\_sessions/}.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G4.2 -- Zero Defects from H+28.} Every defect logged in the H+28 sync's defect log is resolved or has a documented mitigation (e.g., ``out of scope; documented as a known limitation in README''). No P0 or P1 defects outstanding.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G4.3 -- Preflight Checklist Working.} \texttt{./scripts/preflight.sh} runs in under 30 seconds and verifies at least 15 system invariants (processes healthy, ports free, demo repo at known commit, Bob auth valid, etc.). The script is invoked before every recording session.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G4.4 -- Rough Video Cut Exists.} A 4--5 minute rough cut of the final video exists at \texttt{docs/video/cut-v1.mp4}, assembled from Phase 2--Phase 4 recordings, with placeholder narration. Every key beat from the demo storyboard is represented.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G4.5 -- Slide Deck Complete.} All twelve slides of the deck contain final or near-final content. Cover, demo-link, and thank-you slides can have minor adjustments in Phase 5; the rest are locked.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G4.6 -- bob\_sessions/ Curated.} The \texttt{bob\_sessions/} directory contains at least 15 curated sessions across the five developers (3 per developer minimum), each with a markdown transcript and a consumption screenshot. The top-level README in \texttt{bob\_sessions/} narratively guides a judge through the curated set.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G4.7 -- Cumulative Bobcoin Spend $\leq$ 105.} The team has burned no more than 105 of 200 Bobcoins. Phase 5 needs at least 80 coins for the final video takes; this gate proves we have them.
+\end{gate}
+
+\begin{gate}
+\textbf{Gate G4.8 -- Cover Image, README, Architecture Diagram Final.} The submission's visual front door is ready: cover image at \texttt{docs/cover.png}, README with embedded screenshots, architecture diagram at \texttt{docs/architecture.svg}.
+\end{gate}
+
+% =====================================================================
+\section{Dev 1 -- Bob Architect}
+% =====================================================================
+
+\textbf{Time budget:} 600 minutes (${\sim}$10 effective hours). \textbf{Tasks: 11.} \textbf{Bobcoin budget:} 13.
+
+\textbf{Phase 4 Mission:} make every Bob-driven moment in the pipeline bulletproof. Tune prompts for consistency across repeated runs, add safety rails against malformed responses, handle edge cases in cartography data, and participate in the five mandated live E2E runs as the primary operator.
+
+\begin{task}{T1.1 -- Defect Triage From H+28 Sync}{30 min}
+Review the H+28 sync's defect log. Identify which defects are Bob-related (mode, skill, or prompt behavior). Order them by severity and demo impact. Plan resolution for the top three before any new work.
+\nodep
+\bobcost{0}
+\acceptance{Top three Bob-related defects have a remediation plan with effort estimates.}
+\end{task}
+
+\begin{task}{T1.2 -- Edge Case: Empty or Errored MCP Responses}{60 min}
+Cartography stages currently assume MCP tools return useful data. Add graceful degradation: if \texttt{git\_blame\_summary} returns empty, the narration becomes ``no recent authors on this file -- it appears stable.'' If a tool errors, the skill catches and continues to the next file. Test by deliberately breaking three tool responses.
+\depends{T1.1}
+\bobcost{1}
+\acceptance{Three deliberate tool failures produce coherent narration; no skill crashes or Bob errors out.}
+\end{task}
+
+\begin{task}{T1.3 -- Edge Case: Unusual File Paths and Repo Quirks}{45 min}
+Test the cartography against three edge-case scenarios: a file path with spaces, a file with a very long path ($>$ 200 chars), a directory named \texttt{src/} with both Python and TypeScript files. Add truncation in narration; add safe-quoting in MCP calls. The demo repo is unlikely to hit these, but a robust system tolerates them and judges may explore.
+\depends{T1.2}
+\bobcost{1}
+\acceptance{Three edge-case scenarios produce sensible cartography output.}
+\end{task}
+
+\begin{task}{T1.4 -- Tune Certification Grading for Consistency}{75 min}
+Run the same five test answers through the certification grader five times each (25 invocations). Measure grade variance. If the same answer receives different grades across runs, tighten the rubric: add more explicit rejection criteria, require evidence in a specific format, lower the temperature on the grading turn. Target: zero grade flips across five reruns of any single answer.
+\depends{T1.1}
+\bobcost{2}
+\acceptance{25 invocations show zero grade flips for any of the five test answers.}
+\end{task}
+
+\begin{task}{T1.5 -- Add Safety Rails Against Malformed Bob Output}{60 min}
+Bob occasionally returns malformed JSON inside \texttt{emit\_event} payloads or non-strict markdown in card content. Add: (a) JSON validation in the MCP \texttt{emit\_event} handler (coordinate with Dev 2); (b) a fallback path in the cartography skill that re-asks Bob with a stricter format if the first attempt fails parsing; (c) cap output tokens explicitly in mode metadata to prevent runaway responses.
+\depends{T1.4}
+\bobcost{1}
+\acceptance{Three deliberate malformed-output tests recover via re-ask; no crash propagates to dashboard.}
+\end{task}
+
+\begin{task}{T1.6 -- Final Bobcoin Compression Pass}{60 min}
+Re-measure spend across two full E2E runs. Identify the two highest-cost prompts. Apply targeted compression: shorter examples, tighter output schema hints, removed-on-reload rules. Target: 9--10 Bobcoins per full E2E run, down from Phase 3's 11--12.
+\depends{T1.5}
+\bobcost{1.5}
+\acceptance{Two consecutive E2E runs each cost $\leq$ 10 Bobcoins.}
+\end{task}
+
+\begin{task}{T1.7 -- Live E2E Run \#1}{45 min}
+Execute the first of five mandated live E2E runs. Reset demo machine via Dev 4's script; run preflight; run \texttt{/onboard}; time it; capture the Bob task session export. Note every defect or moment of awkwardness. This run's session JSONL becomes the source for early replay-based polish work by Dev 3.
+\depends{Dev 4 T4.5, T1.6}
+\bobcost{3}
+\acceptance{Run completes; time logged; session exported; defects cataloged.}
+\end{task}
+
+\begin{task}{T1.8 -- Live E2E Run \#2 (After Polish)}{45 min}
+After the team has fixed defects from run \#1, execute the second live run. Compare timing and defect count. This run is the candidate for the final video's primary footage; record it with the team's full attention. Capture session export.
+\depends{T1.7, Dev 3 fixes, Dev 4 fixes}
+\bobcost{3}
+\acceptance{Run completes in $<$ 11 minutes; defects strictly fewer than run \#1; session exported.}
+\end{task}
+
+\begin{task}{T1.9 -- Final Prompt-Patterns Write-Up}{30 min}
+Update \texttt{docs/prompt-patterns.md} to its final form: every pattern the team discovered, with concrete examples from the OnboardOps codebase. This document is one of the strongest demonstrations of deep Bob mastery for judges. Treat it as an artifact, not internal notes.
+\depends{T1.6}
+\bobcost{0}
+\acceptance{Document is at least 1500 words; includes at least six concrete patterns with code examples.}
+\end{task}
+
+\begin{task}{T1.10 -- Bob Session Curation Final Pass}{45 min}
+Walk through \texttt{bob\_sessions/dev1/}. Curate to the five most demo-worthy sessions. Each must have a clear narrative: what was attempted, what Bob did, what the Bobcoin cost was, why it matters. Add screenshots. Write a one-paragraph foreword at the top of each markdown export.
+\depends{T1.9}
+\bobcost{0}
+\acceptance{Five sessions present; each has narrative foreword; each links to a screenshot.}
+\end{task}
+
+\begin{task}{T1.11 -- On-Call Buffer for Dev 5's Recording Sessions}{105 min}
+Reserve the remaining time as on-call buffer for Dev 5's recording sessions in T5.4--T5.6. Be available to re-run prompts if a take needs to be redone. Do not start new work; idle is acceptable.
+\nodep
+\bobcost{0.5}
+\acceptance{Dev 5 reports no blocking waits during recording.}
+\end{task}
+
+% =====================================================================
+\section{Dev 2 -- Backend / MCP}
+% =====================================================================
+
+\textbf{Time budget:} 600 minutes (${\sim}$10 effective hours). \textbf{Tasks: 11.} \textbf{Bobcoin budget:} 3.
+
+\textbf{Phase 4 Mission:} make the backend bulletproof under repeated demos. Stress-test, add error handling, harden network behavior, and ride along on every recording session as the silent backend operator.
+
+\begin{task}{T2.1 -- Defect Triage From H+28 Sync}{30 min}
+Identify backend/MCP defects from the H+28 list. Order by severity.
+\nodep
+\bobcost{0}
+\acceptance{Top three MCP defects have a plan.}
+\end{task}
+
+\begin{task}{T2.2 -- Per-Tool Error Handling}{60 min}
+Each of the seven tools currently has happy-path behavior. Add structured error handling: catch \texttt{GitCommandError}, \texttt{httpx.TimeoutException}, \texttt{httpx.NetworkError}, and unknown exceptions; return a typed error response with an \texttt{error\_code} and \texttt{retryable} boolean. Bob's skill (via Dev 1's T1.2) will degrade gracefully on these.
+\depends{T2.1}
+\bobcost{0}
+\acceptance{All seven tools tested with deliberately injected errors; each returns the typed error shape; no 500-level responses.}
+\end{task}
+
+\begin{task}{T2.3 -- Stress Test: 50 Consecutive E2E Runs (Synthetic)}{90 min}
+Author \texttt{scripts/stress\_test.sh} that drives the MCP server through 50 simulated session lifecycles using pre-recorded payloads (not live Bob, to save Bobcoins). Measure: peak memory, response latency over time, cache hit rate, any error logs. Fix the worst regression.
+\depends{T2.2}
+\bobcost{0}
+\acceptance{50 runs complete; peak memory $<$ 500 MB; p95 latency stable across runs.}
+\end{task}
+
+\begin{task}{T2.4 -- GitHub API Retry and Backoff Hardening}{45 min}
+The GitHub API occasionally rate-limits or returns transient errors. Wrap all GitHub-facing calls in a retry decorator with exponential backoff (1s, 2s, 4s; max 3 retries). Log every retry. Surface a clean error if retries exhaust.
+\depends{T2.2}
+\bobcost{0}
+\acceptance{Simulating three transient 503 responses succeeds on retry; sustained 503 surfaces a clean error.}
+\end{task}
+
+\begin{task}{T2.5 -- Add Per-Tool Self-Test Endpoints}{60 min}
+Add \texttt{GET /tools/<name>/healthz} for each of the seven tools. Each runs a tiny self-test against the demo repo and returns 200 if the tool can do its job, or a structured error explaining why. The preflight checklist (Dev 4 T4.5) will call these.
+\depends{T2.2}
+\bobcost{0}
+\acceptance{All seven self-test endpoints return 200 on a healthy demo machine; return structured errors when the demo repo is removed.}
+\end{task}
+
+\begin{task}{T2.6 -- Documentation Polish}{45 min}
+Final pass on \texttt{docs/mcp-api.md} and \texttt{backend/README.md}. Add the error-code reference, the retry semantics, the self-test endpoints, and the cache eviction behavior. The doc \shall{} be the kind of thing an external team could integrate against without DM-ing.
+\depends{T2.5}
+\bobcost{0}
+\acceptance{A teammate (Dev 3) reads the doc and writes a tiny script that calls all seven tools without asking questions.}
+\end{task}
+
+\begin{task}{T2.7 -- Live Demo Support: Ride Along Recording Sessions}{60 min}
+During Dev 5's recording sessions (T5.4 -- T5.6), watch the backend logs in real time. Catch any issue that doesn't surface in the UI but would later: silent retries, cache misses, slow tools. Document anything unusual in a running notes file. Be available, not intrusive.
+\depends{T2.5}
+\bobcost{1}
+\acceptance{Notes file captures at least three observations from recording sessions; no surfaced bugs go unaddressed.}
+\end{task}
+
+\begin{task}{T2.8 -- Final Performance Verification}{60 min}
+Re-run the load test from Phase 3 T2.5 against the final code. Confirm all seven tools p95 $<$ 800 ms. Document final numbers in \texttt{docs/perf-results.md}. These numbers go on a slide in the deck (Dev 5's T5.7).
+\depends{T2.4}
+\bobcost{0}
+\acceptance{All seven tools p95 $<$ 800 ms; documented; ready for slide.}
+\end{task}
+
+\begin{task}{T2.9 -- Joint Integration Debugging}{60 min}
+During live runs \#1 -- \#3, pair with Dev 1 and Dev 3 on any integration defect. Don't solo-debug; the integration debugging arc itself is valuable Bob session content. Capture sessions.
+\depends{T2.7, Dev 1 T1.7}
+\bobcost{1}
+\acceptance{One captured ``three-dev integration debug'' session, exported to \texttt{bob\_sessions/dev2/}.}
+\end{task}
+
+\begin{task}{T2.10 -- Bob Session Curation Final Pass}{45 min}
+Curate \texttt{bob\_sessions/dev2/} to the four most demo-worthy sessions: one debugging arc, one perf-tuning session, one allow-list refusal, one cache-tuning. Add narrative forewords. Add consumption screenshots.
+\depends{T2.9}
+\bobcost{0}
+\acceptance{Four sessions curated with forewords.}
+\end{task}
+
+\begin{task}{T2.11 -- Buffer / Cross-Team Help}{45 min}
+Reserve as buffer. If under budget, help Dev 5 with the architecture diagram (Dev 2's deep knowledge of the data flow helps).
+\nodep
+\bobcost{1}
+\acceptance{No outstanding backend issues at H+40.}
+\end{task}
+
+% =====================================================================
+\section{Dev 3 -- Frontend / Dashboard}
+% =====================================================================
+
+\textbf{Time budget:} 600 minutes (${\sim}$10 effective hours). \textbf{Tasks: 12.} \textbf{Bobcoin budget:} 2.
+
+\textbf{Phase 4 Mission:} make the dashboard video-ready. Pixel-perfect at 1080p, animations timed for camera, story-beat emphasis on key moments, replay mode that supports video production. Every visual element \shall{} read clearly when paused on a frame in the final video.
+
+\begin{task}{T3.1 -- Defect Triage From H+28 Sync}{30 min}
+Identify dashboard defects from the H+28 list. Order by demo impact (a layout shift in the first 10 seconds is worse than a footer alignment issue).
+\nodep
+\bobcost{0}
+\acceptance{Top three dashboard defects have a plan.}
+\end{task}
+
+\begin{task}{T3.2 -- Final Spacing and Typography Pass}{60 min}
+Pixel-by-pixel review at 1920$\times$1080: every heading baseline aligned to an 8px grid; every paragraph at 1.5 line height; every color from the IBM palette and no other. Use the browser's pixel ruler. Document any deliberate deviations.
+\depends{T3.1}
+\bobcost{0}
+\acceptance{Side-by-side comparison with IBM Carbon shows visual parity; no off-grid elements.}
+\end{task}
+
+\begin{task}{T3.3 -- Animation Timing Refinement}{60 min}
+Animations on a fast laptop play too quickly for video viewers to parse. Re-tune: card emission slowed from 200 ms to 350 ms; certification grade fill from 400 ms to 600 ms; auto-recovery banner dwell time from 4 s to 5 s. Add a \texttt{?demo=true} URL parameter that applies these timings; the default stays fast for interactive use.
+\depends{T3.2}
+\bobcost{0}
+\acceptance{Replay at \texttt{?demo=true} feels paced for video; no jerky transitions visible on a slow-motion playback.}
+\end{task}
+
+\begin{task}{T3.4 -- Empty State and Idle State Polish}{45 min}
+The dashboard between launch and \texttt{/onboard} invocation is currently blank or shows placeholder cards. Polish: a centered ``Waiting for onboarding to begin...'' state with the OnboardOps wordmark and a soft pulsing animation. Make idle look intentional, not broken. The same treatment applies to the gap between cartography stages.
+\depends{T3.2}
+\bobcost{0}
+\acceptance{Idle state is visible and pleasant on the demo machine for at least 5 seconds before \texttt{/onboard} starts.}
+\end{task}
+
+\begin{task}{T3.5 -- Story-Beat Visual Emphasis}{60 min}
+Add subtle visual cues at the demo's key moments: (a) when the dependency graph completes, a brief glow on the card border; (b) when certification passes, a brief screen-edge highlight; (c) when the PR opens, the PR link gets an animated pointing-arrow that fades after 2 seconds. These read on video; they would feel gratuitous in a normal IDE.
+\depends{T3.3}
+\bobcost{0}
+\acceptance{Three story-beat moments visually distinct on a video frame paused at each.}
+\end{task}
+
+\begin{task}{T3.6 -- Replay Mode UX Polish for Video Production}{45 min}
+Add to the replay endpoint: (a) a ``presentation mode'' toggle that hides all controls and chrome; (b) keyboard shortcuts (space = play/pause, $\rightarrow$ = next event, $\leftarrow$ = previous event); (c) ability to set a start offset (skip the first N seconds for re-shoots).
+\depends{Phase 3 T3.10}
+\bobcost{0}
+\acceptance{Dev 5 can drive replay entirely from keyboard during a recording take.}
+\end{task}
+
+\begin{task}{T3.7 -- Capture Screenshots and B-Roll for Slides}{60 min}
+Using replay mode, capture: full dashboard mid-cartography; each individual card variant at completion; the certification panel mid-grading; the certification panel post-success; the auto-recovery banner mid-fire; the final PR-opened state. Save to \texttt{docs/screenshots/final/} as 1920$\times$1080 PNGs. These go on Dev 5's slides.
+\depends{T3.6}
+\bobcost{0}
+\acceptance{At least eight high-quality screenshots saved.}
+\end{task}
+
+\begin{task}{T3.8 -- Cross-Browser Smoke Test}{30 min}
+Test on Chrome (the demo browser) and Safari (in case the demo machine has Safari open as a backup). Note any rendering differences. Fix anything that breaks the demo flow.
+\depends{T3.5}
+\bobcost{0}
+\acceptance{Both browsers render the dashboard without layout-breaking defects.}
+\end{task}
+
+\begin{task}{T3.9 -- Live Demo Support and Polish Iteration}{90 min}
+During live runs \#1 -- \#5, watch the dashboard closely. Fix any visual issue surfaced. After each run, polish one specific moment that ``almost worked'' into something that lands cleanly.
+\depends{Dev 1 T1.7}
+\bobcost{1}
+\acceptance{Between run \#1 and run \#5, at least three visual polish improvements committed.}
+\end{task}
+
+\begin{task}{T3.10 -- Final Accessibility Check}{30 min}
+Run an axe-core or Lighthouse accessibility audit. Fix any AAA color-contrast issues. Add proper focus indicators on interactive elements. The dashboard is not primarily an accessibility play, but judges may notice basics.
+\depends{T3.2}
+\bobcost{0}
+\acceptance{Lighthouse accessibility score $\geq$ 90.}
+\end{task}
+
+\begin{task}{T3.11 -- Bob Session Export}{30 min}
+Export Bob sessions for \texttt{bob\_sessions/dev3/}; curate to three (a component scaffolding via Ask mode, one debugging arc, one polish iteration).
+\depends{T3.9}
+\bobcost{0}
+\acceptance{Three sessions exported.}
+\end{task}
+
+\begin{task}{T3.12 -- Buffer}{60 min}
+Reserve for late polish requests.
+\nodep
+\bobcost{1}
+\acceptance{No outstanding visual issues at H+40.}
+\end{task}
+
+% =====================================================================
+\section{Dev 4 -- Infra / Bob Shell}
+% =====================================================================
+
+\textbf{Time budget:} 600 minutes (${\sim}$10 effective hours). \textbf{Tasks: 11.} \textbf{Bobcoin budget:} 7.
+
+\textbf{Phase 4 Mission:} make the demo machine bulletproof and the bootstrap engine demonstrably reliable. Ship the preflight script that gates every recording session. Record clean B-roll clips of each auto-recovery pattern for the video.
+
+\begin{task}{T4.1 -- Defect Triage From H+28 Sync}{30 min}
+Identify bootstrap and infra defects from the H+28 list.
+\nodep
+\bobcost{0}
+\acceptance{Top three infra defects have a plan.}
+\end{task}
+
+\begin{task}{T4.2 -- Ten Consecutive Bootstrap Runs}{90 min}
+Run \texttt{./scripts/bootstrap.sh} ten times sequentially against the demo machine, alternating: clean, port-blocked, no-venv, no-seed, no-db, wrong-Node, clean, port-blocked, no-venv, no-seed. All ten \shall{} succeed. Document timings; fix the slowest single failure.
+\depends{T4.1, Phase 3 T4.10}
+\bobcost{0}
+\acceptance{Ten back-to-back bootstrap runs all succeed; mean time $<$ 2 minutes; worst-case $<$ 3 minutes.}
+\end{task}
+
+\begin{task}{T4.3 -- Network Resilience (WiFi Drop Handling)}{60 min}
+Simulate a WiFi drop during a Bob inference call (use OS-level WiFi toggle). Verify: Bob Shell retries gracefully, the dashboard reconnects, the bootstrap recovers if the drop occurs during install. Document failure modes that can't be auto-recovered (e.g., a drop during the PR-open call) and add explicit error messages.
+\depends{T4.2}
+\bobcost{1}
+\acceptance{A 5-second WiFi drop during bootstrap recovers; a drop during inference recovers via Bob Shell retry.}
+\end{task}
+
+\begin{task}{T4.4 -- Improve Demo Machine Reset Script}{45 min}
+Enhance \texttt{scripts/reset-demo-machine.sh}: add a fast-path that only resets things detected as dirty (saves time between recording takes); add a verification step that confirms reset succeeded; add a one-line summary of what was reset.
+\depends{T4.2}
+\bobcost{0}
+\acceptance{Fast-path reset completes in $<$ 5 seconds on a slightly-dirty machine; full reset on a heavily-dirty machine completes in $<$ 30 seconds.}
+\end{task}
+
+\begin{task}{T4.5 -- Author the Preflight Checklist Script}{60 min}
+Author \texttt{scripts/preflight.sh} that verifies at least 15 invariants before any recording session: backend healthy (all 7 \texttt{/healthz} endpoints), frontend healthy (port 3000 200), demo repo at known commit and clean tree, Bob auth valid (\texttt{bob --version} succeeds), network reachable, no stale processes on ports 3000/8000/8765, demo machine reset script ran in the last 60 seconds, sufficient Bobcoin headroom on the operator's account. Output a green ALL-CLEAR or a red list of failures.
+\depends{T4.4, Dev 2 T2.5}
+\bobcost{0.5}
+\acceptance{Preflight runs in $<$ 30 s; produces clear pass/fail output; correctly catches three deliberate broken-state tests.}
+\end{task}
+
+\begin{task}{T4.6 -- Record Bootstrap Recovery Scenarios for Video}{60 min}
+Individually record each of the five auto-recovery patterns running on the demo machine. Each clip is 15--20 seconds: the failure occurs, Bob Shell diagnoses, recovery fires, success. These clips become B-roll for Dev 5's video. Save to \texttt{docs/video/b-roll/}.
+\depends{T4.3}
+\bobcost{3}
+\acceptance{Five clean clips saved, each $\leq$ 20 seconds, each with clear recovery action visible.}
+\end{task}
+
+\begin{task}{T4.7 -- Live Demo Support for Runs \#3 -- \#5}{75 min}
+During live runs \#3 -- \#5, operate the preflight script and the reset script between each take. Be the ``ground crew'' that makes the recording fast and predictable.
+\depends{T4.5}
+\bobcost{2}
+\acceptance{Each run \#3 -- \#5 starts from a verified-clean state via preflight.}
+\end{task}
+
+\begin{task}{T4.8 -- Documentation Update}{30 min}
+Update \texttt{docs/demo-machine.md} with the final preflight requirements, reset procedure, and known limitations. This doc is what a judge would read if they wanted to reproduce the demo themselves.
+\depends{T4.5}
+\bobcost{0}
+\acceptance{Documentation reviewed by Dev 5; Dev 5 confirms they can reset and preflight the machine from the doc alone.}
+\end{task}
+
+\begin{task}{T4.9 -- Hand Off Demo Machine to Dev 5 for Phase 5}{30 min}
+At H+38--H+39, formally hand the demo machine to Dev 5: machine is reset, preflight passes, Bob auth confirmed, all five auto-recovery scenarios pre-tested. Dev 5 takes ownership for Phase 5 video recording.
+\depends{T4.7}
+\bobcost{0}
+\acceptance{Dev 5 confirms handoff; one final E2E run on Dev 5's operation succeeds.}
+\end{task}
+
+\begin{task}{T4.10 -- Bob Session Curation Final Pass}{45 min}
+Curate \texttt{bob\_sessions/dev4/} to five sessions: one per auto-recovery pattern, ideally captured from the most demo-worthy run of each. Add narrative forewords explaining what the recovery achieved.
+\depends{T4.6}
+\bobcost{0}
+\acceptance{Five sessions curated; each has narrative foreword.}
+\end{task}
+
+\begin{task}{T4.11 -- Buffer}{75 min}
+Reserve as buffer for any infrastructure issues that emerge during late runs.
+\nodep
+\bobcost{1.5}
+\acceptance{No outstanding infra issues at H+40.}
+\end{task}
+
+% =====================================================================
+\section{Dev 5 -- Integration Engineer}
+% =====================================================================
+
+\textbf{Time budget:} 615 minutes (${\sim}$10 effective hours). \textbf{Tasks: 13.} \textbf{Bobcoin budget:} 10.
+
+\textbf{Phase 4 Mission:} produce the first rough cut of the final video, finalize the slide deck, polish the cover image and architecture diagram, complete README, and run targeted re-shoots of demo moments that need fresh takes.
+
+\begin{task}{T5.1 -- Defect Triage and Integration Owner Role}{30 min}
+Review the H+28 defect list. Identify defects that cross team boundaries (a card display issue that's actually an MCP timing bug, etc.). Coordinate with the affected devs to ensure ownership is clear. Maintain the defect log throughout Phase 4.
+\nodep
+\bobcost{0}
+\acceptance{Defect log has clear owners; cross-team defects have a coordinating dev assigned.}
+\end{task}
+
+\begin{task}{T5.2 -- First Rough Video Cut From Existing Footage}{90 min}
+Edit together the Phase 2 and Phase 3 recordings into a 4--5 minute rough cut. Use the Phase 1 demo storyboard as the structural skeleton. Add placeholder narration text overlays. Mark every gap that needs new footage. Export as \texttt{docs/video/cut-v1.mp4}.
+\depends{T5.1}
+\bobcost{0}
+\acceptance{Rough cut is 4--5 minutes; every storyboard beat is represented or marked TODO.}
+\end{task}
+
+\begin{task}{T5.3 -- Plan the Final Video Shot List}{45 min}
+From the rough cut's TODOs, author \texttt{docs/video/shot-list.md}: every shot needed, the recording approach (live vs.~replay), the dev who operates, and the expected take count. This is the operational plan for the Phase 5 final recording.
+\depends{T5.2}
+\bobcost{0}
+\acceptance{Shot list has at least 10 entries; each has an operator and an approach.}
+\end{task}
+
+\begin{task}{T5.4 -- First Fresh Recording Session: Full Demo}{90 min}
+On the demo machine (after Dev 4 hands it over reset), record the full E2E pipeline. Multiple takes (3--5). Identify the cleanest take. This is the primary live-action source for the final video.
+\depends{Dev 4 T4.5, T5.3}
+\bobcost{4}
+\acceptance{One ``hero'' take captured, cleanly running E2E in $<$ 10 minutes with no visible defects.}
+\end{task}
+
+\begin{task}{T5.5 -- Specific Shot Recording: Starter PR Open Moment}{45 min}
+Re-record just the PR-open moment in isolation (2--3 takes). The cleanest version becomes the climax of the video. Use Dev 4's reset between takes.
+\depends{T5.4}
+\bobcost{2}
+\acceptance{One clean PR-open clip of $\leq$ 15 seconds saved.}
+\end{task}
+
+\begin{task}{T5.6 -- Specific Shot Recording: Certification Moment}{45 min}
+Re-record just the certification grading moment in isolation. Aim for the moment when the dashboard turns green and the certified state shows. 2--3 takes.
+\depends{T5.4}
+\bobcost{2}
+\acceptance{One clean certification clip of $\leq$ 20 seconds saved.}
+\end{task}
+
+\begin{task}{T5.7 -- Slide Deck Final Pass}{60 min}
+Replace every placeholder in the deck with final content. Embed the screenshots from Dev 3 T3.7. Add Dev 2's perf numbers. Add the architecture diagram from T5.10. Confirm the originality slide explicitly names: custom modes, skills, MCP server we built, Bob Shell error-pipe loop, AGENTS.md /init compatibility. These are the deep-Bob-mastery proof points.
+\depends{Dev 3 T3.7, Dev 2 T2.8}
+\bobcost{0}
+\acceptance{All twelve slides have final content; deck reviewed by team for accuracy.}
+\end{task}
+
+\begin{task}{T5.8 -- Cover Image Final}{45 min}
+Produce the final cover image at 1280$\times$720: OnboardOps wordmark, the tagline ``Six months of onboarding, compressed into one cup of coffee'' (the demo storyboard's closing line), a stylized stopwatch reading 9:12 (the demo's actual time, real or projected), and IBM Blue accents. Save to \texttt{docs/cover.png}.
+\depends{T5.4}
+\bobcost{0}
+\acceptance{Cover image saved; visually striking on the GitHub repo page and the Lablab submission.}
+\end{task}
+
+\begin{task}{T5.9 -- README Final Polish}{45 min}
+Final pass on the repository \texttt{README.md}: embed the cover image, the final tagline, the install command (\texttt{make install}), the demo command (\texttt{make demo}), three embedded screenshots, the team roster with GitHub handles, the link to the Lablab submission video, the explicit ``Built with IBM Bob'' acknowledgment, the license, and a clear navigation to \texttt{docs/} and \texttt{bob\_sessions/}.
+\depends{T5.8}
+\bobcost{0}
+\acceptance{README renders correctly on GitHub; passes a ``cold reader'' test (an outsider understands the project in 60 seconds).}
+\end{task}
+
+\begin{task}{T5.10 -- Architecture Diagram Final}{45 min}
+Produce a one-page architecture diagram at \texttt{docs/architecture.svg}: Bob IDE (host), Onboard mode, skills, MCP server with the seven tools, WebSocket bridge, Next.js dashboard, telemetry pipeline, Bob Shell bootstrap. Style with IBM design language. The diagram \shall{} clearly show that Bob is in the \textit{runtime} path, not just the build path -- this is one of the most important judging points.
+\depends{T5.9}
+\bobcost{0}
+\acceptance{Diagram saved as SVG; reviewed by Dev 2 for accuracy; visually clear at the size it appears on a slide.}
+\end{task}
+
+\begin{task}{T5.11 -- bob\_sessions/ Final Curation Pass}{45 min}
+Walk through every dev's \texttt{bob\_sessions/devN/} folder. Confirm each has a narrative README and a foreword on each session. Author the top-level \texttt{bob\_sessions/README.md} as a guided tour: ``Start here'' $\rightarrow$ five recommended sessions in reading order. This is what judges will read.
+\depends{Dev 1 T1.10, Dev 2 T2.10, Dev 3 T3.11, Dev 4 T4.10}
+\bobcost{0}
+\acceptance{Top-level README guides a judge through 5 recommended sessions in ${\sim}$10 minutes of reading.}
+\end{task}
+
+\begin{task}{T5.12 -- Pre-Submission Checklist}{30 min}
+Author \texttt{docs/submission-checklist.md} covering everything Lablab will look for: public GitHub URL, video URL, demo URL or \texttt{make demo} target, slide deck PDF, cover image, written project description, technology tags, the team roster, MIT license confirmation, \texttt{bob\_sessions/} present and curated. Phase 6 executes this checklist; Phase 4 produces it.
+\depends{T5.11}
+\bobcost{0}
+\acceptance{Checklist has at least 12 items; each maps to a specific repo file or URL.}
+\end{task}
+
+\begin{task}{T5.13 -- Buffer}{45 min}
+Reserve as buffer for late asset polish or unexpected re-shoots.
+\nodep
+\bobcost{2}
+\acceptance{No outstanding asset issues at H+40.}
+\end{task}
+
+% =====================================================================
+\section{H+40 Sync Meeting Protocol}
+% =====================================================================
+
+\textbf{Duration:} 30 minutes, hard cap. \textbf{Format:} structured gate review plus Phase 5 kickoff.
+
+\begin{enumerate}
+  \item \textbf{Cold-start fifth E2E run} (10 min). On the demo machine, run preflight $\rightarrow$ reset $\rightarrow$ \texttt{/onboard}. The team watches in silence. If this run fails or exceeds 10 minutes, Phase 5 starts with damage control instead of polish.
+  \item \textbf{Rough video cut review} (10 min). Watch the rough cut start-to-finish. Note every weak moment for Phase 5 re-recording.
+  \item \textbf{Gate review} (5 min). Walk through G4.1 -- G4.8. Mark green/yellow/red. Any red blocks promotion to Phase 5.
+  \item \textbf{Phase 5 scope confirmation} (5 min). With six hours until submission deadline, confirm what Dev 5 owns for the final video, what the rest of the team does in support, and what the submission window looks like.
+\end{enumerate}
+
+% =====================================================================
+\section{Anti-Patterns to Avoid in Phase 4}
+% =====================================================================
+
+\begin{danger}
+\textbf{Do not add features in Phase 4.} This is the single most common Phase 4 failure mode. ``It would be cool to also show...'' is forbidden. Every minute spent on a new feature is a minute not spent making the existing demo bulletproof.
+\end{danger}
+
+\begin{warning}
+\textbf{Do not refactor code that works.} ``This module could be cleaner'' is true and irrelevant. Working code with technical debt beats refactored code with new bugs at H+47.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not skip preflight.} Every recording session, every live E2E run, every demo to a teammate \shall{} begin with \texttt{./scripts/preflight.sh}. Skipping it is the fastest way to record a take that turns out to be invalid.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not edit the final video before live runs are done.} Dev 5's video work is rough cut only in Phase 4. The final edit waits for the Phase 5 fresh takes. Editing too early wastes time on footage that will be replaced.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not burn Bobcoins on iteration.} Bob mode discipline tightens further in Phase 4. Plan and Ask modes for everything except the five mandated live runs and Dev 5's recording takes. Dev 1's headroom is the team's tightest; do not exceed your share.
+\end{warning}
+
+\begin{warning}
+\textbf{Do not work without sleep.} The team \shall{} have rested between Phase 3 and Phase 4. Anyone running on $<$ 3 hours of sleep \shall{} sit out the live runs and the recording sessions and rest. A tired hand on the demo machine is a worse risk than a missing hand.
+\end{warning}
+
+\vfill
+
+\begin{center}
+\rule{0.6\textwidth}{0.6pt}\\
+\vspace{0.3em}
+{\small\itshape\color{ibmgray} End of Phase 4 Task Breakdown.\\}
+{\small\itshape\color{ibmgray} Next document: Phase 5 -- Submission Assets (H+40 to H+46).}
+\end{center}
+
+\end{document}

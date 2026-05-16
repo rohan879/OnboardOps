@@ -60,27 +60,9 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-function AuthorAvatar({ name, email }: { name: string; email?: string }) {
-  // Use Gravatar if email provided, otherwise show initials
+function AuthorAvatar({ name }: { name: string }) {
   const initials = getInitials(name);
-  
-  if (email) {
-    // Simple hash for demo - in production use proper MD5
-    const gravatarUrl = `https://www.gravatar.com/avatar/${email}?d=mp&s=32`;
-    return (
-      <img
-        src={gravatarUrl}
-        alt={name}
-        className="w-6 h-6 rounded-full bg-ibm-gray-20"
-        onError={(e) => {
-          // Fallback to initials if Gravatar fails
-          e.currentTarget.style.display = 'none';
-          e.currentTarget.nextElementSibling?.classList.remove('hidden');
-        }}
-      />
-    );
-  }
-  
+
   return (
     <div className="w-6 h-6 rounded-full bg-ibm-blue-60 text-white text-xs font-semibold flex items-center justify-center">
       {initials}
@@ -223,7 +205,7 @@ function HotspotRow({ hotspot, rank, maxCommits, onHighlight }: {
 }
 
 export function HotspotsCard({ data, onHighlight }: HotspotsCardProps) {
-  const files = data.files || [];
+  const files = useMemo(() => data.files || [], [data.files]);
   const maxCommits = useMemo(() => Math.max(...files.map(f => f.commit_count), 1), [files]);
 
   if (files.length === 0) {

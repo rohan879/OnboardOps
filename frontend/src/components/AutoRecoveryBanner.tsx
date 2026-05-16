@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export type RecoveryPattern = 
@@ -56,23 +56,15 @@ const statusConfig = {
 };
 
 export function AutoRecoveryBanner({ event, onDismiss }: AutoRecoveryBannerProps) {
-  const [isVisible, setIsVisible] = useState(false);
-
   useEffect(() => {
-    if (event) {
-      setIsVisible(true);
+    if (!event) return;
 
-      // Auto-dismiss after delay
-      const dismissDelay = event.status === 'success' ? 4000 : 8000;
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-        setTimeout(() => {
-          onDismiss?.();
-        }, 300); // Wait for exit animation
-      }, dismissDelay);
+    const dismissDelay = event.status === 'success' ? 4000 : 8000;
+    const timer = setTimeout(() => {
+      onDismiss?.();
+    }, dismissDelay);
 
-      return () => clearTimeout(timer);
-    }
+    return () => clearTimeout(timer);
   }, [event, onDismiss]);
 
   if (!event) return null;
@@ -83,7 +75,7 @@ export function AutoRecoveryBanner({ event, onDismiss }: AutoRecoveryBannerProps
 
   return (
     <AnimatePresence>
-      {isVisible && (
+      {event && (
         <motion.div
           initial={{ y: -100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -132,10 +124,7 @@ export function AutoRecoveryBanner({ event, onDismiss }: AutoRecoveryBannerProps
 
               {/* Close button */}
               <button
-                onClick={() => {
-                  setIsVisible(false);
-                  setTimeout(() => onDismiss?.(), 300);
-                }}
+                onClick={onDismiss}
                 className="flex-shrink-0 opacity-80 hover:opacity-100 transition-opacity"
                 aria-label="Dismiss"
               >
