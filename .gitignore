@@ -38,6 +38,7 @@ node_modules/
 .next/
 out/
 .pnpm-debug.log*
+frontend/pnpm-lock.yaml
 
 # Environment variables
 .env
@@ -60,6 +61,8 @@ Thumbs.db
 .onboardops/sessions/**/*.jsonl
 bob_sessions/*/raw/
 docs/recordings/
+.backend-job-id
+.frontend-job-id
 
 # Temporary files
 *.tmp

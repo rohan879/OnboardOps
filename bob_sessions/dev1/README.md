@@ -18,11 +18,11 @@ Each session should have an accompanying screenshot:
 
 | # | Session | Description | Bobcoins | Status |
 |---|---------|-------------|----------|--------|
-| 01 | `01_vertical-slice.md` | T1.3 - First integration test of `/onboard` command | ~2.5 | Pending |
-| 02 | `02_bobcoin-optimization.md` | T1.4 - Cartography prompt compression | ~1.5 | Pending |
-| 03 | `03_phase2-gate-demo.md` | T1.10 - Final Phase 2 gate demonstration | ~2.0 | Pending |
+| 01 | `01_vertical-slice.md` | T1.3 - First integration test of `/onboard` command | pending live Bob run | Local MCP/WS verification captured; Bob IDE export pending |
+| 02 | `02_bobcoin-optimization.md` | T1.4 - Cartography prompt compression | pending live Bob run | Prompt compression documented in `docs/bobcoin-tuning.md`; re-run pending |
+| 03 | `03_phase2-gate-demo.md` | T1.10 - Final Phase 2 gate demonstration | pending live Bob run | Gate checklist ready; live demo export pending |
 
-**Total Projected**: ~6 Bobcoins (60% of Dev 1's 10 Bobcoin budget)
+**Total Projected**: ~6 Bobcoins (60% of Dev 1's 10 Bobcoin budget). Actual consumption must be recorded from the real Bob IDE run.
 
 ### Session Export Checklist
 
