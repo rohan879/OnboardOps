@@ -18,11 +18,14 @@ from typing import Dict, Optional, Tuple
 # Configuration
 MAX_RETRIES = 3
 DEFAULT_TIMEOUT = 180  # 3 minutes in seconds
+MIN_CONFIDENCE = 0.7  # Minimum confidence to apply recovery
+MAX_BOB_RETRIES = 3  # Maximum retries for Bob API calls
 BOOTSTRAP_SCRIPT = Path(__file__).parent / "bootstrap.sh"
 CHECKPOINT_SCRIPT = Path(__file__).parent / "bootstrap_with_checkpoint.sh"
 ERROR_LOG = Path("/tmp/onboardops-bootstrap-error.log")
 RECOVERY_LOG = Path("/tmp/onboardops-recovery.log")
 TIMEOUT_LOG = Path("/tmp/onboardops-timeout.log")
+TELEMETRY_LOG = Path("/tmp/onboardops-telemetry.jsonl")
 
 # ANSI Colors
 RED = '\033[0;31m'
@@ -88,20 +91,85 @@ class BootstrapOrchestrator:
         except Exception as e:
             return 1, "", str(e)
     
+    def _log_telemetry(self, event_type: str, data: Dict):
+        """Log telemetry event to JSONL file."""
+        try:
+            event = {
+                "timestamp": time.time(),
+                "event_type": event_type,
+                "data": data
+            }
+            
+            # Append to telemetry log (JSONL format)
+            with open(TELEMETRY_LOG, 'a') as f:
+                f.write(json.dumps(event) + '\n')
+                
+        except Exception as e:
+            print(f"{YELLOW}Warning: Failed to log telemetry: {e}{NC}")
+    
+    def _validate_bob_response(self, response: Dict) -> bool:
+        """Validate Bob Shell response against expected JSON schema."""
+        required_fields = ['diagnosis', 'category', 'confidence']
+        
+        # Check all required fields present
+        for field in required_fields:
+            if field not in response:
+                print(f"{YELLOW}⚠ Bob response missing required field: {field}{NC}")
+                return False
+        
+        # Validate types
+        if not isinstance(response['diagnosis'], str):
+            print(f"{YELLOW}⚠ 'diagnosis' must be a string{NC}")
+            return False
+        
+        if not isinstance(response['category'], str):
+            print(f"{YELLOW}⚠ 'category' must be a string{NC}")
+            return False
+        
+        if not isinstance(response['confidence'], (int, float)):
+            print(f"{YELLOW}⚠ 'confidence' must be a number{NC}")
+            return False
+        
+        # Validate confidence range
+        if not (0.0 <= response['confidence'] <= 1.0):
+            print(f"{YELLOW}⚠ 'confidence' must be between 0.0 and 1.0{NC}")
+            return False
+        
+        # Validate category
+        valid_categories = [
+            'port-in-use', 'missing-dependency', 'version-mismatch',
+            'docker-not-running', 'env-missing', 'permission-denied',
+            'network-error', 'missing-virtualenv', 'missing-seed-data',
+            'database-not-running', 'unknown'
+        ]
+        if response['category'] not in valid_categories:
+            print(f"{YELLOW}⚠ Invalid category: {response['category']}{NC}")
+            return False
+        
+        return True
+    
     def diagnose_with_bob(self, stderr: str) -> Dict:
-        """Use Bob Shell to diagnose the error."""
+        """Use Bob Shell to diagnose the error with retry logic and validation."""
         print(f"{CYAN}=== Consulting Bob Shell for Diagnosis ==={NC}")
         print()
         
         # Save error to file
         ERROR_LOG.write_text(stderr)
         
-        # Construct Bob Shell prompt
+        # Construct Bob Shell prompt with strict JSON schema
         prompt = f"""The following error occurred during repository bootstrap:
 
 {stderr}
 
-What went wrong? Provide a one-sentence diagnosis and classify the error into one of these categories:
+Analyze this error and provide a diagnosis. You MUST respond with valid JSON matching this exact schema:
+
+{{
+  "diagnosis": "one sentence explanation of what went wrong",
+  "category": "error-category",
+  "confidence": 0.85
+}}
+
+Valid categories (choose ONE):
 - port-in-use: A required port is already in use
 - missing-dependency: A required tool or package is not installed
 - version-mismatch: Installed version doesn't meet requirements
@@ -109,36 +177,103 @@ What went wrong? Provide a one-sentence diagnosis and classify the error into on
 - env-missing: Required environment variables or .env file missing
 - permission-denied: Insufficient permissions
 - network-error: Network connectivity issue
+- missing-virtualenv: Python virtualenv is missing or corrupted
+- missing-seed-data: Database seed data is missing
+- database-not-running: Database service is not running
 - unknown: Cannot determine the cause
 
-Reply in JSON format:
-{{"diagnosis": "one sentence explanation", "category": "category-name", "confidence": 0.0-1.0}}
+Confidence must be a number between 0.0 and 1.0 (e.g., 0.85 for 85% confident).
+
+IMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations, just the JSON object.
 """
         
-        try:
-            # Call Bob Shell (simulated for now - in production this would use actual Bob API)
-            # bob -p "prompt"
-            print(f"{YELLOW}Calling Bob Shell...{NC}")
-            
-            # For demonstration, we'll parse the error ourselves
-            # In production, this would be: subprocess.run(["bob", "-p", prompt], ...)
-            diagnosis = self._simulate_bob_diagnosis(stderr)
-            
-            print(f"{GREEN}✓ Bob's Diagnosis:{NC}")
-            print(f"  Category: {diagnosis['category']}")
-            print(f"  Diagnosis: {diagnosis['diagnosis']}")
-            print(f"  Confidence: {diagnosis['confidence']:.0%}")
-            print()
-            
-            return diagnosis
-            
-        except Exception as e:
-            print(f"{RED}Error calling Bob Shell: {e}{NC}")
-            return {
-                "diagnosis": "Failed to diagnose error",
-                "category": "unknown",
-                "confidence": 0.0
-            }
+        # Retry loop for Bob API calls
+        for attempt in range(1, MAX_BOB_RETRIES + 1):
+            try:
+                print(f"{YELLOW}Calling Bob Shell (attempt {attempt}/{MAX_BOB_RETRIES})...{NC}")
+                
+                # Log Bob API call
+                self._log_telemetry('bob_api_call', {
+                    'attempt': attempt,
+                    'error_length': len(stderr),
+                    'prompt_length': len(prompt)
+                })
+                
+                # Call Bob Shell
+                # In production: subprocess.run(["bob", "-p", prompt], ...)
+                # For now, use simulation
+                diagnosis = self._simulate_bob_diagnosis(stderr)
+                
+                # Validate response
+                if not self._validate_bob_response(diagnosis):
+                    print(f"{YELLOW}Invalid Bob response, retrying...{NC}")
+                    if attempt < MAX_BOB_RETRIES:
+                        time.sleep(1)
+                        continue
+                    else:
+                        raise ValueError("Bob response validation failed after all retries")
+                
+                # Check confidence threshold
+                if diagnosis['confidence'] < MIN_CONFIDENCE:
+                    print(f"{YELLOW}⚠ Low confidence: {diagnosis['confidence']:.0%} (threshold: {MIN_CONFIDENCE:.0%}){NC}")
+                    print(f"{YELLOW}  Diagnosis may not be reliable{NC}")
+                
+                # Log successful diagnosis
+                self._log_telemetry('bob_diagnosis_success', {
+                    'attempt': attempt,
+                    'category': diagnosis['category'],
+                    'confidence': diagnosis['confidence']
+                })
+                
+                print(f"{GREEN}✓ Bob's Diagnosis:{NC}")
+                print(f"  Category: {diagnosis['category']}")
+                print(f"  Diagnosis: {diagnosis['diagnosis']}")
+                print(f"  Confidence: {diagnosis['confidence']:.0%}")
+                
+                if diagnosis['confidence'] >= MIN_CONFIDENCE:
+                    print(f"  {GREEN}✓ Confidence meets threshold ({MIN_CONFIDENCE:.0%}){NC}")
+                else:
+                    print(f"  {YELLOW}⚠ Below confidence threshold ({MIN_CONFIDENCE:.0%}){NC}")
+                
+                print()
+                
+                return diagnosis
+                
+            except json.JSONDecodeError as e:
+                print(f"{YELLOW}⚠ Bob returned invalid JSON: {e}{NC}")
+                self._log_telemetry('bob_json_error', {
+                    'attempt': attempt,
+                    'error': str(e)
+                })
+                
+                if attempt < MAX_BOB_RETRIES:
+                    print(f"{YELLOW}Retrying...{NC}")
+                    time.sleep(1)
+                    continue
+                    
+            except Exception as e:
+                print(f"{RED}Error calling Bob Shell: {e}{NC}")
+                self._log_telemetry('bob_api_error', {
+                    'attempt': attempt,
+                    'error': str(e)
+                })
+                
+                if attempt < MAX_BOB_RETRIES:
+                    print(f"{YELLOW}Retrying...{NC}")
+                    time.sleep(1)
+                    continue
+        
+        # All retries failed
+        print(f"{RED}✗ Bob Shell diagnosis failed after {MAX_BOB_RETRIES} attempts{NC}")
+        self._log_telemetry('bob_diagnosis_failed', {
+            'total_attempts': MAX_BOB_RETRIES
+        })
+        
+        return {
+            "diagnosis": "Failed to diagnose error after multiple attempts",
+            "category": "unknown",
+            "confidence": 0.0
+        }
     
     def _simulate_bob_diagnosis(self, stderr: str) -> Dict:
         """Simulate Bob Shell diagnosis (placeholder for actual Bob API)."""
@@ -720,22 +855,44 @@ Reply in JSON format:
             if stderr:
                 diagnosis = self.diagnose_with_bob(stderr)
                 
-                # Apply recovery
-                if diagnosis['confidence'] >= 0.5:
-                    recovery_success = self.apply_recovery(diagnosis)
+                # Check confidence threshold
+                if diagnosis['confidence'] < MIN_CONFIDENCE:
+                    print(f"{YELLOW}⚠ Confidence {diagnosis['confidence']:.0%} below threshold {MIN_CONFIDENCE:.0%}{NC}")
+                    print(f"{YELLOW}Stopping auto-bootstrap to avoid incorrect recovery{NC}")
                     
-                    if not recovery_success:
-                        print(f"{YELLOW}Recovery action failed or requires manual intervention{NC}")
-                        print(f"{YELLOW}Stopping auto-bootstrap{NC}")
-                        break
-                    
-                    print()
-                    print(f"{BLUE}Retrying bootstrap...{NC}")
-                    print()
-                    time.sleep(2)
-                else:
-                    print(f"{YELLOW}Low confidence diagnosis, stopping auto-bootstrap{NC}")
+                    # Log low confidence event
+                    self._log_telemetry('low_confidence_stop', {
+                        'confidence': diagnosis['confidence'],
+                        'threshold': MIN_CONFIDENCE,
+                        'category': diagnosis['category']
+                    })
                     break
+                
+                # Apply recovery with sufficient confidence
+                print(f"{GREEN}✓ Confidence sufficient, applying recovery...{NC}")
+                recovery_success = self.apply_recovery(diagnosis)
+                
+                if not recovery_success:
+                    print(f"{YELLOW}Recovery action failed or requires manual intervention{NC}")
+                    print(f"{YELLOW}Stopping auto-bootstrap{NC}")
+                    
+                    # Log recovery failure
+                    self._log_telemetry('recovery_failed', {
+                        'category': diagnosis['category'],
+                        'confidence': diagnosis['confidence']
+                    })
+                    break
+                
+                # Log successful recovery
+                self._log_telemetry('recovery_success', {
+                    'category': diagnosis['category'],
+                    'confidence': diagnosis['confidence']
+                })
+                
+                print()
+                print(f"{BLUE}Retrying bootstrap...{NC}")
+                print()
+                time.sleep(2)
             else:
                 print(f"{YELLOW}No error output to diagnose{NC}")
                 break
