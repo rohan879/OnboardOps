@@ -36,19 +36,39 @@
 
 ## Session Exports
 
-### Phase 1 Sessions
-1. `01_environment-verification.md` - Checking local setup
-2. `02_demo-storyboard.md` - Creating 60-second frame-by-frame breakdown
-3. `03_makefile-creation.md` - Building top-level build automation
-4. `04_readme-v1.md` - Authoring comprehensive README
-5. `05_bob-sessions-structure.md` - Organizing session export folders
-6. `06_github-actions-ci.md` - Setting up CI pipeline
-7. `07_starter-pr-candidates.md` - Identifying demo tasks
-8. `08_slide-deck-outline.md` - Structuring presentation
-9. `09_cover-image.md` - Creating placeholder graphics
+### Curated Sessions (Phase 3 T5.11)
 
-### Phase 2+ Sessions
-(To be added as development progresses)
+These three sessions represent Dev 5's key contributions and demonstrate effective Bob usage:
+
+1. **`01_f7-starter-pr-implementation.md`** - F7 Starter PR Generator
+   - **Duration:** 120 minutes
+   - **Bobcoin Cost:** 3.5
+   - **Highlights:** Bob Shell integration, test verification, GitHub API, checkpoint system
+   - **Why it matters:** Shows end-to-end feature implementation with Bob guidance
+
+2. **`02_f8-agents-md-implementation.md`** - F8 AGENTS.md Generator
+   - **Duration:** 105 minutes
+   - **Bobcoin Cost:** 2.8
+   - **Highlights:** 5-section composition, JSONL parsing, token budget management, graceful degradation
+   - **Why it matters:** Demonstrates data-driven documentation generation with Bob
+
+3. **`03_integration-debugging-telemetry.md`** - Telemetry System Debugging
+   - **Duration:** 45 minutes
+   - **Bobcoin Cost:** 1.2
+   - **Highlights:** Systematic debugging, race condition fixes, async queue implementation
+   - **Why it matters:** Real debugging workflow showing Bob's value in troubleshooting
+
+**Total Bobcoins:** 7.5 across 3 sessions (average 2.5 per session)
+**Total Time:** 270 minutes (4.5 hours)
+
+### Session Selection Rationale
+
+These sessions were chosen because they:
+- Cover Dev 5's primary deliverables (F7, F8, integration)
+- Show different types of Bob interactions (planning, implementation, debugging)
+- Demonstrate Bobcoin efficiency (all under 4 Bobcoins per session)
+- Include realistic challenges and solutions
+- Provide learning value for judges reviewing the submission
 
 ## Key Deliverables
 
