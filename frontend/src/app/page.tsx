@@ -9,6 +9,7 @@ import { TranscriptPanel } from '@/components/TranscriptPanel';
 import { BobcoinMeter } from '@/components/BobcoinMeter';
 import { LoadingState, SkeletonLoader } from '@/components/LoadingState';
 import { ErrorState, ErrorBanner, EmptyState } from '@/components/ErrorState';
+import { AutoRecoveryBanner, useAutoRecovery } from '@/components/AutoRecoveryBanner';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
 import { useEventsStore, Event } from '@/store/events';
@@ -91,6 +92,9 @@ export default function Home() {
   const incrementBobcoinSpent = useEventsStore((state) => state.incrementBobcoinSpent);
   const session = useEventsStore((state) => state.session);
   const startSession = useEventsStore((state) => state.startSession);
+  
+  // Auto-recovery banner state
+  const { currentEvent, showRecovery, dismissRecovery } = useAutoRecovery();
 
   const dependencyCard = findCard(events, 'dependency_graph');
   const entryCard = findCard(events, 'entry_points');
@@ -105,6 +109,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      {/* Auto-Recovery Banner */}
+      <AutoRecoveryBanner event={currentEvent} onDismiss={dismissRecovery} />
+      
       {/* Header */}
       <header className="border-b border-ibm-gray-10 px-6 py-4">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between">
@@ -247,6 +254,47 @@ export default function Home() {
                   className="w-full px-3 py-2 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
                 >
                   {showEmptyDemo ? 'Hide' : 'Show'} Empty
+                </button>
+              </div>
+              <div className="border-t border-ibm-gray-20 pt-2 mt-2">
+                <div className="text-xs font-semibold text-ibm-gray-70 mb-2">
+                  Recovery Demos
+                </div>
+                <button
+                  onClick={() => showRecovery({
+                    pattern: 'port-in-use',
+                    action: 'Port 8000 in use → killing PID 42193 → retrying',
+                    details: 'Detected process on port 8000, terminating and restarting',
+                    status: 'in-progress',
+                    timestamp: new Date().toISOString(),
+                  })}
+                  className="w-full px-3 py-2 text-xs bg-ibm-blue-60 text-white rounded hover:bg-ibm-blue-70 transition-colors mb-1"
+                >
+                  Port In Use (Progress)
+                </button>
+                <button
+                  onClick={() => showRecovery({
+                    pattern: 'node-version',
+                    action: 'Node v18 required → installing via nvm → complete',
+                    details: 'Switched to Node v18.17.0',
+                    status: 'success',
+                    timestamp: new Date().toISOString(),
+                  })}
+                  className="w-full px-3 py-2 text-xs bg-ibm-green-50 text-white rounded hover:bg-green-600 transition-colors mb-1"
+                >
+                  Node Version (Success)
+                </button>
+                <button
+                  onClick={() => showRecovery({
+                    pattern: 'db-not-running',
+                    action: 'Database connection refused → docker compose up failed',
+                    details: 'Could not start database container',
+                    status: 'failed',
+                    timestamp: new Date().toISOString(),
+                  })}
+                  className="w-full px-3 py-2 text-xs bg-ibm-red-50 text-white rounded hover:bg-red-600 transition-colors"
+                >
+                  DB Not Running (Failed)
                 </button>
               </div>
             </div>
