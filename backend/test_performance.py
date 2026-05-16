@@ -1,6 +1,6 @@
 """
-Performance Testing Script for T2.9
-Profile all four implemented tools and measure p95 latency
+Performance Testing Script for T2.5 - Final Performance Pass
+Profile all seven implemented tools and measure p95 latency
 Target: p95 < 800ms for all tools
 """
 
@@ -61,9 +61,9 @@ def calculate_percentiles(latencies: List[float]) -> Dict[str, float]:
 
 
 def test_all_tools():
-    """Test all four implemented tools"""
+    """Test all seven implemented tools"""
     print("=" * 70)
-    print("T2.9 Performance Testing - Target: p95 < 800ms")
+    print("T2.5 Performance Testing - Target: p95 < 800ms for ALL 7 tools")
     print("=" * 70)
 
     tools_to_test = [
@@ -91,6 +91,29 @@ def test_all_tools():
             "arguments": {
                 "file_path": "backend/app.py",
                 "limit": 5,
+                "session_id": "perf-test-session",
+            },
+        },
+        {
+            "name": "file_changelog",
+            "arguments": {
+                "file_path": "backend/app.py",
+                "limit": 20,
+                "session_id": "perf-test-session",
+            },
+        },
+        {
+            "name": "rationale_for_commit",
+            "arguments": {
+                "commit_hash": "HEAD",
+                "session_id": "perf-test-session",
+            },
+        },
+        {
+            "name": "incident_for_file",
+            "arguments": {
+                "file_path": "backend/app.py",
+                "days": 90,
                 "session_id": "perf-test-session",
             },
         },
