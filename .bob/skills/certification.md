@@ -2,6 +2,8 @@
 name: "Certification"
 description: "Three-question assessment to validate repository understanding before first PR"
 auto_activate: false
+output_token_cap: 400
+grading_temperature: 0.3
 ---
 
 # Certification Skill
@@ -234,28 +236,276 @@ rubric:
     - No explanation
 ```
 
-## Question Selection Logic (Phase 2)
+## Question Selection Logic
 
-- Select 3 questions from the pool
-- Ensure coverage: at least one from each cartography stage (Dependency, Entry, Hotspot, Convention)
-- Parameterize questions with actual data from cartography (e.g., replace [HOTSPOT_FILE] with real file path)
-- Randomize order to prevent memorization on repeated demos
+The certification skill selects 3 questions from the pool of 12 using these rules:
 
-## Grading Logic (Phase 2)
+1. **Coverage requirement**: Select at least one question from each of the four
+   cartography stages (Dependency Graph, Entry Points, Hotspots, Conventions).
+   Since we need 3 questions and have 4 stages, one stage will be skipped.
+2. **Parameterization**: Replace placeholders in question text with actual data
+   from cartography output:
+   - `[SPECIFIC_ENDPOINT]` → actual route path from entry points
+   - `[HOTSPOT_FILE]` → top hotspot file path
+   - `[N]` → actual commit count
+   - `[CENTRAL_MODULE]` → hub module from dependency graph
+   - `[MODULE_NAME]` → any module from the graph
+   - `[ENTITY_TYPE]` → "functions", "classes", or "files"
+3. **Randomization**: Shuffle question order to prevent memorization across demos.
+4. **Fallback**: If cartography data is missing for a question's stage, skip that
+   question and select another from a different stage.
 
-- Parse onboardee's free-text answer
-- Check for presence of required elements from rubric
-- Use anti-sycophancy prompt: penalize plausible-but-shallow answers
-- Require evidence drawn from cartography output or MCP responses
+### Selection Algorithm
+
+```python
+# Pseudocode for question selection
+available_questions = [Q1-Q12]
+selected = []
+
+# Ensure at least 2 distinct stages covered
+stages_covered = set()
+for question in shuffle(available_questions):
+    if len(selected) >= 3:
+        break
+    if can_parameterize(question, cartography_data):
+        selected.append(parameterize(question, cartography_data))
+        stages_covered.add(question.topic)
+
+# Verify coverage: at least 2 distinct stages
+if len(stages_covered) < 2:
+    raise ValueError("Insufficient cartography data for certification")
+```
+
+## Grading Logic
+
+Each answer is graded using a three-tier system: **pass**, **partial**, **fail**.
+
+### Grading Process
+
+1. **Parse answer**: Extract key terms, file paths, module names, and reasoning.
+2. **Check rubric requirements**:
+   - **Pass**: All required elements present + evidence from cartography
+   - **Partial**: Some required elements present OR correct but shallow
+   - **Fail**: Missing required elements OR incorrect information
+3. **Anti-sycophancy check**: Penalize plausible-but-shallow answers:
+   - "It does the auth stuff" → **fail** (no evidence)
+   - "The auth module handles JWT tokens, as shown in the dependency graph" → **pass**
+4. **Evidence requirement**: Answers must reference cartography data or MCP tool
+   output. Generic knowledge without repo-specific evidence is **partial** at best.
+5. **Emit grade event**: Call `emit_event` with `event_type: "certification_grade"`
+   and `event_data` containing:
+   ```json
+   {
+     "question_id": "dep-graph-central",
+     "grade": "pass",
+     "rationale": "Correctly identified core.py as the hub with 12 incoming dependencies, citing the dependency graph data.",
+     "onboardee_answer": "<full answer text>"
+   }
+   ```
+
+### Grading Rubric Application
+
+For each question, apply the rubric strictly:
+
+- **Pass criteria**: ALL pass requirements met
+- **Partial criteria**: SOME pass requirements OR all partial requirements met
+- **Fail criteria**: Fail requirements met OR insufficient pass/partial requirements
+
+### Pass Threshold
+
+Certification passes if: **At least 2 of 3 answers graded "pass" OR "partial"**
+
+- 3 pass → **Certified**
+- 2 pass, 1 partial → **Certified**
+- 2 pass, 1 fail → **Certified**
+- 1 pass, 2 partial → **Certified**
+- 1 pass, 1 partial, 1 fail → **Not Certified** (remediation offered)
+- 0 pass → **Not Certified** (remediation offered)
 
 ## Remediation Loop
 
-On any "fail":
-1. Re-surface the relevant cartography card
-2. Ask one targeted follow-up question
-3. Re-grade the answer
-4. If still "fail", reveal the answer and continue
+When an answer is graded **fail**, the remediation loop activates:
 
-## Phase 1 Note
+1. **First wrong answer**:
+   - Emit an 80-word remediation paragraph pointing to relevant cartography data
+   - Example: "The dependency graph shows that `core.py` has 12 incoming edges,
+     making it the central hub. Review the graph card and look for the module
+     with the highest fan-in count. This indicates which module is most depended
+     upon by others."
+   - Re-ask the same question
+   - Grade the second answer using the same rubric
+2. **Second wrong answer**:
+   - Reveal the correct answer in one sentence with evidence
+   - Example: "The correct answer is `core.py`, which has 12 incoming dependencies
+     as shown in the dependency graph."
+   - Continue to next question (do not loop further)
+3. **Partial answer**: No remediation loop; accept as-is and continue
 
-This is a **stub file** for Phase 1. The question selection, parameterization, and grading logic will be implemented in Phase 2. For now, this establishes the machine-readable structure judges can inspect.
+### Remediation Event
+
+Emit `event_type: "certification_remediation"` with:
+```json
+{
+  "question_id": "dep-graph-central",
+  "attempt": 1,
+  "remediation_text": "<80-word guidance>",
+  "hint": "Look at the fan-in values in the dependency graph card."
+}
+```
+
+## Certification Flow
+
+1. **Trigger**: Onboardee declares readiness after cartography completes
+2. **Selection**: Choose 3 questions using selection logic
+3. **Ask Q1**: Emit `question_ask` event, wait for answer
+4. **Grade Q1**: Apply rubric, emit `certification_grade` event
+5. **Remediation (if fail)**: Emit remediation, re-ask, re-grade
+6. **Ask Q2**: Repeat for second question
+7. **Ask Q3**: Repeat for third question
+8. **Final decision**: Check pass threshold
+9. **Emit result**: Call `emit_event` with `event_type: "certification_complete"`
+   ```json
+   {
+     "passed": true,
+     "grades": ["pass", "partial", "pass"],
+     "questions_asked": 3,
+     "remediation_count": 1
+   }
+   ```
+10. **Narrate**: "Certification complete. You passed 2 of 3 questions. Ready for
+    your first PR."
+
+## Integration with Cartography
+
+The certification skill depends on cartography output. Before selecting questions:
+
+1. Verify cartography data is available in session context
+2. Check which stages have sufficient data for parameterization
+3. If fewer than 2 stages have data, defer certification and request more cartography
+
+## Anti-Sycophancy Grader Prompt
+
+When grading answers, Bob must use this strict anti-sycophancy prompt to avoid
+inflating grades for plausible-but-shallow responses.
+
+### Grader System Prompt
+
+```
+You are grading an onboarding certification answer. Your role is to be STRICT
+and EVIDENCE-FOCUSED. Do not be lenient or encouraging.
+
+GRADING RULES:
+1. PASS requires ALL of:
+   - Correct answer with specific details
+   - Evidence from cartography data (file paths, numbers, module names)
+   - Clear reasoning connecting answer to evidence
+   
+2. PARTIAL requires:
+   - Directionally correct but missing specifics
+   - OR correct answer without strong evidence
+   - OR reasoning present but incomplete
+   
+3. FAIL if ANY of:
+   - Incorrect answer
+   - No evidence from cartography (generic knowledge doesn't count)
+   - Plausible-sounding but vague ("it does the auth stuff")
+   - Contradicts cartography data
+
+ANTI-SYCOPHANCY CHECKS:
+- "The main module" without naming it → FAIL
+- "It handles authentication" without specifics → FAIL
+- "Several files" without naming them → FAIL
+- "I think it's because..." without evidence → PARTIAL at best
+- Correct module name + vague reasoning → PARTIAL
+- Correct module name + specific evidence → PASS
+
+EVIDENCE SOURCES (acceptable):
+- Dependency graph data (fan-in, fan-out, module names)
+- Entry points data (route paths, handler names)
+- Hotspots data (commit counts, author names, file paths)
+- Conventions data (naming patterns, file examples)
+- MCP tool responses (PR titles, commit messages)
+
+EVIDENCE SOURCES (not acceptable):
+- General programming knowledge
+- Assumptions about "typical" codebases
+- Guesses based on file names alone
+- Prior experience with similar projects
+
+OUTPUT FORMAT:
+Return exactly one of: "pass", "partial", "fail"
+Then provide a one-paragraph rationale (max 100 words) explaining the grade.
+
+NEVER reveal the rubric to the onboardee unless they have failed twice.
+```
+
+### Grading Examples
+
+**Example 1: PASS**
+- Question: "Which module is the central hub?"
+- Answer: "The `core.py` module is the hub because the dependency graph shows
+  it has 12 incoming dependencies, the highest fan-in in the codebase."
+- Grade: **PASS**
+- Rationale: "Correctly identifies core.py with specific evidence (12 incoming
+  dependencies) drawn directly from the dependency graph cartography data."
+
+**Example 2: PARTIAL**
+- Question: "Which module is the central hub?"
+- Answer: "I think it's the core module because it seems like the main one."
+- Grade: **PARTIAL**
+- Rationale: "Correct module identified but reasoning is vague ('seems like')
+  and lacks specific evidence from the dependency graph."
+
+**Example 3: FAIL**
+- Question: "Which module is the central hub?"
+- Answer: "The authentication module handles all the auth logic."
+- Grade: **FAIL**
+- Rationale: "Incorrect module (auth vs. core) and answer doesn't address the
+  question about dependency centrality. No evidence from cartography data."
+
+**Example 4: FAIL (plausible but shallow)**
+- Question: "Why does config.py change frequently?"
+- Answer: "Config files usually change a lot in active projects."
+- Grade: **FAIL**
+- Rationale: "Generic knowledge without repo-specific evidence. The hotspots
+  card provides specific rationale (e.g., 'updated per feature release') that
+  the answer must reference."
+
+**Example 5: PASS (with MCP evidence)**
+- Question: "Why does config.py change frequently?"
+- Answer: "It has 47 commits in 180 days because recent PRs show it's updated
+  for each feature release to add new environment variables."
+- Grade: **PASS**
+- Rationale: "Specific commit count from hotspots data plus rationale grounded
+  in PR evidence from MCP tools."
+
+### Applying the Grader Prompt
+
+When Bob grades an answer:
+
+1. Load the grader system prompt into context
+2. Provide the question, rubric, and onboardee's answer
+3. Provide relevant cartography data for evidence checking
+4. Request grade + rationale in the specified format
+5. Parse the response and emit the `certification_grade` event
+6. If grade is "fail", trigger remediation loop
+
+### Preventing Grade Inflation
+
+Common pitfalls to avoid:
+
+- **Don't accept "close enough"**: If the rubric requires a file path, "the auth
+  file" is not sufficient.
+- **Don't reward effort**: A long answer with no evidence is still a fail.
+- **Don't hint at the answer**: Remediation should point to data, not reveal
+  the answer.
+- **Don't grade on a curve**: Each answer is graded independently against its
+  rubric.
+
+## Token Economy
+
+- Target cost per certification: **3 Bobcoins** (1 per question)
+- Remediation adds ~0.5 Bobcoins per loop
+- Total certification budget: **5 Bobcoins** (including up to 2 remediations)
+- If budget exceeded, skip remaining questions and pass/fail based on completed ones
+- Grader prompt is loaded once per session, not per question (token efficiency)
