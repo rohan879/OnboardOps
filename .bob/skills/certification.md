@@ -383,7 +383,7 @@ The certification skill depends on cartography output. Before selecting question
 2. Check which stages have sufficient data for parameterization
 3. If fewer than 2 stages have data, defer certification and request more cartography
 
-## Anti-Sycophancy Grader Prompt
+## Anti-Sycophancy Grader Prompt (Phase 4 Enhanced)
 
 When grading answers, Bob must use this strict anti-sycophancy prompt to avoid
 inflating grades for plausible-but-shallow responses.
@@ -411,13 +411,22 @@ GRADING RULES:
    - Plausible-sounding but vague ("it does the auth stuff")
    - Contradicts cartography data
 
-ANTI-SYCOPHANCY CHECKS:
+ANTI-SYCOPHANCY CHECKS (Phase 4 Enhanced):
 - "The main module" without naming it → FAIL
 - "It handles authentication" without specifics → FAIL
 - "Several files" without naming them → FAIL
-- "I think it's because..." without evidence → PARTIAL at best
+- "I think it's because..." without evidence → FAIL (not PARTIAL)
+- "Probably" or "likely" without evidence → FAIL
 - Correct module name + vague reasoning → PARTIAL
-- Correct module name + specific evidence → PASS
+- Correct module name + specific evidence + clear reasoning → PASS
+
+EXPLICIT REJECTION PATTERNS (Phase 4):
+- Answer length < 10 words → FAIL (insufficient detail)
+- No numbers cited when cartography provides them → FAIL
+- No file paths cited when question asks "which file" → FAIL
+- Generic terms only ("the config", "the main file") → FAIL
+- Hedging language ("might be", "could be", "seems like") → FAIL unless evidence follows
+- Circular reasoning ("it's central because it's important") → FAIL
 
 EVIDENCE SOURCES (acceptable):
 - Dependency graph data (fan-in, fan-out, module names)
