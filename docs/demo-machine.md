@@ -1,4 +1,6 @@
-# Reference Demo Machine Specification - T4.7
+# Reference Demo Machine Specification - T4.7 / Phase 3 T4.1
+
+**Updated:** Phase 3 - Added nvm prerequisite for Node version auto-recovery
 
 **Task Owner:** Dev 4 (Infra / Bob Shell)  
 **Date:** 2026-05-15  
@@ -356,6 +358,141 @@ echo "=== Verification Complete ==="
 **Owner:** [TO BE FILLED]  
 **Location:** [TO BE FILLED]
 
+
+## Demo Machine Reset Procedure (T4.8)
+
+### Purpose
+
+The reset script returns the demo machine to a clean state for fresh bootstrap testing. This is essential for:
+- Testing bootstrap from scratch
+- Validating auto-recovery patterns
+- Recording clean demo videos
+- Stress testing bootstrap reliability
+
+### Reset Script
+
+**Location:** `scripts/reset-demo-machine.sh`
+
+**What it does:**
+1. **Stops all dev servers** - Kills processes on common ports (3000, 5000, 8000, 8080, etc.)
+2. **Stops Docker containers** - Runs `docker compose down -v` to remove containers and volumes
+3. **Drops and recreates database** - Resets PostgreSQL/MySQL database to empty state
+4. **Cleans build artifacts** - Removes node_modules/.cache, dist, build, __pycache__, etc.
+5. **Removes virtualenv** - Deletes .venv or venv directory (will be recreated by bootstrap)
+6. **Resets git repository** - Stashes changes, cleans untracked files, resets to HEAD
+7. **Cleans temporary files** - Removes /tmp/onboardops-*.log and related files
+8. **Verifies clean state** - Checks ports are free, git is clean, no virtualenv exists
+
+### Usage
+
+```bash
+cd OnboardOps
+./scripts/reset-demo-machine.sh
+```
+
+### Expected Output
+
+```
+╔═══════════════════════════════════════════════════════╗
+║  Demo Machine Reset - Return to Clean State          ║
+╚═══════════════════════════════════════════════════════╝
+
+Step 1: Stop all dev servers
+✓ Dev servers stopped
+
+Step 2: Stop and remove Docker containers
+✓ Docker services stopped
+
+Step 3: Drop and recreate database
+✓ PostgreSQL database reset
+
+Step 4: Clean build artifacts and caches
+✓ Build artifacts cleaned
+
+Step 5: Reset git repository
+✓ Git repository reset
+
+Step 6: Clean temporary files
+✓ Temporary files cleaned
+
+Step 7: Verify clean state
+✓ All common ports are free
+✓ Git working directory is clean
+✓ No Python virtualenv present
+
+╔═══════════════════════════════════════════════════════╗
+║  ✓ Demo Machine Reset Complete                       ║
+╚═══════════════════════════════════════════════════════╝
+
+Reset completed in 12s
+```
+
+### Reset Time Target
+
+**Target:** <3 minutes (typically completes in 10-30 seconds)
+
+### What is Preserved
+
+- `.env` file (if it exists)
+- `.env.local` file (if it exists)
+- Git stash (uncommitted changes are stashed, not deleted)
+
+### What is Removed
+
+- All running dev server processes
+- Docker containers and volumes
+- Database data (dropped and recreated)
+- Build artifacts (node_modules/.cache, dist, build, etc.)
+- Python virtualenv (.venv or venv)
+- Python cache files (__pycache__, *.pyc)
+- Untracked git files (except .env)
+- OnboardOps temporary files (/tmp/onboardops-*)
+
+### After Reset
+
+Run bootstrap to set up the environment:
+
+```bash
+# Standard bootstrap
+./scripts/bootstrap.sh
+
+# Or with AI-assisted auto-recovery
+python3 scripts/auto_bootstrap.py --auto-recover
+```
+
+### Troubleshooting
+
+**Issue: Ports still in use after reset**
+- Manually check: `lsof -ti :PORT`
+- Kill process: `kill -9 $(lsof -ti :PORT)`
+
+**Issue: Database reset failed**
+- Check database is running: `docker ps` or `psql -h localhost -U postgres -l`
+- Manually drop/create: `psql -h localhost -U postgres -c "DROP DATABASE demo_db; CREATE DATABASE demo_db;"`
+
+**Issue: Git reset failed**
+- Check git status: `git status`
+- Manually reset: `git reset --hard HEAD && git clean -fdx -e .env`
+
+### Integration with Stress Testing
+
+The reset script is used in T4.10 (Full Bootstrap Stress Test) to alternate between healthy and broken states:
+
+```bash
+# Stress test loop
+for i in {1..10}; do
+  ./scripts/reset-demo-machine.sh
+  ./scripts/bootstrap.sh
+  # Verify success
+  ./scripts/reset-demo-machine.sh
+  # Break something
+  ./scripts/bootstrap.sh
+  # Verify auto-recovery
+done
+```
+
+---
+
 ---
 
 ## Change Log
@@ -395,3 +532,6 @@ pkill -f "onboardops"
 **Last Updated:** 2026-05-15  
 **Owner:** Dev 4 (Infra / Bob Shell)  
 **Status:** Template - Awaiting machine details
+# Reference Demo Machine Specification - T4.7 / Phase 3 T4.8
+
+**Updated:** Phase 3 T4.8 - Added demo machine reset procedure
