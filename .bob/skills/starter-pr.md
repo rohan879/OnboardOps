@@ -1,259 +1,200 @@
 ---
-name: "Starter PR Generator"
-description: "Generate a bounded, safe first PR for the onboardee"
+name: "Starter PR Generation"
+description: "Generate a bounded, safe first contribution for a new repository onboardee"
 auto_activate: false
 output_token_cap: 500
-max_diff_lines: 30
+bobcoin_target: 2
 ---
 
-# Starter PR Generator Skill
+# Starter PR Generation Skill
 
-This skill drives F7 (Starter PR Generator) by selecting a starter task, generating
-a bounded diff, and preparing it for PR creation. The skill is invoked by Dev 5's
-[`open_starter_pr.py`](../../scripts/open_starter_pr.py) script after certification passes.
+This skill drives F7 (Starter PR Generator). Bob generates a small, safe diff that serves as the onboardee's first contribution to the repository.
 
-## Objective
+## Constraints
 
-Generate a meaningful, safe, ~20-line code change that:
-- Demonstrates understanding of the repository
-- Follows project conventions (from cartography)
-- Passes all tests
-- Provides real value (not a trivial change)
-- Is confined to a single file (for safety and clarity)
+- **Diff size**: ≤30 lines total across all files
+- **File scope**: Confined to a single file (or at most two closely related files)
+- **Safety**: Must not modify core business logic or critical paths
+- **Testability**: Changes must be verifiable by existing test suite
+- **Value**: Must provide real improvement (not busywork)
 
 ## Task Selection
 
-Select one of three starter task types from [`docs/starter-tasks.md`](../../docs/starter-tasks.md):
+Select one of three starter task types from `docs/starter-tasks.md`:
 
-### Task 1: Documentation + Test (DEFAULT)
-- Fix a typo or improve clarity in README/docs
-- Add a missing test case for an edge condition
-- **Lines:** ~18 (10 docs + 8 test)
-- **Risk:** Low
-- **Visibility:** High
+1. **Documentation + Test** (DEFAULT): Fix a doc typo + add a missing test case
+2. **Error Handler**: Add graceful error handling for an edge case
+3. **Code Documentation**: Add docstrings/JSDoc to undocumented functions
 
-### Task 2: Add Error Handler
-- Add try/except or error handling for an edge case
-- Improve error messages or logging
-- **Lines:** ~22
-- **Risk:** Medium
-- **Visibility:** Medium
+The task type is passed as input. If not specified, use type 1 (Documentation + Test).
 
-### Task 3: Improve Code Documentation
-- Add docstrings/JSDoc to undocumented functions
-- Follow project documentation standards
-- **Lines:** ~15
-- **Risk:** Zero (pure documentation)
-- **Visibility:** Medium
+## Generation Flow
 
-## Selection Algorithm
+### Step 1: Analyze Repository Context
 
-```
-1. Review cartography output:
-   - Conventions: What's the documentation style?
-   - Entry Points: Which files are most central?
-   - Hotspots: Which files are actively maintained?
+Read the following to understand the codebase:
+- Recent cartography output (dependency graph, conventions)
+- Test file patterns (from entry points cartography)
+- Documentation style (from conventions cartography)
+- Starter task specification from `docs/starter-tasks.md`
 
-2. Scan for opportunities:
-   - Task 1: Look for typos in README, missing test coverage
-   - Task 2: Look for bare function calls that could fail
-   - Task 3: Look for undocumented public functions
+### Step 2: Identify Target Files
 
-3. Select task with highest confidence:
-   - If README has obvious typo AND tests have <80% coverage → Task 1
-   - If error handling is inconsistent → Task 2
-   - If many functions lack docstrings → Task 3
+For the selected task type:
+- **Type 1**: Find README.md (or equivalent) + a test file with <100% coverage
+- **Type 2**: Find a route handler or API endpoint with missing error handling
+- **Type 3**: Find a utility module with undocumented public functions
 
-4. Fallback: Task 1 (safest, always applicable)
-```
+Prefer files that:
+- Are not in the top 3 hotspots (avoid high-churn areas)
+- Have clear, simple logic
+- Are already tested (for types 1 and 2)
 
-## Diff Generation
+### Step 3: Generate Bounded Diff
 
-Once a task is selected, generate the diff following these rules:
+Produce a unified diff format with:
+- Clear file paths (relative to repo root)
+- Line numbers for context
+- Minimal, focused changes
+- Comments explaining the change
 
-### Constraints
-
-- **Single file only**: All changes in one file (or two if Task 1 spans README + test)
-- **Line cap**: ≤30 lines total (additions + deletions)
-- **No deletions of logic**: Only add or modify, don't remove working code
-- **Follow conventions**: Match naming, formatting, error handling from cartography
-- **Testable**: Change must be verifiable by running tests
-
-### Diff Format
-
-Generate a unified diff format:
-
+**Diff format:**
 ```diff
 --- path/to/file.py
 +++ path/to/file.py
-@@ -10,6 +10,14 @@
- def existing_function():
-     """Existing docstring."""
-+    # New error handling
-+    try:
-+        result = operation()
-+    except ValueError as e:
-+        logger.error(f"Operation failed: {e}")
-+        return None
-+
-     return result
+@@ -10,3 +10,8 @@
+ existing line
+ existing line
++# New line 1
++# New line 2
++# New line 3
+ existing line
 ```
 
-### Quality Checks
+**Validation before emitting:**
+- Count total lines changed (additions + deletions)
+- Verify ≤30 lines
+- Verify single file (or two if doc + test)
+- Verify no modifications to imports of core modules
 
-Before emitting the diff, verify:
+### Step 4: Generate Commit Message
 
-1. **Syntax valid**: Diff applies cleanly, no syntax errors
-2. **Conventions followed**: Matches project style from cartography
-3. **Line count**: Within 30-line cap
-4. **Single responsibility**: Change does one thing well
-5. **No breaking changes**: Existing tests should still pass
-
-## Commit Message
-
-Generate a one-paragraph commit message following this template:
+Write a one-paragraph commit message following conventional commits:
 
 ```
-<type>: <brief description>
+<type>(<scope>): <subject>
 
-<detailed explanation>
+<body>
 
-Generated during OnboardOps onboarding session.
-Onboardee: <name>
-Session time: <MM:SS>
-Certification: <pass/partial/fail grades>
+Onboarded via OnboardOps in <time>
 ```
 
-**Type options:**
-- `docs:` for documentation changes
-- `test:` for test additions
-- `fix:` for bug fixes or error handling
-- `refactor:` for code improvements without behavior change
+Where:
+- `type`: docs, test, fix, refactor
+- `scope`: module or file name
+- `subject`: ≤50 chars, imperative mood
+- `body`: 2-3 sentences explaining why this change matters
 
-**Example:**
+### Step 5: Emit Progress Events
 
-```
-docs: Fix typo in installation instructions and add edge case test
+Call `emit_event` at each substep:
+1. `StarterPRTaskSelected` - which task type chosen
+2. `StarterPRFilesIdentified` - target files
+3. `StarterPRDiffGenerated` - the diff (for validation)
+4. `StarterPRCommitMessage` - the commit message
 
-Corrected "runing" to "running" in README.md installation section.
-Added test_empty_input() to verify graceful handling of empty strings.
+## Output Format
 
-Generated during OnboardOps onboarding session.
-Onboardee: Alice Chen
-Session time: 09:42
-Certification: pass, partial, pass
-```
-
-## Progress Events
-
-Emit progress events at each substep for dashboard visibility:
-
-### Event 1: Task Selected
+Return a JSON object:
 ```json
 {
-  "event_type": "starter_pr_progress",
-  "event_data": {
-    "step": "task_selected",
-    "task_type": "documentation_test",
-    "task_description": "Fix README typo and add test case",
-    "estimated_lines": 18
-  }
+  "task_type": 1,
+  "task_title": "Documentation Fix + Test Case",
+  "files": ["README.md", "tests/test_utils.py"],
+  "diff": "<unified diff string>",
+  "commit_message": "<conventional commit message>",
+  "line_count": 18,
+  "safety_check": "pass"
 }
 ```
 
-### Event 2: Diff Generated
-```json
-{
-  "event_type": "starter_pr_progress",
-  "event_data": {
-    "step": "diff_generated",
-    "files_changed": ["README.md", "tests/test_main.py"],
-    "lines_added": 12,
-    "lines_deleted": 1,
-    "diff_preview": "<first 200 chars of diff>"
-  }
-}
+## Safety Checks
+
+Before returning, verify:
+- [ ] Diff is valid unified diff format
+- [ ] Line count ≤30
+- [ ] No modifications to: `__init__.py`, `main.py`, `app.py`, `server.py`
+- [ ] No new dependencies added
+- [ ] No database schema changes
+- [ ] No authentication/authorization changes
+
+If any check fails, regenerate with stricter constraints.
+
+## Anti-Patterns to Avoid
+
+❌ **Don't** generate diffs that:
+- Touch multiple unrelated files
+- Modify core business logic
+- Add new external dependencies
+- Change API contracts
+- Require manual testing
+
+✅ **Do** generate diffs that:
+- Are immediately understandable
+- Pass existing tests without modification
+- Provide clear value
+- Follow project conventions
+- Are safe to merge
+
+## Example: Documentation + Test
+
+**Task**: Fix typo in README + add test for empty input handling
+
+**Diff**:
+```diff
+--- README.md
++++ README.md
+@@ -15,1 +15,1 @@
+-To install dependancies, run:
++To install dependencies, run:
+
+--- tests/test_utils.py
++++ tests/test_utils.py
+@@ -45,0 +46,8 @@
++def test_parse_empty_input():
++    """Test that parse_input handles empty string gracefully."""
++    result = parse_input("")
++    assert result == []
++    
++    result = parse_input(None)
++    assert result == []
 ```
 
-### Event 3: Tests Running
-```json
-{
-  "event_type": "starter_pr_progress",
-  "event_data": {
-    "step": "tests_running",
-    "test_command": "pytest tests/",
-    "status": "in_progress"
-  }
-}
+**Commit Message**:
 ```
+docs(readme): fix typo in installation instructions
 
-### Event 4: Ready for PR
-```json
-{
-  "event_type": "starter_pr_ready",
-  "event_data": {
-    "step": "ready",
-    "diff_path": "/tmp/starter-pr.diff",
-    "commit_message": "<full commit message>",
-    "tests_passed": true,
-    "branch_name": "onboardops/alice-1234567890"
-  }
-}
+test(utils): add test for empty input handling
+
+Fixed "dependancies" → "dependencies" typo in README.
+Added test coverage for parse_input() with empty/None inputs,
+which was previously untested edge case.
+
+Onboarded via OnboardOps in 9m 12s
 ```
 
 ## Integration with open_starter_pr.py
 
-The skill outputs a structured response that [`open_starter_pr.py`](../../scripts/open_starter_pr.py) consumes:
+This skill is invoked by `scripts/open_starter_pr.py` via Bob Shell:
 
-```json
-{
-  "task_type": "documentation_test",
-  "diff": "<unified diff content>",
-  "commit_message": "<full message>",
-  "files_changed": ["README.md", "tests/test_main.py"],
-  "line_count": 18,
-  "tests_passed": true
-}
+```bash
+echo '{"task_type": 1, "repo_path": "/path/to/repo"}' | \
+  bob --skill starter-pr --format json
 ```
 
 The script then:
-1. Applies the diff under a checkpoint
-2. Runs the test suite
-3. On green, opens the PR via GitHub API
-4. On red, restores the checkpoint and reports failure
-
-## Error Handling
-
-If diff generation fails:
-
-1. **Syntax error**: Retry with simpler change (e.g., docs-only)
-2. **Line cap exceeded**: Trim to essential changes only
-3. **No suitable task found**: Fall back to Task 3 (add docstring to any function)
-4. **Tests fail**: Restore checkpoint, emit failure event, do not open PR
-
-## Token Economy
-
-- **Target cost**: 2 Bobcoins per invocation
-- **Breakdown**:
-  - Task selection: 0.5 Bobcoins
-  - Diff generation: 1 Bobcoin
-  - Commit message: 0.3 Bobcoins
-  - Quality checks: 0.2 Bobcoins
-- **Cap**: If cost exceeds 3 Bobcoins, abort and use pre-recorded fallback diff
-
-## Example Invocation
-
-From Bob Shell or [`open_starter_pr.py`](../../scripts/open_starter_pr.py):
-
-```bash
-bob --skill starter-pr --context cartography_output.json --output starter_pr.json
-```
-
-The skill reads cartography output, selects a task, generates the diff, and writes
-the structured response to `starter_pr.json` for the script to consume.
-
-## Phase 3 Notes
-
-This skill is implemented in Phase 3 (T1.7) and consumed by Dev 5's F7 implementation
-(T5.1-T5.4). The skill must be tested with at least three different demo repositories
-to ensure it generalizes beyond a single codebase.
+1. Validates the returned diff
+2. Applies it to a new branch
+3. Runs the test suite
+4. Opens a PR if tests pass
+5. Restores checkpoint if anything fails
