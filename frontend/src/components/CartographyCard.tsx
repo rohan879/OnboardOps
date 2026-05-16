@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { ReactNode } from 'react';
 import { Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { cardVariants } from '@/lib/animations';
 
 export type CardType = 'graph' | 'entry' | 'hotspot' | 'convention';
 export type CardState = 'pending' | 'in-progress' | 'complete' | 'error';
@@ -75,10 +76,21 @@ export function CartographyCard({
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className={`rounded-lg border-2 ${stateStyle.borderColor} ${stateStyle.bgColor} overflow-hidden`}
+      animate={state}
+      variants={cardVariants}
+      className={`rounded-lg border-2 ${stateStyle.borderColor} ${stateStyle.bgColor} overflow-hidden relative`}
     >
+      {/* Shimmer effect for in-progress state */}
+      {state === 'in-progress' && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'linear-gradient(90deg, transparent 0%, rgba(15, 98, 254, 0.08) 50%, transparent 100%)',
+            backgroundSize: '1000px 100%',
+            animation: 'shimmer 2s infinite linear',
+          }}
+        />
+      )}
       {/* Card Header */}
       <div className="px-6 py-4 border-b border-ibm-gray-10 flex items-center justify-between">
         <div className="flex items-center gap-3">

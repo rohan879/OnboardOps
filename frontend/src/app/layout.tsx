@@ -18,6 +18,15 @@ export const metadata: Metadata = {
   description: "The 10-Minute Repo Whisperer",
 };
 
+// Viewport locked to 1920×1080 for hackathon demo
+export const viewport = {
+  width: 1920,
+  height: 1080,
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{

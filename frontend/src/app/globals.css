@@ -28,4 +28,29 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-ibm-plex-sans);
+  min-width: 1920px;
+  min-height: 1080px;
+  overflow-x: hidden;
+}
+
+/* Shimmer animation for in-progress states */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* Pulse animation for subtle emphasis */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
 }

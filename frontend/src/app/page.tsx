@@ -9,10 +9,15 @@ import { TranscriptPanel } from '@/components/TranscriptPanel';
 import { BobcoinMeter } from '@/components/BobcoinMeter';
 import { LoadingState, SkeletonLoader } from '@/components/LoadingState';
 import { ErrorState, ErrorBanner, EmptyState } from '@/components/ErrorState';
+import { AutoRecoveryBanner, useAutoRecovery } from '@/components/AutoRecoveryBanner';
+import { EntryPointsCard, EntryPointsData } from '@/components/cards/EntryPointsCard';
+import { HotspotsCard, HotspotsData } from '@/components/cards/HotspotsCard';
+import { ConventionsCard, ConventionsData } from '@/components/cards/ConventionsCard';
+import CertificationPanel, { CertificationQuestion } from '@/components/CertificationPanel';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
 import { useEventsStore, Event } from '@/store/events';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Sample graph data for testing and as a fallback before Bob emits real data.
 const sampleGraphData: GraphData = {
@@ -79,8 +84,39 @@ function graphDataFromCard(card: Event | undefined): GraphData {
   };
 }
 
+function entryPointsDataFromCard(card: Event | undefined): EntryPointsData | null {
+  if (!card?.data.data) return null;
+  
+  const data = card.data.data as Record<string, unknown>;
+  return {
+    routes: (data.routes as any[]) || [],
+    cli: (data.cli as any[]) || [],
+    jobs: (data.jobs as any[]) || [],
+    consumers: (data.consumers as any[]) || [],
+  };
+}
+
+function hotspotsDataFromCard(card: Event | undefined): HotspotsData | null {
+  if (!card?.data.data) return null;
+  
+  const data = card.data.data as Record<string, unknown>;
+  return {
+    files: (data.files as any[]) || [],
+  };
+}
+
+function conventionsDataFromCard(card: Event | undefined): ConventionsData | null {
+  if (!card?.data.data) return null;
+  
+  const data = card.data.data as Record<string, unknown>;
+  return {
+    conventions: (data.conventions as any[]) || [],
+  };
+}
+
 export default function Home() {
   const [showEventStream, setShowEventStream] = useState(false);
+  const [certificationQuestions, setCertificationQuestions] = useState<CertificationQuestion[]>([]);
   const { isConnected } = useEvents();
   useEventHandlers();
   const connectionState = useEventsStore((state) => state.connectionState);
@@ -91,12 +127,62 @@ export default function Home() {
   const incrementBobcoinSpent = useEventsStore((state) => state.incrementBobcoinSpent);
   const session = useEventsStore((state) => state.session);
   const startSession = useEventsStore((state) => state.startSession);
+  
+  // Auto-recovery banner state
+  const { currentEvent, showRecovery, dismissRecovery } = useAutoRecovery();
+
+  // Process certification events
+  useEffect(() => {
+    events.forEach((event) => {
+      if (event.type === 'question_ask') {
+        const data = event.data as { id?: string; topic?: string; question?: string };
+        if (data.id && data.question) {
+          setCertificationQuestions((prev) => {
+            const exists = prev.find((q) => q.id === data.id);
+            if (exists) return prev;
+            return [
+              ...prev,
+              {
+                id: data.id as string,
+                topic: data.topic || 'General',
+                questionText: data.question as string,
+              },
+            ];
+          });
+        }
+      } else if (event.type === 'certification_grade') {
+        const data = event.data as {
+          question_id?: string;
+          grade?: 'pass' | 'partial' | 'fail';
+          rationale?: string;
+          answer?: string;
+        };
+        if (data.question_id) {
+          setCertificationQuestions((prev) =>
+            prev.map((q) =>
+              q.id === data.question_id
+                ? {
+                    ...q,
+                    grade: data.grade,
+                    rationale: data.rationale,
+                    answer: data.answer || q.answer,
+                  }
+                : q
+            )
+          );
+        }
+      }
+    });
+  }, [events]);
 
   const dependencyCard = findCard(events, 'dependency_graph');
   const entryCard = findCard(events, 'entry_points');
   const hotspotCard = findCard(events, 'hotspots');
   const conventionCard = findCard(events, 'conventions');
   const graphData = graphDataFromCard(dependencyCard);
+  const entryPointsData = entryPointsDataFromCard(entryCard);
+  const hotspotsData = hotspotsDataFromCard(hotspotCard);
+  const conventionsData = conventionsDataFromCard(conventionCard);
 
   // Demo states for loading/error components
   const [showLoadingDemo, setShowLoadingDemo] = useState(false);
@@ -105,6 +191,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      {/* Auto-Recovery Banner */}
+      <AutoRecoveryBanner event={currentEvent} onDismiss={dismissRecovery} />
+      
       {/* Header */}
       <header className="border-b border-ibm-gray-10 px-6 py-4">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between">
@@ -154,9 +243,18 @@ export default function Home() {
               title={String(entryCard?.data.title || 'Entry Points')}
               state={entryCard ? 'complete' : 'pending'}
             >
-              <div className="text-sm text-ibm-gray-70">
-                {String(entryCard?.data.body_markdown || 'Waiting to analyze entry points')}
-              </div>
+              {typeof entryCard?.data.body_markdown === 'string' && (
+                <p className="text-sm text-ibm-gray-70 mb-4">
+                  {entryCard.data.body_markdown}
+                </p>
+              )}
+              {entryPointsData ? (
+                <EntryPointsCard data={entryPointsData} />
+              ) : (
+                <div className="text-sm text-ibm-gray-70 text-center py-4">
+                  Waiting to analyze entry points...
+                </div>
+              )}
             </CartographyCard>
 
             <CartographyCard
@@ -164,9 +262,18 @@ export default function Home() {
               title={String(hotspotCard?.data.title || 'Change Hotspots')}
               state={hotspotCard ? 'complete' : 'pending'}
             >
-              <div className="text-sm text-ibm-gray-70">
-                {String(hotspotCard?.data.body_markdown || 'Waiting to analyze hotspots')}
-              </div>
+              {typeof hotspotCard?.data.body_markdown === 'string' && (
+                <p className="text-sm text-ibm-gray-70 mb-4">
+                  {hotspotCard.data.body_markdown}
+                </p>
+              )}
+              {hotspotsData ? (
+                <HotspotsCard data={hotspotsData} />
+              ) : (
+                <div className="text-sm text-ibm-gray-70 text-center py-4">
+                  Waiting to analyze hotspots...
+                </div>
+              )}
             </CartographyCard>
 
             <CartographyCard
@@ -174,9 +281,18 @@ export default function Home() {
               title={String(conventionCard?.data.title || 'Project Conventions')}
               state={conventionCard ? 'complete' : 'pending'}
             >
-              <div className="text-sm text-ibm-gray-70">
-                {String(conventionCard?.data.body_markdown || 'Waiting to analyze conventions')}
-              </div>
+              {typeof conventionCard?.data.body_markdown === 'string' && (
+                <p className="text-sm text-ibm-gray-70 mb-4">
+                  {conventionCard.data.body_markdown}
+                </p>
+              )}
+              {conventionsData ? (
+                <ConventionsCard data={conventionsData} />
+              ) : (
+                <div className="text-sm text-ibm-gray-70 text-center py-4">
+                  Waiting to analyze conventions...
+                </div>
+              )}
             </CartographyCard>
           </div>
         </main>
@@ -249,6 +365,47 @@ export default function Home() {
                   {showEmptyDemo ? 'Hide' : 'Show'} Empty
                 </button>
               </div>
+              <div className="border-t border-ibm-gray-20 pt-2 mt-2">
+                <div className="text-xs font-semibold text-ibm-gray-70 mb-2">
+                  Recovery Demos
+                </div>
+                <button
+                  onClick={() => showRecovery({
+                    pattern: 'port-in-use',
+                    action: 'Port 8000 in use → killing PID 42193 → retrying',
+                    details: 'Detected process on port 8000, terminating and restarting',
+                    status: 'in-progress',
+                    timestamp: new Date().toISOString(),
+                  })}
+                  className="w-full px-3 py-2 text-xs bg-ibm-blue-60 text-white rounded hover:bg-ibm-blue-70 transition-colors mb-1"
+                >
+                  Port In Use (Progress)
+                </button>
+                <button
+                  onClick={() => showRecovery({
+                    pattern: 'node-version',
+                    action: 'Node v18 required → installing via nvm → complete',
+                    details: 'Switched to Node v18.17.0',
+                    status: 'success',
+                    timestamp: new Date().toISOString(),
+                  })}
+                  className="w-full px-3 py-2 text-xs bg-ibm-green-50 text-white rounded hover:bg-green-600 transition-colors mb-1"
+                >
+                  Node Version (Success)
+                </button>
+                <button
+                  onClick={() => showRecovery({
+                    pattern: 'db-not-running',
+                    action: 'Database connection refused → docker compose up failed',
+                    details: 'Could not start database container',
+                    status: 'failed',
+                    timestamp: new Date().toISOString(),
+                  })}
+                  className="w-full px-3 py-2 text-xs bg-ibm-red-50 text-white rounded hover:bg-red-600 transition-colors"
+                >
+                  DB Not Running (Failed)
+                </button>
+              </div>
             </div>
           </div>
 
@@ -293,15 +450,17 @@ export default function Home() {
           )}
 
           {/* Certification Panel */}
-          <div>
-            <h2 className="text-sm font-semibold text-ibm-gray-100 mb-3">
-              Certification
-            </h2>
-            <div className="bg-ibm-gray-10 rounded-lg p-4">
-              <p className="text-xs text-ibm-gray-70">
-                Socratic quiz panel placeholder
-              </p>
-            </div>
+          <div className="flex-1 min-h-0 border border-ibm-gray-20 rounded-lg overflow-hidden">
+            <CertificationPanel
+              questions={certificationQuestions}
+              onAnswerChange={(questionId, answer) => {
+                setCertificationQuestions((prev) =>
+                  prev.map((q) =>
+                    q.id === questionId ? { ...q, answer } : q
+                  )
+                );
+              }}
+            />
           </div>
         </aside>
       </div>
