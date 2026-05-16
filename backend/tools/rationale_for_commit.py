@@ -53,7 +53,9 @@ def rationale_for_commit(
     # Determine if this commit has an associated PR
     has_pr = hash_value % 3 == 0  # ~33% of commits have PRs
     pr_number = 1000 + hash_value if has_pr else None
-    pr_title = f"PR: {messages[message_idx].split('\n')[0]}" if has_pr else None
+    # Extract first line of message for PR title (f-strings can't contain backslashes)
+    first_line = messages[message_idx].split('\n')[0]
+    pr_title = f"PR: {first_line}" if has_pr else None
 
     rationale = CommitRationale(
         commit_hash=commit_hash,

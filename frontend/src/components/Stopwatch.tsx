@@ -5,19 +5,22 @@ import { differenceInMilliseconds } from 'date-fns';
 
 interface StopwatchProps {
   startedAt: Date;
+  isRunning?: boolean;
   className?: string;
 }
 
-export function Stopwatch({ startedAt, className = '' }: StopwatchProps) {
+export function Stopwatch({ startedAt, isRunning = true, className = '' }: StopwatchProps) {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
+    if (!isRunning) return;
+
     const interval = setInterval(() => {
       setNow(new Date());
     }, 100); // Update every 100ms
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isRunning]);
 
   const elapsed = useMemo(() => {
     const ms = differenceInMilliseconds(now, startedAt);
