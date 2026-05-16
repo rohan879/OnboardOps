@@ -1,0 +1,100 @@
+# OnboardOps Allow-List Configuration
+# Declares which resources the MCP server may access
+# Server loads on startup and refuses non-allowed resources with 403
+# Hot-reload on SIGHUP
+
+# Version of this configuration format
+version: "1.0"
+
+# Git repositories that MCP tools may access
+# Format: owner/repo or full git URL
+allowed_repositories:
+  # Demo repository (primary)
+  - "fastapi/full-stack-fastapi-template"
+
+  # Add your demo fork here
+  # - "your-username/full-stack-fastapi-template"
+
+  # Example: other allowed repos
+  # - "tiangolo/fastapi"
+  # - "https://github.com/example/repo.git"
+
+# GitHub organizations that may be queried via API
+# Used by pr_for_file, incident_for_file, rationale_for_commit
+allowed_github_orgs:
+  - "fastapi"
+  # - "your-org"
+
+# Slack workspaces and channels (for stretch tool T2.8)
+# Requires Slack bot token in ONBOARDOPS_SLACK_TOKEN
+allowed_slack:
+  workspaces:
+    - workspace_id: "T01234567"
+      workspace_name: "onboardops-demo"
+      allowed_channels:
+        - "general"
+        - "engineering"
+        - "incidents"
+        # Add specific channel IDs if needed
+        # - "C01234567"
+
+# Linear workspaces and projects (for stretch tool T2.9)
+# Requires Linear API token in ONBOARDOPS_LINEAR_TOKEN
+allowed_linear:
+  workspaces:
+    - workspace_id: "onboardops-demo"
+      workspace_name: "OnboardOps Demo"
+      allowed_projects:
+        - "Backend"
+        - "Frontend"
+        - "Infrastructure"
+
+# File path restrictions
+# Prevent access to sensitive files even within allowed repos
+blocked_paths:
+  - ".env"
+  - ".env.local"
+  - ".env.production"
+  - "*.key"
+  - "*.pem"
+  - "*.p12"
+  - "secrets/*"
+  - "credentials/*"
+  - ".aws/*"
+  - ".ssh/*"
+
+# Rate limiting per tool (calls per minute)
+rate_limits:
+  git_blame_summary: 60
+  commit_frequency: 60
+  recent_authors: 60
+  pr_for_file: 30  # GitHub API has stricter limits
+  file_changelog: 60
+  rationale_for_commit: 30  # GitHub API
+  incident_for_file: 30  # GitHub API
+  slack_thread_for_topic: 20  # Slack API
+  linear_issue_for_file: 20  # Linear API
+
+# Security settings
+security:
+  # Require authentication for MCP endpoints
+  require_auth: false  # Set to true in production
+
+  # Maximum file size to read (bytes)
+  max_file_size: 1048576  # 1 MB
+
+  # Maximum commits to return in changelog
+  max_changelog_commits: 100
+
+  # Maximum search results
+  max_search_results: 50
+
+# Logging
+logging:
+  # Log all allow-list violations
+  log_violations: true
+
+  # Log all tool calls (for audit)
+  log_tool_calls: true
+
+# Made with Bob

@@ -155,7 +155,14 @@ pre-commit run --all-files
 
 ### API Documentation
 
-Once the server is running, visit:
+**Comprehensive MCP API Documentation:** See [`docs/mcp-api.md`](../docs/mcp-api.md) for:
+- Full tool catalog with request/response examples
+- Error code reference
+- Allow-list configuration guide
+- Performance characteristics
+- Integration examples for Python, JavaScript, and Bob IDE
+
+**Interactive API Docs:** Once the server is running, visit:
 - Swagger UI: http://localhost:8765/docs
 - ReDoc: http://localhost:8765/redoc
 
@@ -177,22 +184,21 @@ Make sure your virtual environment is activated and dependencies are installed.
 **WebSocket connection fails:**
 Ensure the backend server is running and CORS is properly configured for your frontend origin.
 
-## Phase 1 Status
+## Phase 3 Status (T2.4 - T2.7 Complete)
 
-✅ FastAPI application scaffold  
-✅ Health check endpoint  
-✅ MCP discovery endpoint  
-✅ WebSocket event stream  
-✅ All 7 MCP tool contracts defined  
-✅ All 7 MCP tools stubbed with mock data  
-✅ Pre-commit hooks configured  
+✅ All 7 MCP tools fully implemented with real data
+✅ Allow-list configuration with hot-reload (T2.4)
+✅ Performance tuning - all tools p95 < 800ms (T2.5)
+✅ LRU cache eviction + observability (T2.6)
+✅ Comprehensive API documentation (T2.7)
+✅ WebSocket event broadcasting
+✅ Session management with 30-minute timeout
+✅ Structured logging and metrics
 
-## Next Steps (Phase 2)
+## Stretch Goals (T2.8 - T2.9)
 
-- Implement real Git analysis logic
-- Connect to GitHub API for PR data
-- Implement WebSocket event broadcasting
-- Add authentication and rate limiting
+⏳ Slack integration (`slack_thread_for_topic`)
+⏳ Linear integration (`linear_issue_for_file`)
 
 ---
 

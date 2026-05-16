@@ -31,6 +31,7 @@ from observability import (
     metrics_collector,
     log_mcp_call,
 )
+from allowlist_manager import allowlist_manager, AllowListViolation
 
 app = FastAPI(
     title="OnboardOps Institutional Knowledge MCP Server",
@@ -285,9 +286,7 @@ async def mcp_discovery(request: Request):
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "result": {
-                    "protocolVersion": params.get(
-                        "protocolVersion", "2024-11-05"
-                    ),
+                    "protocolVersion": params.get("protocolVersion", "2024-11-05"),
                     "capabilities": {"tools": {}},
                     "serverInfo": {
                         "name": "institutional-knowledge",
@@ -396,6 +395,20 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
     cache_hit = False
 
     try:
+        # Validate tool call against allow-list
+        try:
+            allowlist_manager.validate_tool_call(tool_name, arguments)
+        except AllowListViolation as e:
+            # Return 403 error for allow-list violations
+            latency_ms = (time.time() - start_time) * 1000
+            log_mcp_call(
+                session_id, tool_name, input_hash, latency_ms, False, error=str(e)
+            )
+            await metrics_collector.record_call(
+                tool_name, latency_ms, False, error=True
+            )
+            raise HTTPException(status_code=403, detail=str(e))
+
         # Check cache if session_id is present and tool is cacheable
         # emit_event is not cacheable (side effects)
         if session_id and tool_name != "emit_event":
