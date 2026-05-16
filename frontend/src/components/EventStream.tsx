@@ -1,7 +1,8 @@
 'use client';
 
 import { useEventsStore, Event } from '@/store/events';
-import { Clock, Zap, CheckCircle, AlertCircle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Clock, Zap, CheckCircle, AlertCircle, Search } from 'lucide-react';
 
 const EVENT_COLORS = {
   tool_call: 'text-ibm-blue-60 bg-ibm-blue-60/10',
@@ -49,16 +50,66 @@ function EventItem({ event }: { event: Event }) {
 
 export function EventStream() {
   const events = useEventsStore((state) => state.events);
+  const [query, setQuery] = useState('');
+  const [eventType, setEventType] = useState('all');
+  const eventTypes = useMemo(
+    () => ['all', ...Array.from(new Set(events.map((event) => event.type))).sort()],
+    [events]
+  );
+  const visibleEvents = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return events.filter((event) => {
+      const matchesType = eventType === 'all' || event.type === eventType;
+      const matchesQuery =
+        !normalizedQuery ||
+        event.type.toLowerCase().includes(normalizedQuery) ||
+        JSON.stringify(event.data).toLowerCase().includes(normalizedQuery);
+
+      return matchesType && matchesQuery;
+    });
+  }, [events, eventType, query]);
 
   return (
-    <div className="space-y-2 max-h-96 overflow-y-auto">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ibm-gray-50" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="h-9 w-full border border-ibm-gray-20 bg-white pl-9 pr-3 text-sm text-ibm-gray-100 outline-none transition-colors focus:border-ibm-blue-60"
+            placeholder="Search events"
+            type="search"
+          />
+        </label>
+        <select
+          value={eventType}
+          onChange={(event) => setEventType(event.target.value)}
+          className="h-9 border border-ibm-gray-20 bg-white px-3 text-sm text-ibm-gray-100 outline-none transition-colors focus:border-ibm-blue-60"
+          aria-label="Filter event type"
+        >
+          {eventTypes.map((type) => (
+            <option key={type} value={type}>
+              {type === 'all' ? 'All event types' : type.replace(/_/g, ' ')}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-2 max-h-96 overflow-y-auto">
       {events.length === 0 ? (
         <div className="text-center py-8 text-ibm-gray-70 text-sm">
           No events yet. Waiting for backend activity...
         </div>
+      ) : visibleEvents.length === 0 ? (
+        <div className="text-center py-8 text-ibm-gray-70 text-sm">
+          No events match the current filter.
+        </div>
       ) : (
-        events.map((event) => <EventItem key={event.id} event={event} />)
+        visibleEvents.map((event) => <EventItem key={event.id} event={event} />)
       )}
+      </div>
     </div>
   );
 }

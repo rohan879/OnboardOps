@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 
@@ -43,6 +43,8 @@ interface DependencyGraphProps {
 export function DependencyGraph({ data, width = 800, height = 600 }: DependencyGraphProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width, height });
   
   // Use useMemo to avoid setState in effect
   const graphData = useMemo(() => ({
@@ -64,19 +66,39 @@ export function DependencyGraph({ data, width = 800, height = 600 }: DependencyG
     }
   }, [graphData]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateDimensions = () => {
+      const nextWidth = Math.max(320, Math.floor(container.clientWidth));
+      setDimensions({ width: nextWidth, height });
+    };
+
+    const frame = requestAnimationFrame(updateDimensions);
+    const observer = new ResizeObserver(updateDimensions);
+    observer.observe(container);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [height, width]);
+
   return (
     <motion.div
+      ref={containerRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="w-full h-full bg-white rounded-lg overflow-hidden"
+      className="relative w-full h-full bg-white rounded-lg overflow-hidden"
       style={{ minHeight: height }}
     >
       <ForceGraph2D
         ref={graphRef}
         graphData={graphData}
-        width={width}
-        height={height}
+        width={dimensions.width}
+        height={dimensions.height}
         nodeLabel="name"
         nodeAutoColorBy="group"
         nodeCanvasObject={(

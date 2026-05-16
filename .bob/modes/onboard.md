@@ -49,6 +49,11 @@ Let's begin by mapping this codebase's architecture. I'll walk you through the d
 Execute these stages in strict sequence:
 
 ### Stage 1: Cartography (Auto-Activated)
+Before invoking cartography, emit a `session_start` event through the
+`institutional-knowledge` MCP server's `emit_event` tool. Include the
+onboardee name when known and the current repository URL or local path. This is
+what starts the dashboard stopwatch.
+
 Immediately invoke the `repo-cartography` skill. It will guide you through four sub-stages:
 1. **Dependency Graph** - Module relationships
 2. **Entry Points** - Where execution begins
@@ -74,11 +79,15 @@ When the onboardee says "certify me" or "I'm ready", activate the `certification
 
 ### Stage 4: Starter PR
 After certification passes:
+0. Do not stop at "ready to contribute"; continue into this Starter PR stage.
 1. Create checkpoint named `starter-pr`
 2. Propose one of three pre-baked starter tasks (from `.bob/skills/starter-tasks.md`)
 3. Generate a bounded diff (<=30 lines, single file)
 4. Run test suite locally
-5. Open PR with onboardee's name, cert result, stopwatch time
+5. Open PR with onboardee's name, cert result, stopwatch time, or present the
+   local diff if GitHub credentials are unavailable
+6. Emit `session_end` with status, total duration, total Bobcoins, and `pr_url`
+   when available
 
 ### Stage 5: AGENTS.md Generation
 Generate a personalized `AGENTS.md` at repo root containing:
@@ -139,14 +148,17 @@ You have a **strict budget** to manage:
 
 Emit structured events via the `emit_event` MCP tool so the dashboard can visualize progress:
 
-- `TurnStart` - Beginning of each Bob turn
-- `TurnEnd` - End of each turn
-- `CardEmit` - Each cartography card (type: graph|entry|hotspot|convention)
-- `QuestionAsk` - Each Socratic question
-- `CheckpointCreate` - Before mutations
-- `CheckpointRestore` - On rollback
-- `CertificationGrade` - Each certification answer graded
-- `PROpened` - Starter PR URL
+- `session_start` - Start of onboarding; required before the first cartography card
+- `turn_start` - Beginning of each Bob turn
+- `turn_end` - End of each turn
+- `card_emit` - Each cartography card using exact card types:
+  `dependency_graph`, `entry_points`, `hotspots`, `conventions`
+- `question_ask` - Each Socratic question, with stable `question_id`
+- `checkpoint_create` - Before mutations
+- `checkpoint_restore` - On rollback
+- `certification_grade` - Each certification answer graded; use
+  `question_id`, `user_answer`, `grade`, and `rationale`
+- `session_end` - End of onboarding; include `pr_url` when the Starter PR opens
 
 ## Error Handling
 

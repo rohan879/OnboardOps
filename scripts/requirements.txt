@@ -9,3 +9,4 @@ PyGithub>=2.1.1
 
 # General utilities
 python-dotenv>=1.0.0
+requests>=2.31.0

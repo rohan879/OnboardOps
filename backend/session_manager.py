@@ -4,12 +4,16 @@ Manages session lifecycle, auto-expiry, and session ID propagation
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Any
 import asyncio
 
 # Import cache manager for cache invalidation on session close
 from cache_manager import cache_manager
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 # Import structured logging (lazy import to avoid circular dependency)
@@ -27,24 +31,24 @@ class Session:
 
     def __init__(self, session_id: str):
         self.session_id = session_id
-        self.created_at = datetime.utcnow()
-        self.last_activity = datetime.utcnow()
+        self.created_at = utc_now()
+        self.last_activity = utc_now()
         self.tool_calls = 0
         self.metadata: Dict[str, Any] = {}
 
     def touch(self):
         """Update last activity timestamp"""
-        self.last_activity = datetime.utcnow()
+        self.last_activity = utc_now()
         self.tool_calls += 1
 
     def is_expired(self, timeout_minutes: int = 30) -> bool:
         """Check if session has expired due to inactivity"""
         expiry_time = self.last_activity + timedelta(minutes=timeout_minutes)
-        return datetime.utcnow() > expiry_time
+        return utc_now() > expiry_time
 
     def age_seconds(self) -> float:
         """Get session age in seconds"""
-        return (datetime.utcnow() - self.created_at).total_seconds()
+        return (utc_now() - self.created_at).total_seconds()
 
 
 class SessionManager:

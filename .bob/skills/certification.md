@@ -24,15 +24,15 @@ This skill gates the end of the onboarding session. Bob selects three questions 
 ```yaml
 id: dep-graph-central
 topic: Dependency Graph
-question: "Based on the dependency graph, which module appears to be the central hub of the application, and what evidence supports this?"
+question: "Based on the dependency graph, which module is the main orchestrator by fan-out, and what evidence supports this?"
 rubric:
   pass:
-    - Names the correct central module (most imports/exports)
-    - Cites specific import counts or relationships from cartography
-    - Explains why centrality matters (e.g., "changes here affect many modules")
+    - Names the module with the highest fan_out value
+    - Cites the fan_out count or specific outgoing relationships from cartography
+    - Explains why fan-out matters (e.g., "this module coordinates many modules")
   partial:
-    - Names a plausible module but not the most central
-    - Provides reasoning but lacks specific evidence
+    - Names a high fan_in dependency sink or plausible module but not the top fan_out module
+    - Provides reasoning but lacks specific fan_out evidence
   fail:
     - Names an incorrect or peripheral module
     - No reasoning or evidence provided
@@ -248,12 +248,24 @@ The certification skill selects 3 questions from the pool of 12 using these rule
    - `[SPECIFIC_ENDPOINT]` → actual route path from entry points
    - `[HOTSPOT_FILE]` → top hotspot file path
    - `[N]` → actual commit count
-   - `[CENTRAL_MODULE]` → hub module from dependency graph
+   - `[CENTRAL_MODULE]` → highest fan_out orchestrator from dependency graph
    - `[MODULE_NAME]` → any module from the graph
    - `[ENTITY_TYPE]` → "functions", "classes", or "files"
 3. **Randomization**: Shuffle question order to prevent memorization across demos.
 4. **Fallback**: If cartography data is missing for a question's stage, skip that
    question and select another from a different stage.
+
+### Multiple-Choice Presentation
+
+When presenting answer choices in chat:
+
+1. Generate one correct option and three plausible distractors.
+2. Shuffle the four options before displaying them.
+3. Do not put the correct answer first by default. Across a session, vary the
+   correct answer position.
+4. Keep a private answer key for grading; do not reveal which option is correct
+   until after the onboardee answers or exhausts remediation.
+5. Render choices as a clear vertical list, not cramped inline text.
 
 ### Selection Algorithm
 
@@ -297,9 +309,12 @@ Each answer is graded using a three-tier system: **pass**, **partial**, **fail**
    ```json
    {
      "question_id": "dep-graph-central",
+     "question_text": "<question text>",
+     "user_answer": "<full answer text>",
      "grade": "pass",
-     "rationale": "Correctly identified core.py as the hub with 12 incoming dependencies, citing the dependency graph data.",
-     "onboardee_answer": "<full answer text>"
+     "rationale": "Correctly identified core.py as the orchestrator with 12 outgoing dependencies, citing the dependency graph data.",
+     "rubric_points_earned": 1,
+     "rubric_points_total": 1
    }
    ```
 
@@ -328,15 +343,15 @@ When an answer is graded **fail**, the remediation loop activates:
 
 1. **First wrong answer**:
    - Emit an 80-word remediation paragraph pointing to relevant cartography data
-   - Example: "The dependency graph shows that `core.py` has 12 incoming edges,
-     making it the central hub. Review the graph card and look for the module
-     with the highest fan-in count. This indicates which module is most depended
-     upon by others."
+   - Example: "The dependency graph shows that `core.py` has 12 outgoing edges,
+     making it the main orchestrator. Review the graph card and look for the
+     module with the highest fan_out count. This indicates which module
+     coordinates the most other modules."
    - Re-ask the same question
    - Grade the second answer using the same rubric
 2. **Second wrong answer**:
    - Reveal the correct answer in one sentence with evidence
-   - Example: "The correct answer is `core.py`, which has 12 incoming dependencies
+   - Example: "The correct answer is `core.py`, which has 12 outgoing dependencies
      as shown in the dependency graph."
    - Continue to next question (do not loop further)
 3. **Partial answer**: No remediation loop; accept as-is and continue
@@ -349,7 +364,7 @@ Emit `event_type: "certification_remediation"` with:
   "question_id": "dep-graph-central",
   "attempt": 1,
   "remediation_text": "<80-word guidance>",
-  "hint": "Look at the fan-in values in the dependency graph card."
+  "hint": "Look at the fan_out values in the dependency graph card."
 }
 ```
 
@@ -451,22 +466,22 @@ NEVER reveal the rubric to the onboardee unless they have failed twice.
 ### Grading Examples
 
 **Example 1: PASS**
-- Question: "Which module is the central hub?"
-- Answer: "The `core.py` module is the hub because the dependency graph shows
-  it has 12 incoming dependencies, the highest fan-in in the codebase."
+- Question: "Which module is the main orchestrator by fan-out?"
+- Answer: "The `core.py` module is the orchestrator because the dependency graph
+  shows it has 12 outgoing dependencies, the highest fan_out in the codebase."
 - Grade: **PASS**
-- Rationale: "Correctly identifies core.py with specific evidence (12 incoming
+- Rationale: "Correctly identifies core.py with specific evidence (12 outgoing
   dependencies) drawn directly from the dependency graph cartography data."
 
 **Example 2: PARTIAL**
-- Question: "Which module is the central hub?"
+- Question: "Which module is the main orchestrator by fan-out?"
 - Answer: "I think it's the core module because it seems like the main one."
 - Grade: **PARTIAL**
 - Rationale: "Correct module identified but reasoning is vague ('seems like')
   and lacks specific evidence from the dependency graph."
 
 **Example 3: FAIL**
-- Question: "Which module is the central hub?"
+- Question: "Which module is the main orchestrator by fan-out?"
 - Answer: "The authentication module handles all the auth logic."
 - Grade: **FAIL**
 - Rationale: "Incorrect module (auth vs. core) and answer doesn't address the

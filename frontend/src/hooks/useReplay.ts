@@ -63,8 +63,6 @@ export function useReplay({ sessionFile, speed = 1.0 }: ReplayOptions) {
         eventsRef.current = events;
         setTotalEvents(events.length);
         setConnectionState('connected');
-        
-        console.log(`Loaded ${events.length} events from ${sessionFile}`);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         setError(message);
@@ -111,7 +109,6 @@ export function useReplay({ sessionFile, speed = 1.0 }: ReplayOptions) {
         // If this is the last event, mark as complete
         if (index === events.length - 1) {
           setIsPlaying(false);
-          console.log('Replay complete');
         }
       }, delay);
       

@@ -5,12 +5,14 @@ Institutional Knowledge MCP Server with WebSocket Bridge
 
 from fastapi import FastAPI, WebSocket, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import time
 import hashlib
 import json
 import os
+from contextlib import asynccontextmanager
 
 # Import MCP tool implementations
 from tools import (
@@ -35,16 +37,34 @@ from observability import (
 )
 from allowlist_manager import allowlist_manager, AllowListViolation
 
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    """Initialize and tear down backend process services."""
+    logger.info(
+        "server_startup",
+        message="OnboardOps MCP Server starting",
+        health_endpoint="http://127.0.0.1:8765/health",
+        mcp_endpoint="http://127.0.0.1:8765/mcp",
+        metrics_endpoint="http://127.0.0.1:8765/metrics",
+        websocket_endpoint="ws://127.0.0.1:8765/events",
+    )
+    await session_manager.start_cleanup_task()
+    logger.info("session_manager_initialized", timeout_minutes=30)
+    yield
+
+
 app = FastAPI(
     title="OnboardOps Institutional Knowledge MCP Server",
     version="1.0.0",
     description="MCP server exposing institutional knowledge tools for Bob IDE",
+    lifespan=lifespan,
 )
 
-# CORS configuration - allow frontend on localhost:3000
+# CORS configuration - allow the local dashboard only.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -105,6 +125,9 @@ async def tool_health_check(tool_name: str):
     """
     import time
 
+    def health_response(payload: Dict[str, Any], status_code: int = 200):
+        return JSONResponse(content=payload, status_code=status_code)
+
     start_time = time.time()
 
     try:
@@ -113,60 +136,78 @@ async def tool_health_check(tool_name: str):
             # Test: Can we access the demo repo and run git blame?
             repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
             if not repo_path or not os.path.exists(repo_path):
-                return {
-                    "tool": tool_name,
-                    "status": "unhealthy",
-                    "error": "Demo repo not configured or not found",
-                    "retryable": False,
-                }, 503
+                return health_response(
+                    {
+                        "tool": tool_name,
+                        "status": "unhealthy",
+                        "error": "Demo repo not configured or not found",
+                        "retryable": False,
+                    },
+                    503,
+                )
 
             # Try to run git blame on README
             try:
                 input_data = contracts.GitBlameSummaryInput(file_path="README.md")
                 result = git_blame_summary(input_data)
                 if isinstance(result, MCPToolError):
-                    return {
+                    return health_response(
+                        {
+                            "tool": tool_name,
+                            "status": "unhealthy",
+                            "error": result.message,
+                            "retryable": result.retryable,
+                        },
+                        503,
+                    )
+            except Exception as e:
+                return health_response(
+                    {
                         "tool": tool_name,
                         "status": "unhealthy",
-                        "error": result.message,
-                        "retryable": result.retryable,
-                    }, 503
-            except Exception as e:
-                return {
-                    "tool": tool_name,
-                    "status": "unhealthy",
-                    "error": str(e),
-                    "retryable": False,
-                }, 503
+                        "error": str(e),
+                        "retryable": False,
+                    },
+                    503,
+                )
 
         elif tool_name == "commit_frequency":
             # Test: Can we get commit frequency?
             repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
             if not repo_path or not os.path.exists(repo_path):
-                return {
-                    "tool": tool_name,
-                    "status": "unhealthy",
-                    "error": "Demo repo not configured or not found",
-                    "retryable": False,
-                }, 503
+                return health_response(
+                    {
+                        "tool": tool_name,
+                        "status": "unhealthy",
+                        "error": "Demo repo not configured or not found",
+                        "retryable": False,
+                    },
+                    503,
+                )
 
             try:
                 input_data = contracts.CommitFrequencyInput(days=180)
                 result = commit_frequency(input_data)
                 if isinstance(result, MCPToolError):
-                    return {
+                    return health_response(
+                        {
+                            "tool": tool_name,
+                            "status": "unhealthy",
+                            "error": result.message,
+                            "retryable": result.retryable,
+                        },
+                        503,
+                    )
+            except Exception as e:
+                return health_response(
+                    {
                         "tool": tool_name,
                         "status": "unhealthy",
-                        "error": result.message,
-                        "retryable": result.retryable,
-                    }, 503
-            except Exception as e:
-                return {
-                    "tool": tool_name,
-                    "status": "unhealthy",
-                    "error": str(e),
-                    "retryable": False,
-                }, 503
+                        "error": str(e),
+                        "retryable": False,
+                    },
+                    503,
+                )
 
         elif tool_name == "recent_authors":
             # Mock-only tool, always healthy
@@ -205,31 +246,39 @@ async def tool_health_check(tool_name: str):
             pass
 
         else:
-            return {
-                "tool": tool_name,
-                "status": "unknown",
-                "error": f"Unknown tool: {tool_name}",
-                "retryable": False,
-            }, 404
+            return health_response(
+                {
+                    "tool": tool_name,
+                    "status": "unknown",
+                    "error": f"Unknown tool: {tool_name}",
+                    "retryable": False,
+                },
+                404,
+            )
 
         # If we get here, tool is healthy
         latency_ms = (time.time() - start_time) * 1000
-        return {
-            "tool": tool_name,
-            "status": "healthy",
-            "latency_ms": round(latency_ms, 2),
-            "details": "Self-test passed",
-        }, 200
+        return health_response(
+            {
+                "tool": tool_name,
+                "status": "healthy",
+                "latency_ms": round(latency_ms, 2),
+                "details": "Self-test passed",
+            }
+        )
 
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
-        return {
-            "tool": tool_name,
-            "status": "unhealthy",
-            "error": str(e),
-            "latency_ms": round(latency_ms, 2),
-            "retryable": False,
-        }, 503
+        return health_response(
+            {
+                "tool": tool_name,
+                "status": "unhealthy",
+                "error": str(e),
+                "latency_ms": round(latency_ms, 2),
+                "retryable": False,
+            },
+            503,
+        )
 
 
 # ============================================================================
@@ -393,7 +442,7 @@ async def mcp_discovery(request: Request):
         ),
         MCPTool(
             name="emit_event",
-            description="Emit a structured event to the WebSocket bridge for dashboard display. Auto-creates session if session_id not provided.",
+            description="Emit a structured event to the WebSocket bridge for dashboard display, including cartography, certification, and bootstrap recovery events. Auto-creates session if session_id not provided.",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -658,6 +707,8 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
 
         return MCPToolResponse(tool_name=tool_name, result=result_dict, error=None)
 
+    except HTTPException:
+        raise
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
 
@@ -699,31 +750,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: Optional[str] = N
     await websocket_handler(websocket, session_id)
 
 
-# ============================================================================
-# Application Startup
-# ============================================================================
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
-    logger.info(
-        "server_startup",
-        message="OnboardOps MCP Server starting",
-        health_endpoint="http://127.0.0.1:8765/health",
-        mcp_endpoint="http://127.0.0.1:8765/mcp",
-        metrics_endpoint="http://127.0.0.1:8765/metrics",
-        websocket_endpoint="ws://127.0.0.1:8765/events",
-    )
-
-    # Start session manager cleanup task
-    await session_manager.start_cleanup_task()
-    logger.info("session_manager_initialized", timeout_minutes=30)
-
-
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8765, log_level="info")
+    port = int(os.getenv("ONBOARDOPS_MCP_PORT", "8765"))
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
 
 # Made with Bob

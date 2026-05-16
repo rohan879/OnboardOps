@@ -167,7 +167,7 @@ export default function CertificationPanel({
 
             {/* Answer Input */}
             <textarea
-              value={localAnswers[question.id] || question.answer || ''}
+              value={question.answer || localAnswers[question.id] || ''}
               onChange={(e) => handleAnswerChange(question.id, e.target.value)}
               placeholder="Type your answer here..."
               disabled={!!question.grade}

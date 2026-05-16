@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export type RecoveryPattern = 
   | 'port-in-use' 
@@ -152,13 +152,13 @@ export function AutoRecoveryBanner({ event, onDismiss }: AutoRecoveryBannerProps
 export function useAutoRecovery() {
   const [currentEvent, setCurrentEvent] = useState<RecoveryEvent | null>(null);
 
-  const showRecovery = (event: RecoveryEvent) => {
+  const showRecovery = useCallback((event: RecoveryEvent) => {
     setCurrentEvent(event);
-  };
+  }, []);
 
-  const dismissRecovery = () => {
+  const dismissRecovery = useCallback(() => {
     setCurrentEvent(null);
-  };
+  }, []);
 
   return {
     currentEvent,

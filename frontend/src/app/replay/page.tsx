@@ -11,7 +11,6 @@ function ReplayContent() {
   const searchParams = useSearchParams();
   const sessionFile = searchParams.get('file') || '';
   const presentationMode = searchParams.get('presentation') === 'true';
-  const startOffset = parseInt(searchParams.get('offset') || '0');
   const [speed, setSpeed] = useState(1.0);
   
   const {
@@ -53,13 +52,9 @@ function ReplayContent() {
           break;
         case 'ArrowRight':
           e.preventDefault();
-          // TODO: Implement next event navigation when useReplay supports it
-          console.log('Next event (not yet implemented)');
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          // TODO: Implement previous event navigation when useReplay supports it
-          console.log('Previous event (not yet implemented)');
           break;
         case 'Escape':
           e.preventDefault();

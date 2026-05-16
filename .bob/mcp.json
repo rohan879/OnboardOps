@@ -4,7 +4,16 @@
       "type": "streamable-http",
       "url": "http://127.0.0.1:8765/mcp",
       "timeout": 60,
-      "alwaysAllow": [],
+      "alwaysAllow": [
+        "git_blame_summary",
+        "commit_frequency",
+        "recent_authors",
+        "pr_for_file",
+        "file_changelog",
+        "rationale_for_commit",
+        "incident_for_file",
+        "emit_event"
+      ],
       "disabled": false
     }
   }

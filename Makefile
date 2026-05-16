@@ -26,7 +26,7 @@ install: ## Install all dependencies (backend + frontend)
 	@echo "→ Installing frontend dependencies..."
 	@if [ -d "frontend" ]; then \
 		cd frontend && \
-		pnpm install && \
+		npm install && \
 		echo "✓ Frontend dependencies installed"; \
 	else \
 		echo "⚠️  frontend/ directory not found (Dev 3 task pending)"; \
@@ -58,7 +58,7 @@ dev: ## Start development servers (backend + frontend + telemetry)
 	@echo "→ Starting frontend on http://localhost:3000..."
 	@if [ -d "frontend" ]; then \
 		cd frontend && \
-		pnpm dev & \
+		npm run dev & \
 		echo "✓ Frontend started (PID: $$!)"; \
 	else \
 		echo "⚠️  frontend/ directory not found"; \
@@ -88,7 +88,7 @@ test: ## Run all tests (backend + frontend)
 	@echo "→ Running frontend tests..."
 	@if [ -d "frontend" ]; then \
 		cd frontend && \
-		pnpm test --run && \
+		npm test && \
 		echo "✓ Frontend tests passed"; \
 	else \
 		echo "⚠️  frontend/ directory not found"; \
@@ -108,7 +108,7 @@ demo: ## Run the full end-to-end demo
 		echo ""; \
 		echo "Manual demo steps:"; \
 		echo "  1. Start backend: cd backend && . .venv/bin/activate && uvicorn app:app --port 8765"; \
-		echo "  2. Start frontend: cd frontend && pnpm dev"; \
+		echo "  2. Start frontend: cd frontend && npm run dev"; \
 		echo "  3. Open Bob IDE and run: /onboard"; \
 		echo "  4. Watch the dashboard at http://localhost:3000"; \
 	fi
@@ -146,7 +146,7 @@ lint: ## Run linters on all code
 	@echo "→ Linting frontend..."
 	@if [ -d "frontend" ]; then \
 		cd frontend && \
-		pnpm lint && \
+		npm run lint && \
 		echo "✓ Frontend linting passed"; \
 	else \
 		echo "⚠️  frontend/ directory not found"; \
@@ -210,7 +210,7 @@ dev-backend: ## Start only the backend server
 
 dev-frontend: ## Start only the frontend server
 	@echo "🚀 Starting frontend on http://localhost:3000..."
-	@cd frontend && pnpm dev
+	@cd frontend && npm run dev
 
 status: ## Show status of all components
 	@echo "📊 OnboardOps Status"
@@ -268,6 +268,6 @@ version: ## Show version information
 	@echo "Component versions:"
 	@python3 --version 2>/dev/null || echo "Python: not found"
 	@node --version 2>/dev/null || echo "Node: not found"
-	@pnpm --version 2>/dev/null || echo "pnpm: not found"
+	@npm --version 2>/dev/null || echo "npm: not found"
 
 # Made with Bob

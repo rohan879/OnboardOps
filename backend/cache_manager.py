@@ -7,9 +7,13 @@ Implements LRU eviction at 1000 entries per session.
 import hashlib
 import json
 from typing import Any, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 from collections import OrderedDict
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class CacheManager:
@@ -58,7 +62,7 @@ class CacheManager:
             if cache_key in self._cache:
                 entry = self._cache[cache_key]
                 entry["access_count"] = entry.get("access_count", 0) + 1
-                entry["last_accessed"] = datetime.utcnow().isoformat()
+                entry["last_accessed"] = utc_now().isoformat()
 
                 # Update LRU order - move to end (most recently used)
                 if session_id in self._lru_order:
@@ -98,7 +102,7 @@ class CacheManager:
                     self._stats["total_evictions"] += 1
 
             # Add/update cache entry
-            now = datetime.utcnow().isoformat()
+            now = utc_now().isoformat()
             self._cache[cache_key] = {
                 "result": result,
                 "timestamp": now,
@@ -146,7 +150,7 @@ class CacheManager:
             tools = {}
 
             # Calculate entry ages
-            now = datetime.utcnow()
+            now = utc_now()
             ages = []
             access_counts = []
 

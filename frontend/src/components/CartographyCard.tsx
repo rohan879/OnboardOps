@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode } from 'react';
 import { Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { cardVariants } from '@/components/animations';
 
@@ -72,18 +72,6 @@ export function CartographyCard({
   const config = cardTypeConfig[type];
   const stateStyle = stateConfig[state];
   const StateIcon = stateStyle.icon;
-  
-  // Track when card transitions to complete for story-beat glow
-  const [showStoryBeatGlow, setShowStoryBeatGlow] = useState(false);
-  
-  useEffect(() => {
-    if (state === 'complete' && type === 'graph') {
-      setShowStoryBeatGlow(true);
-      // Auto-hide after animation completes
-      const timer = setTimeout(() => setShowStoryBeatGlow(false), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [state, type]);
 
   return (
     <motion.div
@@ -93,8 +81,9 @@ export function CartographyCard({
       className={`rounded-lg border-2 ${stateStyle.borderColor} ${stateStyle.bgColor} overflow-hidden relative`}
     >
       {/* Story-beat glow for dependency graph completion */}
-      {showStoryBeatGlow && type === 'graph' && (
+      {state === 'complete' && type === 'graph' && (
         <motion.div
+          key="graph-complete-glow"
           className="absolute inset-0 pointer-events-none rounded-lg"
           initial={{ boxShadow: '0 0 0px rgba(15, 98, 254, 0)' }}
           animate={{

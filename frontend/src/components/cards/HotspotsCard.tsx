@@ -4,6 +4,10 @@ import { motion } from 'framer-motion';
 import { Flame, ExternalLink, User, GitPullRequest, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+const REPOSITORY_URL =
+  process.env.NEXT_PUBLIC_REPOSITORY_URL || 'https://github.com/rohan879/OnboardOps';
+const REPOSITORY_BRANCH = process.env.NEXT_PUBLIC_REPOSITORY_BRANCH || 'main';
+
 export interface Hotspot {
   path: string;
   commit_count: number;
@@ -12,7 +16,7 @@ export interface Hotspot {
   last_pr_title?: string;
   last_pr_url?: string;
   rationale: string;
-  commit_frequency?: number[]; // 12-bucket array for sparkline
+  commit_frequency?: number[] | string; // Prefer 12-bucket array; tolerate labels from Bob.
 }
 
 export interface HotspotsData {
@@ -21,12 +25,95 @@ export interface HotspotsData {
 
 interface HotspotsCardProps {
   data: HotspotsData;
-  onHighlight?: (file: string) => void;
+}
+
+function getRepositoryFileUrl(path: string) {
+  if (!path || path === 'unknown') return undefined;
+
+  const normalizedBase = REPOSITORY_URL.replace(/\.git$/, '').replace(/\/$/, '');
+  const normalizedPath = path.replace(/\\/g, '/').replace(/^\/+/, '');
+
+  return `${normalizedBase}/blob/${REPOSITORY_BRANCH}/${encodeURI(normalizedPath)}`;
+}
+
+function normalizeSparklineData(value: unknown, commitCount: number) {
+  if (Array.isArray(value)) {
+    const numericValues = value.filter(
+      (item): item is number => typeof item === 'number' && Number.isFinite(item)
+    );
+
+    if (numericValues.length >= 2) {
+      return numericValues;
+    }
+  }
+
+  return Array(12).fill(Math.max(0, commitCount) / 12);
+}
+
+function toFiniteNumber(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return fallback;
+}
+
+function normalizeHotspot(value: Hotspot | Record<string, unknown>): Hotspot {
+  const record = value as Record<string, unknown>;
+  const commitCount = toFiniteNumber(
+    record.commit_count ?? record.commits ?? record.changes,
+    0
+  );
+
+  return {
+    path: String(record.path ?? record.file_path ?? record.file ?? 'unknown'),
+    commit_count: commitCount,
+    distinct_authors: toFiniteNumber(record.distinct_authors, 0),
+    top_author:
+      typeof record.top_author === 'string' &&
+      record.top_author.trim() &&
+      record.top_author.toLowerCase() !== 'unknown'
+        ? record.top_author
+        : undefined,
+    last_pr_title:
+      typeof record.last_pr_title === 'string' && record.last_pr_title.trim()
+        ? record.last_pr_title
+        : undefined,
+    last_pr_url:
+      typeof record.last_pr_url === 'string' &&
+      record.last_pr_url.trim() &&
+      !record.last_pr_url.includes('github.com/example/repo')
+        ? record.last_pr_url
+        : undefined,
+    rationale:
+      typeof record.rationale === 'string' && record.rationale.trim()
+        ? record.rationale
+        : 'High commit activity indicates this file changes often.',
+    commit_frequency: record.commit_frequency as Hotspot['commit_frequency'],
+  };
 }
 
 function Sparkline({ data, max }: { data: number[]; max: number }) {
   const width = 60;
   const height = 20;
+  if (data.length < 2 || max <= 0) {
+    return (
+      <svg width={width} height={height} className="inline-block">
+        <line
+          x1="0"
+          y1={height / 2}
+          x2={width}
+          y2={height / 2}
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="text-ibm-gray-30"
+        />
+      </svg>
+    );
+  }
+
   const points = data.length;
   const stepX = width / (points - 1);
   
@@ -60,28 +147,39 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-function AuthorAvatar({ name }: { name: string }) {
+function AuthorCell({ name }: { name?: string }) {
+  if (!name) {
+    return <span className="text-sm text-ibm-gray-50">Unknown</span>;
+  }
+
   const initials = getInitials(name);
 
   return (
-    <div className="w-6 h-6 rounded-full bg-ibm-blue-60 text-white text-xs font-semibold flex items-center justify-center">
-      {initials}
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-ibm-blue-60 text-xs font-semibold text-white">
+        {initials}
+      </div>
+      <span className="truncate text-sm font-medium text-ibm-gray-100" title={name}>
+        {name}
+      </span>
     </div>
   );
 }
 
-function HotspotRow({ hotspot, rank, maxCommits, onHighlight }: { 
+function HotspotRow({ hotspot, rank, maxCommits }: {
   hotspot: Hotspot; 
   rank: number; 
   maxCommits: number;
-  onHighlight?: (file: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const barWidth = (hotspot.commit_count / maxCommits) * 100;
-  
-  // Default sparkline if not provided
-  const sparklineData = hotspot.commit_frequency || Array(12).fill(hotspot.commit_count / 12);
-  const sparklineMax = Math.max(...sparklineData);
+  const commitCount = toFiniteNumber(hotspot.commit_count, 0);
+  const barWidth = maxCommits > 0 ? (commitCount / maxCommits) * 100 : 0;
+  const fileUrl = getRepositoryFileUrl(hotspot.path);
+  const sparklineData = normalizeSparklineData(
+    hotspot.commit_frequency,
+    commitCount
+  );
+  const sparklineMax = Math.max(...sparklineData, 1);
 
   return (
     <motion.div
@@ -91,11 +189,11 @@ function HotspotRow({ hotspot, rank, maxCommits, onHighlight }: {
       className="border-b border-ibm-gray-10 last:border-0"
     >
       <div
-        className="flex items-center gap-3 p-3 hover:bg-ibm-gray-10/50 transition-colors cursor-pointer"
+        className="grid grid-cols-[2rem_minmax(18rem,1fr)_12rem_14rem_5rem_2rem] items-center gap-4 p-3 hover:bg-ibm-gray-10/50 transition-colors cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         {/* Rank */}
-        <div className="flex-shrink-0 w-6 text-center">
+        <div className="text-center">
           <span className={`text-sm font-bold ${
             rank === 1 ? 'text-ibm-red-50' :
             rank === 2 ? 'text-ibm-orange-40' :
@@ -107,14 +205,14 @@ function HotspotRow({ hotspot, rank, maxCommits, onHighlight }: {
         </div>
 
         {/* File path */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           <code className="text-sm font-mono text-ibm-gray-100 truncate block font-semibold">
             {hotspot.path}
           </code>
         </div>
 
         {/* Commit count with bar */}
-        <div className="flex-shrink-0 w-32">
+        <div>
           <div className="flex items-center gap-2">
             <div className="flex-1 h-4 bg-ibm-gray-10 rounded-full overflow-hidden">
               <motion.div
@@ -125,34 +223,35 @@ function HotspotRow({ hotspot, rank, maxCommits, onHighlight }: {
               />
             </div>
             <span className="text-sm font-semibold text-ibm-gray-100 w-8 text-right">
-              {hotspot.commit_count}
+              {commitCount}
             </span>
           </div>
         </div>
 
-        {/* Author avatar */}
-        <div className="flex-shrink-0">
-          {hotspot.top_author && (
-            <AuthorAvatar name={hotspot.top_author} />
-          )}
+        {/* Author */}
+        <div className="min-w-0">
+          <AuthorCell name={hotspot.top_author} />
         </div>
 
         {/* Sparkline */}
-        <div className="flex-shrink-0 w-16">
+        <div>
           <Sparkline data={sparklineData} max={sparklineMax} />
         </div>
 
         {/* External link */}
-        <div className="flex-shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onHighlight?.(hotspot.path);
-            }}
-            className="text-ibm-gray-50 hover:text-ibm-blue-60 transition-colors"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </button>
+        <div>
+          {fileUrl && (
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Open ${hotspot.path} on GitHub`}
+              className="text-ibm-gray-50 hover:text-ibm-blue-60 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
         </div>
       </div>
 
@@ -168,7 +267,7 @@ function HotspotRow({ hotspot, rank, maxCommits, onHighlight }: {
             <p className="text-sm text-ibm-gray-100">
               <strong>Why it changes:</strong> {hotspot.rationale}
             </p>
-            {hotspot.last_pr_title && (
+            {hotspot.last_pr_title && hotspot.last_pr_title !== 'unknown' && (
               <div className="flex items-start gap-2 text-xs text-ibm-gray-70">
                 <GitPullRequest className="w-3 h-3 mt-0.5 flex-shrink-0" />
                 <div>
@@ -204,8 +303,11 @@ function HotspotRow({ hotspot, rank, maxCommits, onHighlight }: {
   );
 }
 
-export function HotspotsCard({ data, onHighlight }: HotspotsCardProps) {
-  const files = useMemo(() => data.files || [], [data.files]);
+export function HotspotsCard({ data }: HotspotsCardProps) {
+  const files = useMemo(
+    () => (Array.isArray(data.files) ? data.files.map(normalizeHotspot) : []),
+    [data.files]
+  );
   const maxCommits = useMemo(() => Math.max(...files.map(f => f.commit_count), 1), [files]);
 
   if (files.length === 0) {
@@ -242,27 +344,30 @@ export function HotspotsCard({ data, onHighlight }: HotspotsCardProps) {
         )}
       </div>
 
-      {/* Table header */}
-      <div className="flex items-center gap-3 px-3 py-2 bg-ibm-gray-10/30 rounded-t-lg text-xs font-semibold text-ibm-gray-70 uppercase tracking-wide">
-        <div className="w-6">#</div>
-        <div className="flex-1">File Path</div>
-        <div className="w-32">Commits</div>
-        <div className="w-6">Author</div>
-        <div className="w-16">Trend</div>
-        <div className="w-4"></div>
-      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[980px]">
+          {/* Table header */}
+          <div className="grid grid-cols-[2rem_minmax(18rem,1fr)_12rem_14rem_5rem_2rem] items-center gap-4 rounded-t-lg bg-ibm-gray-10/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ibm-gray-70">
+            <div>#</div>
+            <div>File Path</div>
+            <div>Commits</div>
+            <div>Author</div>
+            <div>Trend</div>
+            <div></div>
+          </div>
 
-      {/* Hotspot rows */}
-      <div className="border border-ibm-gray-10 rounded-b-lg overflow-hidden">
-        {files.map((hotspot, index) => (
-          <HotspotRow
-            key={hotspot.path}
-            hotspot={hotspot}
-            rank={index + 1}
-            maxCommits={maxCommits}
-            onHighlight={onHighlight}
-          />
-        ))}
+          {/* Hotspot rows */}
+          <div className="overflow-hidden rounded-b-lg border border-ibm-gray-10">
+            {files.map((hotspot, index) => (
+              <HotspotRow
+                key={hotspot.path}
+                hotspot={hotspot}
+                rank={index + 1}
+                maxCommits={maxCommits}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

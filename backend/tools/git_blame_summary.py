@@ -80,6 +80,14 @@ def git_blame_summary(
         if not os.path.exists(full_path):
             return file_not_found_error(input_data.file_path)
 
+        line_start = max(1, input_data.line_start or 1)
+        line_end = input_data.line_end
+        if line_end is not None and line_end < line_start:
+            return git_command_error(
+                input_data.file_path,
+                f"line_end ({line_end}) must be greater than or equal to line_start ({line_start})",
+            )
+
         # Get blame data with timeout
         blame_data = repo.blame("HEAD", input_data.file_path)
 
@@ -88,12 +96,24 @@ def git_blame_summary(
             lambda: {"lines": 0, "commits": set(), "latest_date": None}
         )
 
+        current_line = 1
         for commit, lines in blame_data:
+            group_start = current_line
+            group_end = current_line + len(lines) - 1
+            current_line = group_end + 1
+
+            effective_end = line_end or group_end
+            overlap = max(
+                0, min(group_end, effective_end) - max(group_start, line_start) + 1
+            )
+            if overlap == 0:
+                continue
+
             author_name = commit.author.name
             author_email = commit.author.email
             commit_date = datetime.fromtimestamp(commit.committed_date)
 
-            author_stats[author_name]["lines"] += len(lines)
+            author_stats[author_name]["lines"] += overlap
             author_stats[author_name]["commits"].add(commit.hexsha)
             author_stats[author_name]["email"] = author_email
 
