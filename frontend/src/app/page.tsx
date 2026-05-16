@@ -14,8 +14,10 @@ import { EntryPointsCard, EntryPoint, EntryPointsData } from '@/components/cards
 import { HotspotsCard, Hotspot, HotspotsData } from '@/components/cards/HotspotsCard';
 import { Convention, ConventionsCard, ConventionsData } from '@/components/cards/ConventionsCard';
 import CertificationPanel, { CertificationQuestion } from '@/components/CertificationPanel';
+import { IdleState } from '@/components/IdleState';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
+import { useDemoMode } from '@/hooks/useDemoMode';
 import { useEventsStore, Event } from '@/store/events';
 import { useState, useEffect } from 'react';
 
@@ -119,6 +121,7 @@ export default function Home() {
   const [certificationQuestions, setCertificationQuestions] = useState<CertificationQuestion[]>([]);
   const { isConnected } = useEvents();
   useEventHandlers();
+  const { isDemoMode, animationMultiplier } = useDemoMode();
   const connectionState = useEventsStore((state) => state.connectionState);
   const events = useEventsStore((state) => state.events);
   const cartographySteps = useEventsStore((state) => state.cartographySteps);
@@ -130,6 +133,9 @@ export default function Home() {
   
   // Auto-recovery banner state
   const { currentEvent, showRecovery, dismissRecovery } = useAutoRecovery();
+  
+  // Check if dashboard is idle (no events and session not started)
+  const isIdle = !session.isActive && events.length === 0;
 
   // Process certification events
   useEffect(() => {
@@ -222,6 +228,11 @@ export default function Home() {
       <div className="flex-1 flex max-w-[1440px] mx-auto w-full">
         {/* Main Panel - Cartography Cards */}
         <main className="flex-1 p-6 space-y-6">
+          {/* Show idle state when no events and session not started */}
+          {isIdle ? (
+            <IdleState />
+          ) : (
+            <>
           <CartographyCard
             type="graph"
             title={String(dependencyCard?.data.title || 'Dependency Graph')}
@@ -295,6 +306,8 @@ export default function Home() {
               )}
             </CartographyCard>
           </div>
+            </>
+          )}
         </main>
 
         {/* Right Sidebar - Transcript, Budget & Certification */}
