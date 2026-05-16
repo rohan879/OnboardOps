@@ -12,6 +12,7 @@ import { ErrorState, ErrorBanner, EmptyState } from '@/components/ErrorState';
 import { AutoRecoveryBanner, useAutoRecovery } from '@/components/AutoRecoveryBanner';
 import { EntryPointsCard, EntryPointsData } from '@/components/cards/EntryPointsCard';
 import { HotspotsCard, HotspotsData } from '@/components/cards/HotspotsCard';
+import { ConventionsCard, ConventionsData } from '@/components/cards/ConventionsCard';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
 import { useEventsStore, Event } from '@/store/events';
@@ -103,6 +104,15 @@ function hotspotsDataFromCard(card: Event | undefined): HotspotsData | null {
   };
 }
 
+function conventionsDataFromCard(card: Event | undefined): ConventionsData | null {
+  if (!card?.data.data) return null;
+  
+  const data = card.data.data as Record<string, unknown>;
+  return {
+    conventions: (data.conventions as any[]) || [],
+  };
+}
+
 export default function Home() {
   const [showEventStream, setShowEventStream] = useState(false);
   const { isConnected } = useEvents();
@@ -126,6 +136,7 @@ export default function Home() {
   const graphData = graphDataFromCard(dependencyCard);
   const entryPointsData = entryPointsDataFromCard(entryCard);
   const hotspotsData = hotspotsDataFromCard(hotspotCard);
+  const conventionsData = conventionsDataFromCard(conventionCard);
 
   // Demo states for loading/error components
   const [showLoadingDemo, setShowLoadingDemo] = useState(false);
@@ -224,9 +235,18 @@ export default function Home() {
               title={String(conventionCard?.data.title || 'Project Conventions')}
               state={conventionCard ? 'complete' : 'pending'}
             >
-              <div className="text-sm text-ibm-gray-70">
-                {String(conventionCard?.data.body_markdown || 'Waiting to analyze conventions')}
-              </div>
+              {typeof conventionCard?.data.body_markdown === 'string' && (
+                <p className="text-sm text-ibm-gray-70 mb-4">
+                  {conventionCard.data.body_markdown}
+                </p>
+              )}
+              {conventionsData ? (
+                <ConventionsCard data={conventionsData} />
+              ) : (
+                <div className="text-sm text-ibm-gray-70 text-center py-4">
+                  Waiting to analyze conventions...
+                </div>
+              )}
             </CartographyCard>
           </div>
         </main>
