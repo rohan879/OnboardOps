@@ -40,7 +40,9 @@ def test_cache_functionality():
     body1 = response1.json()
 
     assert response1.status_code == 200, "First call should succeed"
-    assert body1.get("error") is None, f"First call returned tool error: {body1.get('error')}"
+    assert (
+        body1.get("error") is None
+    ), f"First call returned tool error: {body1.get('error')}"
     assert response1.headers.get("X-Cache") == "MISS", "First call should be cache MISS"
 
     # Test 2: Cache HIT on second call with same arguments
@@ -57,7 +59,9 @@ def test_cache_functionality():
     print(f"Speedup: {latency1/latency2:.1f}x faster")
 
     assert response2.status_code == 200, "Second call should succeed"
-    assert response2.json().get("error") is None, "Second call should not return tool error"
+    assert (
+        response2.json().get("error") is None
+    ), "Second call should not return tool error"
     assert response2.headers.get("X-Cache") == "HIT", "Second call should be cache HIT"
     assert latency2 < 50, f"Cache hit should be <50ms, got {latency2:.1f}ms"
     assert response1.json() == response2.json(), "Results should be identical"

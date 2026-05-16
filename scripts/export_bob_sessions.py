@@ -16,7 +16,6 @@ Usage:
 Dependencies: None (stdlib only)
 """
 
-import os
 import re
 import subprocess
 import sys
@@ -54,55 +53,55 @@ def prompt_for_exports(dev: str) -> List[Path]:
     """Prompt developer to place exports in raw/ directory."""
     dev_dir = BOB_SESSIONS_DIR / dev
     raw_dir = dev_dir / "raw"
-    
+
     print(f"\n{'='*70}")
     print(f"📦 {dev.upper()} - {DEV_FOCUS.get(dev, 'Developer')}")
     print(f"{'='*70}")
-    print(f"\nPlease place your Bob task exports in:")
+    print("\nPlease place your Bob task exports in:")
     print(f"  {raw_dir}/")
-    print(f"\nExport format:")
-    print(f"  - Markdown files (.md) from Bob IDE task exports")
-    print(f"  - One file per task (e.g., T1.1-verify-bob.md)")
-    print(f"  - Include Bobcoin consumption screenshot (PNG/JPG)")
+    print("\nExport format:")
+    print("  - Markdown files (.md) from Bob IDE task exports")
+    print("  - One file per task (e.g., T1.1-verify-bob.md)")
+    print("  - Include Bobcoin consumption screenshot (PNG/JPG)")
     print(f"\nPress ENTER when ready to process {dev}'s exports...")
     input()
-    
+
     # Find all markdown files in raw/
     md_files = list(raw_dir.glob("*.md"))
-    
+
     if not md_files:
         print(f"⚠️  No markdown files found in {raw_dir}/")
         print(f"   Skipping {dev}...")
         return []
-    
+
     print(f"✓ Found {len(md_files)} export(s) for {dev}")
     for f in md_files:
         print(f"  - {f.name}")
-    
+
     return md_files
 
 
 def extract_title_from_export(file_path: Path) -> str:
     """Extract a clean title from the Bob export markdown."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read(500)  # Read first 500 chars
-        
+
         # Try to find a title in the first few lines
-        lines = content.split('\n')
+        lines = content.split("\n")
         for line in lines[:10]:
             line = line.strip()
             # Look for markdown heading
-            if line.startswith('# '):
+            if line.startswith("# "):
                 title = line[2:].strip()
                 # Clean up the title
-                title = re.sub(r'[^\w\s-]', '', title)
-                title = re.sub(r'\s+', '-', title)
+                title = re.sub(r"[^\w\s-]", "", title)
+                title = re.sub(r"\s+", "-", title)
                 return title.lower()[:50]  # Max 50 chars
-        
+
         # Fallback: use filename without extension
         return file_path.stem
-    
+
     except Exception as e:
         print(f"⚠️  Error extracting title from {file_path.name}: {e}")
         return file_path.stem
@@ -111,37 +110,37 @@ def extract_title_from_export(file_path: Path) -> str:
 def scrub_and_rename(raw_file: Path, dev: str, sequence: int) -> Tuple[Path, bool]:
     """
     Scrub a raw export and rename with canonical format.
-    
+
     Returns: (output_path, success)
     """
     dev_dir = BOB_SESSIONS_DIR / dev
-    
+
     # Extract title
     title = extract_title_from_export(raw_file)
-    
+
     # Generate canonical name: NN_title.md
     canonical_name = f"{sequence:02d}_{title}.md"
     output_path = dev_dir / canonical_name
-    
+
     print(f"\n  Processing: {raw_file.name}")
     print(f"  → {canonical_name}")
-    
+
     # Run scrubber
     try:
         result = subprocess.run(
             [sys.executable, str(SCRUBBER_SCRIPT), str(raw_file), str(output_path)],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
-        
+
         # Parse scrubber output for stats
         if "Secrets removed:" in result.stdout:
             print(f"  {result.stdout.strip()}")
-        
+
         print(f"  ✓ Scrubbed and saved to {output_path.relative_to(PROJECT_ROOT)}")
         return output_path, True
-    
+
     except subprocess.CalledProcessError as e:
         print(f"  ❌ Scrubber failed: {e.stderr}")
         return output_path, False
@@ -151,12 +150,12 @@ def collect_screenshots(dev: str) -> List[Path]:
     """Collect Bobcoin consumption screenshots."""
     dev_dir = BOB_SESSIONS_DIR / dev
     raw_dir = dev_dir / "raw"
-    
+
     # Find image files
     screenshots = []
-    for ext in ['*.png', '*.jpg', '*.jpeg']:
+    for ext in ["*.png", "*.jpg", "*.jpeg"]:
         screenshots.extend(raw_dir.glob(ext))
-    
+
     if screenshots:
         print(f"\n  Found {len(screenshots)} screenshot(s):")
         for img in screenshots:
@@ -166,15 +165,15 @@ def collect_screenshots(dev: str) -> List[Path]:
             print(f"  ✓ Copied {img.name}")
     else:
         print(f"\n  ⚠️  No screenshots found in {raw_dir}/")
-        print(f"     Please add Bobcoin consumption screenshot manually")
-    
+        print("     Please add Bobcoin consumption screenshot manually")
+
     return screenshots
 
 
 def generate_index_readme(processed_sessions: Dict[str, List[Path]]):
     """Generate bob_sessions/README.md with index of all sessions."""
     readme_path = BOB_SESSIONS_DIR / "README.md"
-    
+
     content = [
         "# Bob Session Exports",
         "",
@@ -202,64 +201,68 @@ def generate_index_readme(processed_sessions: Dict[str, List[Path]]):
         "## Sessions by Developer",
         "",
     ]
-    
+
     total_sessions = 0
-    
+
     for dev in DEVS:
         sessions = processed_sessions.get(dev, [])
         total_sessions += len(sessions)
-        
+
         content.append(f"### {dev.upper()} - {DEV_FOCUS.get(dev, 'Developer')}")
         content.append("")
-        
+
         if sessions:
             content.append(f"**{len(sessions)} session(s):**")
             content.append("")
             for session in sorted(sessions):
                 # Extract sequence number and title from filename
-                match = re.match(r'(\d+)_(.+)\.md', session.name)
+                match = re.match(r"(\d+)_(.+)\.md", session.name)
                 if match:
                     seq, title = match.groups()
-                    title_display = title.replace('-', ' ').title()
-                    content.append(f"- [{seq}. {title_display}](./{dev}/{session.name})")
+                    title_display = title.replace("-", " ").title()
+                    content.append(
+                        f"- [{seq}. {title_display}](./{dev}/{session.name})"
+                    )
                 else:
                     content.append(f"- [{session.name}](./{dev}/{session.name})")
             content.append("")
         else:
             content.append("*No sessions exported yet*")
             content.append("")
-    
-    content.extend([
-        "---",
-        "",
-        f"**Total Sessions:** {total_sessions}",
-        "",
-        "## Naming Convention",
-        "",
-        "Files follow the format: `NN_task-title.md`",
-        "- `NN` = Two-digit sequence number (01, 02, ...)",
-        "- `task-title` = Descriptive slug from the task",
-        "",
-        "## Scrubbing",
-        "",
-        "All exports have been processed through `scripts/scrub.py` to remove:",
-        "- API keys and tokens",
-        "- Email addresses (except team allow-list)",
-        "- Absolute file paths (replaced with $HOME)",
-        "- Other PII",
-        "",
-        "## Bobcoin Tracking",
-        "",
-        "Each developer's directory may include:",
-        "- `bobcoin-consumption.png` - Screenshot of Bobcoin usage",
-        "- Individual task Bobcoin costs noted in session exports",
-        "",
-        "---",
-        "",
-        "*Generated by `make export-bob-sessions`*",
-    ])
-    
-    readme_path.write_text('\n'.join(content), encoding='utf-8')
+
+    content.extend(
+        [
+            "---",
+            "",
+            f"**Total Sessions:** {total_sessions}",
+            "",
+            "## Naming Convention",
+            "",
+            "Files follow the format: `NN_task-title.md`",
+            "- `NN` = Two-digit sequence number (01, 02, ...)",
+            "- `task-title` = Descriptive slug from the task",
+            "",
+            "## Scrubbing",
+            "",
+            "All exports have been processed through `scripts/scrub.py` to remove:",
+            "- API keys and tokens",
+            "- Email addresses (except team allow-list)",
+            "- Absolute file paths (replaced with $HOME)",
+            "- Other PII",
+            "",
+            "## Bobcoin Tracking",
+            "",
+            "Each developer's directory may include:",
+            "- `bobcoin-consumption.png` - Screenshot of Bobcoin usage",
+            "- Individual task Bobcoin costs noted in session exports",
+            "",
+            "---",
+            "",
+            "*Generated by `make export-bob-sessions`*",
+        ]
+    )
+
+    readme_path.write_text("\n".join(content), encoding="utf-8")
     print(f"\n✓ Generated {readme_path.relative_to(PROJECT_ROOT)}")
     print(f"  Total sessions indexed: {total_sessions}")
 
@@ -269,52 +272,54 @@ def main():
     print("=" * 70)
     print("OnboardOps Bob Session Export Pipeline")
     print("=" * 70)
-    
+
     # Ensure directory structure
     ensure_directories()
-    
+
     # Process each developer
     processed_sessions = {}
-    
+
     for dev in DEVS:
         # Prompt for exports
         raw_files = prompt_for_exports(dev)
-        
+
         if not raw_files:
             processed_sessions[dev] = []
             continue
-        
+
         # Scrub and rename each export
         dev_sessions = []
         for i, raw_file in enumerate(sorted(raw_files), start=1):
             output_path, success = scrub_and_rename(raw_file, dev, i)
             if success:
                 dev_sessions.append(output_path)
-        
+
         # Collect screenshots
         collect_screenshots(dev)
-        
+
         processed_sessions[dev] = dev_sessions
-        
+
         print(f"\n✓ Completed {dev}: {len(dev_sessions)} session(s) processed")
-    
+
     # Generate index README
     print("\n" + "=" * 70)
     print("Generating Index")
     print("=" * 70)
     generate_index_readme(processed_sessions)
-    
+
     # Summary
     total = sum(len(sessions) for sessions in processed_sessions.values())
     print("\n" + "=" * 70)
     print("Export Complete!")
     print("=" * 70)
     print(f"✓ Total sessions exported: {total}")
-    print(f"✓ Index generated: bob_sessions/README.md")
-    print(f"\nNext steps:")
-    print(f"  1. Review scrubbed exports in bob_sessions/devN/")
-    print(f"  2. Commit and push: git add bob_sessions/ && git commit -m 'docs: Add Bob session exports'")
-    print(f"  3. Verify CI passes (pii-check job)")
+    print("✓ Index generated: bob_sessions/README.md")
+    print("\nNext steps:")
+    print("  1. Review scrubbed exports in bob_sessions/devN/")
+    print(
+        "  2. Commit and push: git add bob_sessions/ && git commit -m 'docs: Add Bob session exports'"
+    )
+    print("  3. Verify CI passes (pii-check job)")
 
 
 if __name__ == "__main__":
@@ -326,6 +331,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

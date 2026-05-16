@@ -5,6 +5,7 @@ Sources: CHANGELOG.md, GitHub issues with incident/bug labels, revert commits
 """
 
 import os
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Union
 import git
@@ -264,7 +265,7 @@ def _mock_incident_for_file(input_data: IncidentForFileInput) -> IncidentForFile
     file_path = input_data.file_path
 
     # Generate deterministic incidents based on file path
-    file_hash = hash(file_path) % 1000
+    file_hash = int(hashlib.sha256(file_path.encode()).hexdigest()[:8], 16) % 1000
 
     incidents = []
 

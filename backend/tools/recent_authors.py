@@ -4,6 +4,7 @@ Returns deterministic mock data for recent author activity
 """
 
 from datetime import datetime, timedelta
+import hashlib
 from typing import Union
 from mcp.contracts import (
     RecentAuthorsInput,
@@ -21,7 +22,13 @@ def recent_authors(
     Returns plausible author activity data
     """
     # Generate deterministic authors based on input
-    seed = hash(input_data.file_path or "repo") % 100
+    seed = (
+        int(
+            hashlib.sha256((input_data.file_path or "repo").encode()).hexdigest()[:8],
+            16,
+        )
+        % 100
+    )
 
     authors_pool = [
         ("Alice Chen", "alice.chen@example.com", 45, 23),

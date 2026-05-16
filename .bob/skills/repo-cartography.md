@@ -97,13 +97,13 @@ This cap prevents runaway responses that waste Bobcoins.
 
 Produce four cards in order:
 
-1. `graph` - real dependency graph from repository files.
-2. `entry` - Phase 2 placeholder.
-3. `hotspot` - Phase 2 placeholder.
-4. `convention` - Phase 2 placeholder.
+1. `dependency_graph` - real dependency graph from repository files.
+2. `entry_points` - real HTTP routes, CLI commands, jobs, and consumers.
+3. `hotspots` - real high-churn files from git history and MCP tools.
+4. `conventions` - real coding conventions with file-backed evidence.
 
-After each card, ask exactly one checkable Socratic question. In the Phase 2
-vertical slice, only the graph question needs answer validation.
+After each card, ask exactly one checkable Socratic question and validate the
+answer against the data emitted for that stage.
 
 ## Stage 1: Dependency Graph
 
@@ -302,6 +302,13 @@ Steps (optimized for Bobcoin efficiency):
    - `files`: `[{ path, changes, authors, last_pr, rationale }]`
    - Rank by `changes` descending
    - Schema: See cartography-output-format.md
+   - If including `commit_frequency`, use a numeric array for the sparkline.
+     Do not send human-readable strings such as `"0.79 commits/day"` in this
+     field; put rate text in `rationale` instead.
+   - Use full author names from `recent_authors` for `top_author`, not initials.
+   - Use only real PR URLs from `pr_for_file`. If no real PR exists, set
+     `last_pr_title` and `last_pr_url` to `null`; never invent
+     `github.com/example/repo` links.
 5. Call `emit_event` with card_type "hotspots" (see output format rules).
 6. Narrate using template from cartography-output-format.md:
    - Multiple hotspots: "Top hotspots: `[file1]` (`[n1]` commits), `[file2]` (`[n2]` commits)."
@@ -477,11 +484,6 @@ change hotspots, and project conventions."
 - If budget is exceeded, emit a `cartography curtailed` card with the current
   stage and reason, then return to onboard mode.
 
-## Phase 3 Notes
-
-Entry points, hotspots, and conventions become real implementations in Phase 3.
-Until then, placeholders must keep the vertical slice unblocked.
-
 ## Error Handling and Graceful Degradation (Phase 4)
 
 ### MCP Tool Failure Strategy
@@ -553,7 +555,7 @@ Narration: "Entry points data unavailable—file parsing may have failed. Contin
 }
 ```
 
-Narration: "Hotspots data unavailable—git history tools may be rate-limited. Continuing to conventions."
+Narration: "Hotspots data unavailable - git history tools may be rate-limited. Continuing to conventions."
 
 #### Stage 3: Hotspots Failure (Partial)
 If `commit_frequency` succeeds but per-file tools fail, emit partial data:
@@ -564,9 +566,9 @@ If `commit_frequency` succeeds but per-file tools fail, emit partial data:
     {
       "path": "src/auth.py",
       "commit_count": 47,
-      "distinct_authors": "unknown",
-      "top_author": "unknown",
-      "last_pr_title": "unavailable",
+      "distinct_authors": 0,
+      "top_author": null,
+      "last_pr_title": null,
       "last_pr_url": null,
       "rationale": "High commit count (47 in 180 days) suggests active development. Author and PR data unavailable."
     }

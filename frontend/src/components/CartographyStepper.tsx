@@ -18,9 +18,11 @@ interface CartographyStepperProps {
 
 export function CartographyStepper({ steps, className = '' }: CartographyStepperProps) {
   return (
-    <div className={`flex items-center justify-between ${className}`}>
+    <div
+      className={`grid grid-cols-2 gap-x-4 gap-y-5 md:flex md:items-center md:justify-between ${className}`}
+    >
       {steps.map((step, index) => (
-        <div key={step.id} className="flex items-center flex-1">
+        <div key={step.id} className="flex items-center justify-center md:flex-1">
           {/* Step Circle */}
           <div className="flex flex-col items-center">
             <motion.div
@@ -35,7 +37,7 @@ export function CartographyStepper({ steps, className = '' }: CartographyStepper
                     : step.status === 'in-progress'
                     ? 'bg-white border-ibm-blue-60'
                     : step.status === 'error'
-                    ? 'bg-white border-red-60'
+                    ? 'bg-white border-ibm-red-50'
                     : 'bg-white border-ibm-gray-30'
                 }
               `}
@@ -63,7 +65,7 @@ export function CartographyStepper({ steps, className = '' }: CartographyStepper
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 200, damping: 10 }}
                 >
-                  <span className="text-red-60 font-bold">!</span>
+                  <span className="text-ibm-red-50 font-bold">!</span>
                 </motion.div>
               )}
               {step.status === 'pending' && (
@@ -77,12 +79,12 @@ export function CartographyStepper({ steps, className = '' }: CartographyStepper
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 + 0.1 }}
               className={`
-                mt-2 text-xs font-medium text-center whitespace-nowrap
+                mt-2 text-xs font-medium text-center
                 ${
                   step.status === 'complete' || step.status === 'in-progress'
                     ? 'text-ibm-gray-100'
                     : step.status === 'error'
-                    ? 'text-red-60'
+                    ? 'text-ibm-red-50'
                     : 'text-ibm-gray-50'
                 }
               `}
@@ -93,7 +95,7 @@ export function CartographyStepper({ steps, className = '' }: CartographyStepper
 
           {/* Connector Line */}
           {index < steps.length - 1 && (
-            <div className="flex-1 h-0.5 mx-4 relative">
+            <div className="relative mx-4 hidden h-0.5 flex-1 md:block">
               <div className="absolute inset-0 bg-ibm-gray-20" />
               <motion.div
                 initial={{ scaleX: 0 }}

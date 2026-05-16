@@ -166,10 +166,8 @@ async def websocket_handler(websocket: WebSocket, session_id: Optional[str] = No
             # Keep connection alive and handle any incoming messages
             data = await websocket.receive_text()
 
-            # Echo back for testing (can be removed in production)
-            await websocket.send_text(
-                json.dumps({"type": "ack", "message": "Message received", "data": data})
-            )
+            if data == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
 
     except WebSocketDisconnect:
         await manager.disconnect(websocket, session_id)

@@ -21,14 +21,14 @@ export function BobcoinMeter({
 
   // Determine status color
   const getStatusColor = () => {
-    if (projectedPercentage > 90) return 'text-red-60';
-    if (projectedPercentage > 75) return 'text-orange-60';
-    return 'text-green-60';
+    if (projectedPercentage > 90) return 'text-ibm-red-50';
+    if (projectedPercentage > 75) return 'text-ibm-orange-40';
+    return 'text-ibm-green-50';
   };
 
   const getBarColor = () => {
-    if (projectedPercentage > 90) return 'bg-red-60';
-    if (projectedPercentage > 75) return 'bg-orange-60';
+    if (projectedPercentage > 90) return 'bg-ibm-red-50';
+    if (projectedPercentage > 75) return 'bg-ibm-orange-40';
     return 'bg-ibm-blue-60';
   };
 
@@ -104,7 +104,7 @@ export function BobcoinMeter({
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-3 p-2 bg-red-10 border border-red-30 rounded text-xs text-red-70"
+          className="mt-3 p-2 bg-ibm-red-50/10 border border-ibm-red-50/30 rounded text-xs text-ibm-red-50"
         >
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />
@@ -117,7 +117,7 @@ export function BobcoinMeter({
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-3 p-2 bg-orange-10 border border-orange-30 rounded text-xs text-orange-70"
+          className="mt-3 p-2 bg-ibm-orange-40/10 border border-ibm-orange-40/30 rounded text-xs text-ibm-gray-100"
         >
           <div className="flex items-start gap-2">
             <TrendingUp className="w-3 h-3 flex-shrink-0 mt-0.5" />

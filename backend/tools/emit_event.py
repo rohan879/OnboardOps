@@ -15,7 +15,10 @@ from ws.events import (
     CheckpointRestore,
     CardEmit,
     QuestionAsk,
+    BootstrapStatus,
+    BootstrapRecovery,
     CertificationGrade,
+    CertificationComplete,
     SessionStart,
     SessionEnd,
 )
@@ -93,8 +96,14 @@ async def emit_event(input_data: EmitEventInput) -> EmitEventOutput:
             event = CardEmit(**input_data.event_data)
         elif input_data.event_type == "question_ask":
             event = QuestionAsk(**input_data.event_data)
+        elif input_data.event_type == "bootstrap_status":
+            event = BootstrapStatus(**input_data.event_data)
+        elif input_data.event_type == "bootstrap_recovery":
+            event = BootstrapRecovery(**input_data.event_data)
         elif input_data.event_type == "certification_grade":
             event = CertificationGrade(**input_data.event_data)
+        elif input_data.event_type == "certification_complete":
+            event = CertificationComplete(**input_data.event_data)
         elif input_data.event_type == "session_start":
             event = SessionStart(**input_data.event_data)
         elif input_data.event_type == "session_end":

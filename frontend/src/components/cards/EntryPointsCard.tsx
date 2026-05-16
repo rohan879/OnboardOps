@@ -1,18 +1,26 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Globe, Terminal, Clock, Zap, ExternalLink } from 'lucide-react';
+import { Clock, ExternalLink, Globe, Terminal, Zap } from 'lucide-react';
+
+const REPOSITORY_URL =
+  process.env.NEXT_PUBLIC_REPOSITORY_URL || 'https://github.com/rohan879/OnboardOps';
+const REPOSITORY_BRANCH = process.env.NEXT_PUBLIC_REPOSITORY_BRANCH || 'main';
 
 export interface EntryPoint {
-  type: 'http' | 'cli' | 'job' | 'consumer';
+  type: 'http' | 'cli' | 'job' | 'consumer' | 'websocket';
   name: string;
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'WS' | 'WEBSOCKET';
   path?: string;
   handler?: string;
   file: string;
   schedule?: string;
   topic?: string;
   entry_point?: string;
+  line_number?: number;
+  url?: string;
+  file_url?: string;
+  github_url?: string;
 }
 
 export interface EntryPointsData {
@@ -33,115 +41,203 @@ const methodColors: Record<string, string> = {
   PUT: 'text-yellow-600 bg-yellow-50 border-yellow-200',
   DELETE: 'text-red-600 bg-red-50 border-red-200',
   PATCH: 'text-purple-600 bg-purple-50 border-purple-200',
+  WS: 'text-ibm-gray-100 bg-white border-ibm-gray-100',
+  WEBSOCKET: 'text-ibm-gray-100 bg-white border-ibm-gray-100',
 };
 
-function HTTPRouteItem({ route, onHighlight }: { route: EntryPoint; onHighlight?: (file: string) => void }) {
-  const colorClass = methodColors[route.method || 'GET'];
-  
+function getRepositoryFileUrl(entry: EntryPoint) {
+  const explicitUrl = entry.github_url || entry.file_url || entry.url;
+  if (explicitUrl) return explicitUrl;
+  if (!entry.file) return undefined;
+
+  const normalizedBase = REPOSITORY_URL.replace(/\.git$/, '').replace(/\/$/, '');
+  const normalizedPath = entry.file.replace(/\\/g, '/').replace(/^\/+/, '');
+  const lineSuffix = entry.line_number ? `#L${entry.line_number}` : '';
+
+  return `${normalizedBase}/blob/${REPOSITORY_BRANCH}/${encodeURI(normalizedPath)}${lineSuffix}`;
+}
+
+function FileLink({
+  entry,
+  colorClass = 'hover:text-ibm-blue-60',
+}: {
+  entry: EntryPoint;
+  colorClass?: string;
+}) {
+  const href = getRepositoryFileUrl(entry);
+  if (!href) return null;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(event) => event.stopPropagation()}
+      aria-label={`Open ${entry.file} on GitHub`}
+      className={`text-ibm-gray-50 transition-colors ${colorClass}`}
+    >
+      <ExternalLink className="h-3 w-3" />
+    </a>
+  );
+}
+
+function FilePath({
+  entry,
+  className = '',
+}: {
+  entry: EntryPoint;
+  className?: string;
+}) {
+  const href = getRepositoryFileUrl(entry);
+  if (!href) return <span className={className}>{entry.file}</span>;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(event) => event.stopPropagation()}
+      className={`hover:text-ibm-blue-60 hover:underline ${className}`}
+    >
+      {entry.file}
+    </a>
+  );
+}
+
+function HTTPRouteItem({
+  route,
+  onHighlight,
+}: {
+  route: EntryPoint;
+  onHighlight?: (file: string) => void;
+}) {
+  const method = route.method || 'GET';
+  const colorClass = methodColors[method] || methodColors.GET;
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex items-start gap-3 p-3 rounded-lg hover:bg-ibm-gray-10/50 transition-colors cursor-pointer group"
+      className="group flex cursor-pointer items-start gap-3 rounded-lg p-3 transition-colors hover:bg-ibm-gray-10/50"
       onClick={() => onHighlight?.(route.file)}
     >
-      <Globe className="w-4 h-4 text-ibm-blue-60 flex-shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${colorClass}`}>
-            {route.method}
+      <Globe className="mt-0.5 h-4 w-4 flex-shrink-0 text-ibm-blue-60" />
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center gap-2">
+          <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${colorClass}`}>
+            {method === 'WEBSOCKET' ? 'WS' : method}
           </span>
-          <code className="text-sm font-mono text-ibm-gray-100 truncate">
+          <code className="truncate font-mono text-sm text-ibm-gray-100">
             {route.path}
           </code>
         </div>
         <div className="text-xs text-ibm-gray-70">
           <span className="font-medium">{route.handler}</span>
-          <span className="mx-1">·</span>
-          <span className="opacity-75">{route.file}</span>
+          <span className="mx-1">-</span>
+          <FilePath entry={route} className="opacity-75" />
         </div>
       </div>
-      <ExternalLink className="w-3 h-3 text-ibm-gray-50 group-hover:text-ibm-blue-60 transition-colors flex-shrink-0 mt-1" />
+      <FileLink entry={route} />
     </motion.div>
   );
 }
 
-function CLIItem({ cli, onHighlight }: { cli: EntryPoint; onHighlight?: (file: string) => void }) {
+function CLIItem({
+  cli,
+  onHighlight,
+}: {
+  cli: EntryPoint;
+  onHighlight?: (file: string) => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex items-start gap-3 p-3 rounded-lg hover:bg-ibm-gray-10/50 transition-colors cursor-pointer group"
+      className="group flex cursor-pointer items-start gap-3 rounded-lg p-3 transition-colors hover:bg-ibm-gray-10/50"
       onClick={() => onHighlight?.(cli.file)}
     >
-      <Terminal className="w-4 h-4 text-ibm-purple-50 flex-shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <code className="text-sm font-mono text-ibm-gray-100 font-semibold block mb-1">
+      <Terminal className="mt-0.5 h-4 w-4 flex-shrink-0 text-ibm-purple-50" />
+      <div className="min-w-0 flex-1">
+        <code className="mb-1 block font-mono text-sm font-semibold text-ibm-gray-100">
           {cli.name}
         </code>
         <div className="text-xs text-ibm-gray-70">
           <span className="font-medium">{cli.entry_point}</span>
-          <span className="mx-1">·</span>
-          <span className="opacity-75">{cli.file}</span>
+          <span className="mx-1">-</span>
+          <FilePath entry={cli} className="opacity-75" />
         </div>
       </div>
-      <ExternalLink className="w-3 h-3 text-ibm-gray-50 group-hover:text-ibm-purple-50 transition-colors flex-shrink-0 mt-1" />
+      <FileLink entry={cli} colorClass="hover:text-ibm-purple-50" />
     </motion.div>
   );
 }
 
-function JobItem({ job, onHighlight }: { job: EntryPoint; onHighlight?: (file: string) => void }) {
+function JobItem({
+  job,
+  onHighlight,
+}: {
+  job: EntryPoint;
+  onHighlight?: (file: string) => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex items-start gap-3 p-3 rounded-lg hover:bg-ibm-gray-10/50 transition-colors cursor-pointer group"
+      className="group flex cursor-pointer items-start gap-3 rounded-lg p-3 transition-colors hover:bg-ibm-gray-10/50"
       onClick={() => onHighlight?.(job.file)}
     >
-      <Clock className="w-4 h-4 text-ibm-orange-40 flex-shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+      <Clock className="mt-0.5 h-4 w-4 flex-shrink-0 text-ibm-orange-40" />
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center gap-2">
           <span className="text-sm font-semibold text-ibm-gray-100">{job.name}</span>
           {job.schedule && (
-            <span className="text-xs text-ibm-gray-70 bg-ibm-gray-10 px-2 py-0.5 rounded font-mono">
+            <span className="rounded bg-ibm-gray-10 px-2 py-0.5 font-mono text-xs text-ibm-gray-70">
               {job.schedule}
             </span>
           )}
         </div>
-        <div className="text-xs text-ibm-gray-70 opacity-75">
-          {job.file}
+        <div className="text-xs text-ibm-gray-70">
+          <FilePath entry={job} className="opacity-75" />
         </div>
       </div>
-      <ExternalLink className="w-3 h-3 text-ibm-gray-50 group-hover:text-ibm-orange-40 transition-colors flex-shrink-0 mt-1" />
+      <FileLink entry={job} colorClass="hover:text-ibm-orange-40" />
     </motion.div>
   );
 }
 
-function ConsumerItem({ consumer, onHighlight }: { consumer: EntryPoint; onHighlight?: (file: string) => void }) {
+function ConsumerItem({
+  consumer,
+  onHighlight,
+}: {
+  consumer: EntryPoint;
+  onHighlight?: (file: string) => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex items-start gap-3 p-3 rounded-lg hover:bg-ibm-gray-10/50 transition-colors cursor-pointer group"
+      className="group flex cursor-pointer items-start gap-3 rounded-lg p-3 transition-colors hover:bg-ibm-gray-10/50"
       onClick={() => onHighlight?.(consumer.file)}
     >
-      <Zap className="w-4 h-4 text-ibm-teal-50 flex-shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-semibold text-ibm-gray-100">{consumer.name}</span>
+      <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-ibm-teal-50" />
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="text-sm font-semibold text-ibm-gray-100">
+            {consumer.name}
+          </span>
           {consumer.topic && (
-            <span className="text-xs text-ibm-gray-70 bg-ibm-gray-10 px-2 py-0.5 rounded font-mono">
+            <span className="rounded bg-ibm-gray-10 px-2 py-0.5 font-mono text-xs text-ibm-gray-70">
               {consumer.topic}
             </span>
           )}
         </div>
         <div className="text-xs text-ibm-gray-70">
           <span className="font-medium">{consumer.handler}</span>
-          <span className="mx-1">·</span>
-          <span className="opacity-75">{consumer.file}</span>
+          <span className="mx-1">-</span>
+          <FilePath entry={consumer} className="opacity-75" />
         </div>
       </div>
-      <ExternalLink className="w-3 h-3 text-ibm-gray-50 group-hover:text-ibm-teal-50 transition-colors flex-shrink-0 mt-1" />
+      <FileLink entry={consumer} colorClass="hover:text-ibm-teal-50" />
     </motion.div>
   );
 }
@@ -151,12 +247,11 @@ export function EntryPointsCard({ data, onHighlight }: EntryPointsCardProps) {
   const cli = data.cli || [];
   const jobs = data.jobs || [];
   const consumers = data.consumers || [];
-
   const totalCount = routes.length + cli.length + jobs.length + consumers.length;
 
   if (totalCount === 0) {
     return (
-      <div className="text-center py-8 text-ibm-gray-70 text-sm">
+      <div className="py-8 text-center text-sm text-ibm-gray-70">
         No entry points discovered
       </div>
     );
@@ -164,39 +259,48 @@ export function EntryPointsCard({ data, onHighlight }: EntryPointsCardProps) {
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
-      <div className="flex items-center gap-4 text-sm text-ibm-gray-70">
+      <div className="flex flex-wrap items-center gap-4 text-sm text-ibm-gray-70">
         {routes.length > 0 && (
           <div className="flex items-center gap-1.5">
-            <Globe className="w-4 h-4 text-ibm-blue-60" />
-            <span><strong>{routes.length}</strong> HTTP {routes.length === 1 ? 'route' : 'routes'}</span>
+            <Globe className="h-4 w-4 text-ibm-blue-60" />
+            <span>
+              <strong>{routes.length}</strong> HTTP{' '}
+              {routes.length === 1 ? 'route' : 'routes'}
+            </span>
           </div>
         )}
         {cli.length > 0 && (
           <div className="flex items-center gap-1.5">
-            <Terminal className="w-4 h-4 text-ibm-purple-50" />
-            <span><strong>{cli.length}</strong> CLI {cli.length === 1 ? 'command' : 'commands'}</span>
+            <Terminal className="h-4 w-4 text-ibm-purple-50" />
+            <span>
+              <strong>{cli.length}</strong> CLI{' '}
+              {cli.length === 1 ? 'command' : 'commands'}
+            </span>
           </div>
         )}
         {jobs.length > 0 && (
           <div className="flex items-center gap-1.5">
-            <Clock className="w-4 h-4 text-ibm-orange-40" />
-            <span><strong>{jobs.length}</strong> {jobs.length === 1 ? 'job' : 'jobs'}</span>
+            <Clock className="h-4 w-4 text-ibm-orange-40" />
+            <span>
+              <strong>{jobs.length}</strong> {jobs.length === 1 ? 'job' : 'jobs'}
+            </span>
           </div>
         )}
         {consumers.length > 0 && (
           <div className="flex items-center gap-1.5">
-            <Zap className="w-4 h-4 text-ibm-teal-50" />
-            <span><strong>{consumers.length}</strong> {consumers.length === 1 ? 'consumer' : 'consumers'}</span>
+            <Zap className="h-4 w-4 text-ibm-teal-50" />
+            <span>
+              <strong>{consumers.length}</strong>{' '}
+              {consumers.length === 1 ? 'consumer' : 'consumers'}
+            </span>
           </div>
         )}
       </div>
 
-      {/* HTTP Routes */}
       {routes.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-ibm-gray-100 mb-3 flex items-center gap-2">
-            <Globe className="w-4 h-4 text-ibm-blue-60" />
+          <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ibm-gray-100">
+            <Globe className="h-4 w-4 text-ibm-blue-60" />
             HTTP Routes
           </h4>
           <div className="space-y-1">
@@ -207,11 +311,10 @@ export function EntryPointsCard({ data, onHighlight }: EntryPointsCardProps) {
         </div>
       )}
 
-      {/* CLI Entry Points */}
       {cli.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-ibm-gray-100 mb-3 flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-ibm-purple-50" />
+          <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ibm-gray-100">
+            <Terminal className="h-4 w-4 text-ibm-purple-50" />
             CLI Commands
           </h4>
           <div className="space-y-1">
@@ -222,11 +325,10 @@ export function EntryPointsCard({ data, onHighlight }: EntryPointsCardProps) {
         </div>
       )}
 
-      {/* Scheduled Jobs */}
       {jobs.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-ibm-gray-100 mb-3 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-ibm-orange-40" />
+          <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ibm-gray-100">
+            <Clock className="h-4 w-4 text-ibm-orange-40" />
             Scheduled Jobs
           </h4>
           <div className="space-y-1">
@@ -237,16 +339,19 @@ export function EntryPointsCard({ data, onHighlight }: EntryPointsCardProps) {
         </div>
       )}
 
-      {/* Message Consumers */}
       {consumers.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-ibm-gray-100 mb-3 flex items-center gap-2">
-            <Zap className="w-4 h-4 text-ibm-teal-50" />
+          <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ibm-gray-100">
+            <Zap className="h-4 w-4 text-ibm-teal-50" />
             Message Consumers
           </h4>
           <div className="space-y-1">
             {consumers.map((consumer, index) => (
-              <ConsumerItem key={index} consumer={consumer} onHighlight={onHighlight} />
+              <ConsumerItem
+                key={index}
+                consumer={consumer}
+                onHighlight={onHighlight}
+              />
             ))}
           </div>
         </div>
@@ -254,5 +359,3 @@ export function EntryPointsCard({ data, onHighlight }: EntryPointsCardProps) {
     </div>
   );
 }
-
-// Made with Bob

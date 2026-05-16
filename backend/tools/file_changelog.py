@@ -4,6 +4,7 @@ Returns ordered list of commits touching a specific file using GitPython
 """
 
 import os
+import hashlib
 from datetime import datetime
 from typing import Optional, Union
 import git
@@ -94,7 +95,9 @@ def _mock_file_changelog(input_data: FileChangelogInput) -> FileChangelogOutput:
     from datetime import timedelta
 
     # Generate deterministic commits based on file path
-    file_hash = hash(input_data.file_path) % 1000
+    file_hash = (
+        int(hashlib.sha256(input_data.file_path.encode()).hexdigest()[:8], 16) % 1000
+    )
 
     commit_templates = [
         ("feat: Implement new functionality", "Alice Chen", "alice.chen@example.com"),

@@ -100,22 +100,49 @@ Brief description of what was being attempted.
 - Key insight 2
 ```
 
-## Current Sessions
+## Current Sessions (Phase 3 T4.11)
 
-### Session 001: Error-Pipe Loop Demo
-**Status:** [TO BE EXPORTED]  
-**Scenario:** Port-in-use error with auto-recovery  
-**Priority:** HIGH (demo content)
+### Session 001: Port-in-Use Auto-Recovery
+**Status:** ✅ EXPORTED
+**File:** `session-001-port-in-use-recovery.md`
+**Scenario:** Port 3000 blocked by stale Node.js process
+**Duration:** 3 minutes | **Bobcoins:** 0.5
+**Priority:** HIGH (demo opener)
 
-### Session 002: Checkpoint Restore
-**Status:** [TO BE EXPORTED]  
-**Scenario:** Failed bootstrap with rollback  
-**Priority:** MEDIUM (demo content)
+### Session 002: Node Version Mismatch Recovery
+**Status:** ✅ EXPORTED
+**File:** `session-002-node-version-mismatch-recovery.md`
+**Scenario:** Wrong Node version (16 vs 18 required)
+**Duration:** 2 minutes | **Bobcoins:** 0.5
+**Priority:** HIGH (common issue)
 
-### Session 003: Successful Bootstrap
-**Status:** [TO BE EXPORTED]  
-**Scenario:** Clean run on demo repository  
-**Priority:** LOW (baseline)
+### Session 003: Missing Virtualenv Recovery
+**Status:** ✅ EXPORTED
+**File:** `session-003-missing-virtualenv-recovery.md`
+**Scenario:** Python virtualenv missing or corrupted
+**Duration:** 1.5 minutes | **Bobcoins:** 0.5
+**Priority:** MEDIUM (Python projects)
+
+### Session 004: Missing Seed Data Recovery
+**Status:** ✅ EXPORTED
+**File:** `session-004-missing-seed-data-recovery.md`
+**Scenario:** Database seed data not applied
+**Duration:** 1 minute | **Bobcoins:** 0.5
+**Priority:** MEDIUM (data integrity)
+
+### Session 005: Database Not Running Recovery
+**Status:** ✅ EXPORTED
+**File:** `session-005-database-not-running-recovery.md`
+**Scenario:** PostgreSQL service not started
+**Duration:** 2.5 minutes | **Bobcoins:** 0.5
+**Priority:** HIGH (infrastructure)
+
+### Session 006: Prompt Tightening & Debugging
+**Status:** ✅ EXPORTED
+**File:** `session-006-prompt-tightening-debug.md`
+**Scenario:** Iterative Bob Shell prompt refinement
+**Duration:** 5 minutes | **Bobcoins:** 1.5
+**Priority:** MEDIUM (technical deep-dive)
 
 ## Bobcoin Tracking
 

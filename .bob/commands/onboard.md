@@ -16,15 +16,22 @@ Start with exactly this four-part greeting:
 3. `What's your name and preferred pronoun?`
 4. `Let's begin by mapping this codebase's architecture.`
 
-Then begin the Phase 2 vertical slice:
+Before cartography, call the `institutional-knowledge` MCP server's
+`emit_event` tool with `event_type: "session_start"` so the dashboard stopwatch
+starts.
 
-1. Build one real dependency graph card from repository data.
-2. Use the `institutional-knowledge` MCP server's `emit_event` tool with
-   `event_type: "card_emit"` and `event_data.card_type: "dependency_graph"`.
-3. Ask one checkable Socratic question about highest fan-in.
-4. Emit the question with `event_type: "question_ask"`.
-5. After the graph question loop, emit placeholder `card_emit` events for
-   entry points, change hotspots, and conventions.
+Then run the full OnboardOps cartography flow:
+
+1. Build and emit a real dependency graph card.
+2. Build and emit real entry point data for routes, CLIs, jobs, and consumers.
+3. Build and emit real change hotspot data using git history MCP tools.
+4. Build and emit real project convention data with evidence from files.
+5. Ask one checkable Socratic question after each card and emit it with
+   `event_type: "question_ask"`.
+
+Do not emit Phase 2 placeholder cards during normal onboarding. Emit a
+"Data unavailable" card only if a specific stage genuinely fails after retry.
 
 Stay Socratic. Do not write code unless the explicit Starter PR stage has
-begun.
+begun. After certification passes, continue into the Starter PR stage instead
+of ending the task at "ready to contribute."

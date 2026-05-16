@@ -28,6 +28,17 @@ Select one of three starter task types from `docs/starter-tasks.md`:
 
 The task type is passed as input. If not specified, use type 1 (Documentation + Test).
 
+When asking the onboardee what to work on, use a plain numbered list in chat,
+not cramped inline options:
+
+1. Add a new read-only MCP tool.
+2. Improve error handling in an existing tool.
+3. Add a dashboard visualization component.
+4. Write tests for an untested module.
+
+After the onboardee chooses, summarize the selected task in one sentence, then
+continue into the Starter PR generation flow.
+
 ## Generation Flow
 
 ### Step 1: Analyze Repository Context
@@ -98,10 +109,13 @@ Where:
 ### Step 5: Emit Progress Events
 
 Call `emit_event` at each substep:
-1. `StarterPRTaskSelected` - which task type chosen
-2. `StarterPRFilesIdentified` - target files
-3. `StarterPRDiffGenerated` - the diff (for validation)
-4. `StarterPRCommitMessage` - the commit message
+1. `starter_pr_task_selected` - which task type chosen
+2. `starter_pr_files_identified` - target files
+3. `starter_pr_diff_generated` - the diff (for validation)
+4. `starter_pr_commit_message` - the commit message
+5. `session_end` - after the PR is opened or the local diff is ready; include
+   `status`, `total_duration_ms`, `total_bobcoins_spent`, and `pr_url` when
+   available.
 
 ## Output Format
 

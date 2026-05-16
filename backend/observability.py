@@ -6,9 +6,13 @@ Provides structured logging and metrics collection
 import structlog
 from typing import Dict, Any, Optional, List
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 import statistics
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 # Configure structlog for JSON output
@@ -53,7 +57,7 @@ class MetricsCollector:
         self._tool_cache_misses: Dict[str, int] = defaultdict(int)
         self._tool_latencies: Dict[str, List[float]] = defaultdict(list)
         self._max_latency_samples = 1000  # Keep last 1000 samples per tool
-        self._start_time = datetime.utcnow()
+        self._start_time = utc_now()
 
     async def record_call(
         self, tool_name: str, latency_ms: float, cache_hit: bool, error: bool = False
@@ -80,9 +84,7 @@ class MetricsCollector:
         """Get current metrics snapshot"""
         async with self._lock:
             metrics = {
-                "uptime_seconds": (
-                    datetime.utcnow() - self._start_time
-                ).total_seconds(),
+                "uptime_seconds": (utc_now() - self._start_time).total_seconds(),
                 "tools": {},
             }
 
@@ -148,7 +150,7 @@ class MetricsCollector:
             self._tool_cache_hits.clear()
             self._tool_cache_misses.clear()
             self._tool_latencies.clear()
-            self._start_time = datetime.utcnow()
+            self._start_time = utc_now()
 
 
 # Global metrics collector instance

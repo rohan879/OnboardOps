@@ -4,7 +4,8 @@ import { useEffect, useRef } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { useEventsStore } from '@/store/events';
 
-const WS_URL = 'ws://localhost:8765/events';
+const WS_URL =
+  process.env.NEXT_PUBLIC_MCP_WS_URL || 'ws://127.0.0.1:8765/events';
 
 export function useEvents() {
   const { addEvent, setConnectionState } = useEventsStore();
@@ -20,12 +21,9 @@ export function useEvents() {
       return delay;
     },
     onOpen: () => {
-      console.log('WebSocket connected');
       reconnectAttempt.current = 0;
     },
-    onClose: () => {
-      console.log('WebSocket disconnected');
-    },
+    onClose: () => undefined,
     onError: (error) => {
       console.error('WebSocket error:', error);
     },

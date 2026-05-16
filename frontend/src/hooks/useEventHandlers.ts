@@ -23,8 +23,6 @@ export function useEventHandlers() {
     // Handle different event types
     switch (latestEvent.type) {
       case 'turn_start':
-        // Turn started - could show loading indicator
-        console.log('Turn started:', latestEvent.data);
         break;
 
       case 'turn_end': {
@@ -37,8 +35,6 @@ export function useEventHandlers() {
       }
 
       case 'tool_call':
-        // Tool called - could show which tool is being used
-        console.log('Tool called:', latestEvent.data.tool_name);
         break;
 
       case 'card_emit': {
@@ -79,14 +75,10 @@ export function useEventHandlers() {
       }
 
       case 'certification_grade':
-        // Certification graded - could update certification panel
-        console.log('Certification graded:', latestEvent.data);
         break;
 
       case 'checkpoint_create':
       case 'checkpoint_restore':
-        // Checkpoint events - could show notification
-        console.log('Checkpoint event:', latestEvent.type, latestEvent.data);
         break;
 
       default:

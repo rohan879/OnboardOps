@@ -67,7 +67,13 @@ export const useEventsStore = create<EventsState>((set) => ({
   },
   addEvent: (event) =>
     set((state) => ({
-      events: [event, ...state.events].slice(0, 100), // Keep last 100 events
+      // A new onboarding session is a hard UI boundary. Without this, global
+      // WebSocket broadcasts from previous runs can leak old certification
+      // questions and grades into the current dashboard.
+      events:
+        event.type === 'session_start'
+          ? [event]
+          : [event, ...state.events].slice(0, 100),
     })),
   setConnectionState: (connectionState) => set({ connectionState }),
   clearEvents: () => set({ events: [] }),

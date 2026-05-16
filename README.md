@@ -115,7 +115,7 @@ make install
 ```
 [backend] Creating virtualenv at backend/.venv
 [backend] Installing 8 packages... ✓
-[frontend] Installing 47 packages with pnpm... ✓
+[frontend] Installing packages with npm... ✓
 [scripts] Making bootstrap.sh executable... ✓
 ✓ Installation complete in 42s
 ```
@@ -379,7 +379,7 @@ pytest
 
 # Frontend tests
 cd frontend
-pnpm test
+npm test
 
 # All tests
 make test
@@ -431,8 +431,8 @@ lsof -ti:8765 | xargs kill -9
 **Solution:**
 ```bash
 cd frontend
-rm -rf node_modules pnpm-lock.yaml
-pnpm install
+rm -rf node_modules package-lock.json
+npm install
 ```
 
 ### Bob IDE doesn't show `/onboard` command
@@ -468,7 +468,7 @@ pre-commit run --all-files
 cd backend && ruff format .
 
 # Fix TypeScript errors
-cd frontend && pnpm lint --fix
+cd frontend && npm run lint -- --fix
 ```
 
 ---

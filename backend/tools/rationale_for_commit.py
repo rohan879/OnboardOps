@@ -5,6 +5,7 @@ Bridges "what changed" to "why it changed"
 """
 
 import os
+import hashlib
 from datetime import datetime
 from typing import Optional, Union
 import git
@@ -154,7 +155,10 @@ def _mock_rationale_for_commit(
     commit_hash = input_data.commit_hash
 
     # Generate deterministic mock data
-    hash_int = int(commit_hash[:8], 16) if len(commit_hash) >= 8 else hash(commit_hash)
+    try:
+        hash_int = int(commit_hash[:8], 16) if len(commit_hash) >= 8 else 0
+    except ValueError:
+        hash_int = int(hashlib.sha256(commit_hash.encode()).hexdigest()[:8], 16)
 
     authors = ["Alice Chen", "Bob Martinez", "Carol Johnson", "David Kim"]
     messages = [

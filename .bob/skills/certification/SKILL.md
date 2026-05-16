@@ -22,15 +22,15 @@ This skill gates the end of the onboarding session. Bob selects three questions 
 ```yaml
 id: dep-graph-central
 topic: Dependency Graph
-question: "Based on the dependency graph, which module appears to be the central hub of the application, and what evidence supports this?"
+question: "Based on the dependency graph, which module is the main orchestrator by fan-out, and what evidence supports this?"
 rubric:
   pass:
-    - Names the correct central module (most imports/exports)
-    - Cites specific import counts or relationships from cartography
-    - Explains why centrality matters (e.g., "changes here affect many modules")
+    - Names the module with the highest fan_out value
+    - Cites the fan_out count or specific outgoing relationships from cartography
+    - Explains why fan-out matters (e.g., "this module coordinates many modules")
   partial:
-    - Names a plausible module but not the most central
-    - Provides reasoning but lacks specific evidence
+    - Names a high fan_in dependency sink or plausible module but not the top fan_out module
+    - Provides reasoning but lacks specific fan_out evidence
   fail:
     - Names an incorrect or peripheral module
     - No reasoning or evidence provided
@@ -234,19 +234,31 @@ rubric:
     - No explanation
 ```
 
-## Question Selection Logic (Phase 2)
+## Question Selection Logic
 
 - Select 3 questions from the pool
-- Ensure coverage: at least one from each cartography stage (Dependency, Entry, Hotspot, Convention)
+- Ensure coverage across at least 3 cartography areas when data is available
 - Parameterize questions with actual data from cartography (e.g., replace [HOTSPOT_FILE] with real file path)
 - Randomize order to prevent memorization on repeated demos
 
-## Grading Logic (Phase 2)
+## Multiple-Choice Presentation
+
+When showing answer options, create one correct option and three plausible
+distractors, then shuffle them before display. Do not place the correct answer
+first by default; vary the correct answer position across the session. Keep the
+answer key private for grading and render the options as a readable vertical
+list.
+
+## Grading Logic
 
 - Parse onboardee's free-text answer
 - Check for presence of required elements from rubric
 - Use anti-sycophancy prompt: penalize plausible-but-shallow answers
 - Require evidence drawn from cartography output or MCP responses
+- Emit a `question_ask` event before each question.
+- Emit a `certification_grade` event after each answer using
+  `question_id`, `question_text`, `user_answer`, `grade`, `rationale`,
+  `rubric_points_earned`, and `rubric_points_total`.
 
 ## Remediation Loop
 
@@ -256,6 +268,7 @@ On any "fail":
 3. Re-grade the answer
 4. If still "fail", reveal the answer and continue
 
-## Phase 1 Note
+## Completion
 
-This is a **stub file** for Phase 1. The question selection, parameterization, and grading logic will be implemented in Phase 2. For now, this establishes the machine-readable structure judges can inspect.
+After three grades, emit certification completion through the dashboard event
+stream and return control to the Onboard mode for the Starter PR stage.

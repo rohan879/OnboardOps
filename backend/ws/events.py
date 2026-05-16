@@ -3,7 +3,7 @@ WebSocket Event Schema for OnboardOps
 Defines Pydantic models for all events streamed from Bob to the dashboard
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, Literal, Union, Any, Dict
 from datetime import datetime
 from uuid import uuid4
@@ -17,16 +17,17 @@ from uuid import uuid4
 class BaseEvent(BaseModel):
     """Base class for all WebSocket events"""
 
-    event_id: str = Field(default_factory=lambda: str(uuid4()))
-    timestamp: float = Field(default_factory=lambda: datetime.now().timestamp())
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "event_id": "550e8400-e29b-41d4-a716-446655440000",
                 "timestamp": 1715808000.0,
             }
         }
+    )
+
+    event_id: str = Field(default_factory=lambda: str(uuid4()))
+    timestamp: float = Field(default_factory=lambda: datetime.now().timestamp())
 
 
 # ============================================================================
@@ -120,7 +121,37 @@ class QuestionAsk(BaseEvent):
     event_type: Literal["question_ask"] = "question_ask"
     stage: str
     question: str
+    question_id: Optional[str] = None
+    topic: Optional[str] = None
     expected_answer_hint: Optional[str] = None
+
+
+class BootstrapStatus(BaseEvent):
+    """Event emitted by Bob Shell bootstrap as setup progresses"""
+
+    event_type: Literal["bootstrap_status"] = "bootstrap_status"
+    stage: str
+    status: str
+    message: str
+    severity: Literal["info", "warn", "error", "success", "recovery"] = "info"
+    duration_ms: int = 0
+    details: Optional[Dict[str, Any]] = None
+
+
+class BootstrapRecovery(BaseEvent):
+    """Event emitted when bootstrap detects or attempts an auto-recovery"""
+
+    event_type: Literal["bootstrap_recovery"] = "bootstrap_recovery"
+    pattern: Literal[
+        "port-in-use",
+        "node-version",
+        "missing-venv",
+        "missing-seed",
+        "db-not-running",
+    ]
+    action: str
+    details: str = ""
+    status: Literal["in-progress", "success", "failed"] = "in-progress"
 
 
 # ============================================================================
@@ -139,6 +170,16 @@ class CertificationGrade(BaseEvent):
     rationale: str
     rubric_points_earned: int
     rubric_points_total: int
+
+
+class CertificationComplete(BaseEvent):
+    """Event emitted when Bob completes the certification gate"""
+
+    event_type: Literal["certification_complete"] = "certification_complete"
+    passed: bool
+    grades: list[Literal["pass", "partial", "fail"]]
+    questions_asked: int
+    remediation_count: int = 0
 
 
 # ============================================================================
@@ -177,7 +218,10 @@ EventType = Union[
     CheckpointRestore,
     CardEmit,
     QuestionAsk,
+    BootstrapStatus,
+    BootstrapRecovery,
     CertificationGrade,
+    CertificationComplete,
     SessionStart,
     SessionEnd,
 ]
@@ -189,10 +233,8 @@ class EventEnvelope(BaseModel):
     Allows type-safe deserialization on the client side
     """
 
-    event: EventType = Field(..., discriminator="event_type")
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "event": {
                     "event_type": "turn_start",
@@ -204,6 +246,9 @@ class EventEnvelope(BaseModel):
                 }
             }
         }
+    )
+
+    event: EventType = Field(..., discriminator="event_type")
 
 
 # ============================================================================
