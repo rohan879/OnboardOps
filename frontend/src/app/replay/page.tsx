@@ -174,7 +174,7 @@ function ReplayContent() {
             <h3 className="mb-2 font-semibold text-blue-900">How to use Replay Mode</h3>
             <ol className="list-decimal space-y-2 pl-5 text-sm text-blue-800">
               <li>Add <code className="rounded bg-blue-100 px-1 py-0.5">?file=/path/to/session.jsonl</code> to the URL</li>
-              <li>Click "Play" to start the replay</li>
+              <li>Click <span className="font-medium">Play</span> to start the replay</li>
               <li>Use pause/resume/stop controls as needed</li>
               <li>Adjust playback speed (0.5x to 5x)</li>
             </ol>

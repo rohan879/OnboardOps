@@ -11,10 +11,10 @@ import { LoadingState, SkeletonLoader } from '@/components/LoadingState';
 import { ErrorState, ErrorBanner, EmptyState } from '@/components/ErrorState';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
-import { useEventsStore } from '@/store/events';
+import { useEventsStore, Event } from '@/store/events';
 import { useState } from 'react';
 
-// Sample graph data for testing
+// Sample graph data for testing and as a fallback before Bob emits real data.
 const sampleGraphData: GraphData = {
   nodes: [
     { id: 'app', name: 'app.py', group: 1, val: 15 },
@@ -40,18 +40,64 @@ const sampleGraphData: GraphData = {
   ],
 };
 
+function findCard(events: Event[], cardType: string) {
+  return events.find(
+    (event) => event.type === 'card_emit' && event.data.card_type === cardType
+  );
+}
+
+function graphDataFromCard(card: Event | undefined): GraphData {
+  const data = card?.data.data as
+    | {
+        nodes?: Array<{
+          id?: string;
+          label?: string;
+          fan_in?: number;
+          is_hub?: boolean;
+        }>;
+        edges?: Array<{ source?: string; target?: string }>;
+      }
+    | undefined;
+
+  if (!data?.nodes?.length) {
+    return sampleGraphData;
+  }
+
+  return {
+    nodes: data.nodes.map((node, index) => ({
+      id: node.id || `node-${index}`,
+      name: node.label || node.id || `node-${index}`,
+      group: node.is_hub ? 1 : 2,
+      val: Math.max(8, (node.fan_in || 0) * 4 + 8),
+    })),
+    edges: (data.edges || [])
+      .filter((edge) => edge.source && edge.target)
+      .map((edge) => ({
+        source: edge.source as string,
+        target: edge.target as string,
+      })),
+  };
+}
+
 export default function Home() {
   const [showEventStream, setShowEventStream] = useState(false);
   const { isConnected } = useEvents();
-  useEventHandlers(); // Process WebSocket events and update state
+  useEventHandlers();
   const connectionState = useEventsStore((state) => state.connectionState);
+  const events = useEventsStore((state) => state.events);
   const cartographySteps = useEventsStore((state) => state.cartographySteps);
   const updateStepStatus = useEventsStore((state) => state.updateStepStatus);
   const bobcoinBudget = useEventsStore((state) => state.bobcoinBudget);
   const incrementBobcoinSpent = useEventsStore((state) => state.incrementBobcoinSpent);
   const session = useEventsStore((state) => state.session);
   const startSession = useEventsStore((state) => state.startSession);
-  
+
+  const dependencyCard = findCard(events, 'dependency_graph');
+  const entryCard = findCard(events, 'entry_points');
+  const hotspotCard = findCard(events, 'hotspots');
+  const conventionCard = findCard(events, 'conventions');
+  const graphData = graphDataFromCard(dependencyCard);
+
   // Demo states for loading/error components
   const [showLoadingDemo, setShowLoadingDemo] = useState(false);
   const [showErrorDemo, setShowErrorDemo] = useState(false);
@@ -87,44 +133,49 @@ export default function Home() {
       <div className="flex-1 flex max-w-[1440px] mx-auto w-full">
         {/* Main Panel - Cartography Cards */}
         <main className="flex-1 p-6 space-y-6">
-          {/* Dependency Graph Card with real visualization */}
           <CartographyCard
             type="graph"
-            title="Dependency Graph"
-            state="complete"
+            title={String(dependencyCard?.data.title || 'Dependency Graph')}
+            state={dependencyCard ? 'complete' : 'in-progress'}
           >
-            <DependencyGraph data={sampleGraphData} width={700} height={500} />
+            <div className="space-y-4">
+              {typeof dependencyCard?.data.body_markdown === 'string' && (
+                <p className="text-sm text-ibm-gray-70">
+                  {dependencyCard.data.body_markdown}
+                </p>
+              )}
+              <DependencyGraph data={graphData} width={700} height={500} />
+            </div>
           </CartographyCard>
 
-          {/* Other cards */}
           <div className="grid grid-cols-3 gap-4">
             <CartographyCard
               type="entry"
-              title="Entry Points"
-              state="in-progress"
+              title={String(entryCard?.data.title || 'Entry Points')}
+              state={entryCard ? 'complete' : 'pending'}
             >
               <div className="text-sm text-ibm-gray-70">
-                Analyzing entry points...
+                {String(entryCard?.data.body_markdown || 'Waiting to analyze entry points')}
               </div>
             </CartographyCard>
 
             <CartographyCard
               type="hotspot"
-              title="Change Hotspots"
-              state="pending"
+              title={String(hotspotCard?.data.title || 'Change Hotspots')}
+              state={hotspotCard ? 'complete' : 'pending'}
             >
               <div className="text-sm text-ibm-gray-70">
-                Waiting to analyze hotspots
+                {String(hotspotCard?.data.body_markdown || 'Waiting to analyze hotspots')}
               </div>
             </CartographyCard>
 
             <CartographyCard
               type="convention"
-              title="Project Conventions"
-              state="pending"
+              title={String(conventionCard?.data.title || 'Project Conventions')}
+              state={conventionCard ? 'complete' : 'pending'}
             >
               <div className="text-sm text-ibm-gray-70">
-                Waiting to analyze conventions
+                {String(conventionCard?.data.body_markdown || 'Waiting to analyze conventions')}
               </div>
             </CartographyCard>
           </div>

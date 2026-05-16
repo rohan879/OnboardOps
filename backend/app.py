@@ -3,7 +3,7 @@ OnboardOps Backend - Main FastAPI Application
 Institutional Knowledge MCP Server with WebSocket Bridge
 """
 
-from fastapi import FastAPI, WebSocket, HTTPException, Response
+from fastapi import FastAPI, WebSocket, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -109,7 +109,7 @@ class MCPDiscoveryResponse(BaseModel):
 
 
 @app.post("/mcp")
-async def mcp_discovery():
+async def mcp_discovery(request: Request):
     """
     MCP discovery endpoint - returns list of available tools
     This is a stub that returns hard-coded tool definitions
@@ -269,6 +269,84 @@ async def mcp_discovery():
             },
         ),
     ]
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+
+    if isinstance(body, dict) and "jsonrpc" in body:
+        request_id = body.get("id")
+        method = body.get("method")
+        params = body.get("params") or {}
+
+        if method == "initialize":
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "protocolVersion": params.get(
+                        "protocolVersion", "2024-11-05"
+                    ),
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {
+                        "name": "institutional-knowledge",
+                        "version": "1.0.0",
+                    },
+                },
+            }
+
+        if method == "notifications/initialized":
+            return Response(status_code=202)
+
+        if method == "tools/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "tools": [
+                        {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "inputSchema": tool.input_schema,
+                        }
+                        for tool in tools
+                    ]
+                },
+            }
+
+        if method == "tools/call":
+            tool_result = await invoke_mcp_tool(
+                MCPToolRequest(
+                    tool_name=params.get("name", ""),
+                    arguments=params.get("arguments") or {},
+                ),
+                Response(),
+            )
+            payload = tool_result.model_dump()
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(payload, default=str),
+                        }
+                    ],
+                    "structuredContent": payload,
+                    "isError": tool_result.error is not None,
+                },
+            }
+
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32601,
+                "message": f"Method not found: {method}",
+            },
+        }
 
     return MCPDiscoveryResponse(
         server_name="institutional-knowledge", server_version="1.0.0", tools=tools
