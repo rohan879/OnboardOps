@@ -5,12 +5,19 @@ Returns commit frequency statistics for files
 
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 import git
 from mcp.contracts import (
     CommitFrequencyInput,
     CommitFrequencyOutput,
     FileCommitFrequency,
+)
+from mcp.errors import (
+    MCPToolError,
+    git_command_error,
+    file_not_found_error,
+    repo_not_configured_error,
+    unknown_error,
 )
 
 # In-session cache for commit frequency results
@@ -30,7 +37,9 @@ def get_repo_path() -> str:
     return repo_path
 
 
-def commit_frequency(input_data: CommitFrequencyInput) -> CommitFrequencyOutput:
+def commit_frequency(
+    input_data: CommitFrequencyInput,
+) -> Union[CommitFrequencyOutput, MCPToolError]:
     """
     Real implementation of commit_frequency tool
 
@@ -41,8 +50,15 @@ def commit_frequency(input_data: CommitFrequencyInput) -> CommitFrequencyOutput:
     - First and last commit dates
 
     Includes caching by file path and days parameter.
+
+    Returns CommitFrequencyOutput on success or MCPToolError on failure.
     """
-    repo_path = get_repo_path()
+    try:
+        repo_path = get_repo_path()
+    except ValueError:
+        return repo_not_configured_error()
+    except FileNotFoundError as e:
+        return unknown_error("get_repo_path", e)
 
     try:
         # Open the git repository
@@ -64,7 +80,7 @@ def commit_frequency(input_data: CommitFrequencyInput) -> CommitFrequencyOutput:
             # Specific file
             full_path = os.path.join(repo_path, input_data.file_path)
             if not os.path.exists(full_path):
-                raise FileNotFoundError(f"File not found: {input_data.file_path}")
+                return file_not_found_error(input_data.file_path)
 
             commits = list(
                 repo.iter_commits("HEAD", paths=input_data.file_path, since=cutoff_date)
@@ -157,9 +173,11 @@ def commit_frequency(input_data: CommitFrequencyInput) -> CommitFrequencyOutput:
         return result
 
     except git.exc.GitCommandError as e:
-        raise ValueError(f"Git command failed: {str(e)}")
+        return git_command_error(input_data.file_path or "repository", str(e))
     except Exception as e:
-        raise RuntimeError(f"Error analyzing commit frequency: {str(e)}")
+        return unknown_error(
+            f"commit_frequency for {input_data.file_path or 'repository'}", e
+        )
 
 
 def clear_frequency_cache():

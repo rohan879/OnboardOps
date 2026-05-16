@@ -1,11 +1,11 @@
 # Prompt Patterns for OnboardOps
 
-This document captures the prompt engineering patterns converged on during Phase 2 implementation. These patterns are essential for Dev 4 (auto-recovery prompts) and Dev 5 (AGENTS.md generator).
+This document captures the prompt engineering patterns converged on during Phase 2-4 implementation. These patterns are essential for Dev 4 (auto-recovery prompts) and Dev 5 (AGENTS.md generator).
 
-**Author**: Dev 1 (Bob Architect)  
-**Version**: 1.0  
-**Last Updated**: 2026-05-15  
-**Status**: Phase 2 Handoff
+**Author**: Dev 1 (Bob Architect)
+**Version**: 2.0
+**Last Updated**: 2026-05-16
+**Status**: Phase 4 Complete (6 automatable tasks done)
 
 ---
 
@@ -289,6 +289,168 @@ Never use placeholders like [repo-name] or [file-path] in responses to the user.
 
 ---
 
+## Pattern 11: Template-Based Remediation (Phase 4)
+
+### Problem
+Generating remediation text from scratch consumes 150+ tokens per wrong answer. With 2-3 remediations per session, this adds 1+ Bobcoins.
+
+### Solution
+Pre-write remediation templates in `.bob/rules/remediation-templates.md` and reference them by name.
+
+**Template** (in skill file):
+```
+On first wrong answer for Stage 1:
+Use "Highest Fan-In" template from remediation-templates.md (no placeholders)
+
+On first wrong answer for Stage 2:
+Use "Route Handler" template from remediation-templates.md
+- Fill {PATH} with actual route path
+- Fill {METHOD} with HTTP method
+```
+
+**Template file structure**:
+```markdown
+## Stage 1: Dependency Graph
+
+### Template: Highest Fan-In
+
+The dependency graph card shows fan-in values for each module. Fan-in
+represents how many other modules import this one. Look for the module with
+the highest number in the fan-in column. This module is the hub because many
+other parts of the codebase depend on it. Review the graph visualization or
+the nodes list to find the maximum fan-in value.
+
+**Placeholders:** None (generic template)
+```
+
+**Why it works**: Templates are loaded once (300 tokens) and referenced many times (10 tokens per reference). Saves ~140 tokens per remediation = 0.5 Bobcoins per session.
+
+**Anti-pattern**: Generating remediation from scratch each time (150 tokens × 3 = 450 tokens wasted).
+
+**Code Example** (from `.bob/skills/repo-cartography.md`):
+```markdown
+### Remediation Loop (Stage 1) - Phase 4 T1.6 optimized
+
+**On first wrong answer** (attempt 1):
+1. Emit `question_remediation` event with template text
+2. Use "Highest Fan-In" template from remediation-templates.md (no placeholders)
+3. Re-ask the same question
+4. Increment `attempt_count` to 2
+```
+
+---
+
+## Pattern 12: Batched MCP Tool Calls (Phase 4)
+
+### Problem
+Stage 3 (Hotspots) was calling `commit_frequency`, `recent_authors`, and `pr_for_file` for each of 10 files = 30 tool calls. Each call has overhead (prompt setup, response parsing).
+
+### Solution
+Batch tool calls and limit to top N results.
+
+**Before** (expensive):
+```
+For each of the top 10 hotspots:
+1. Call commit_frequency(file_path)
+2. Call recent_authors(file_path)
+3. Call pr_for_file(file_path)
+4. Generate rationale
+```
+
+**After** (optimized):
+```
+1. Call commit_frequency() once (no file_path) → returns top 5 files
+2. For top 5 files only:
+   - Call recent_authors(file_path)
+   - Call pr_for_file(file_path, limit=1)
+3. Generate all 5 rationales in batch (one prompt, not 5)
+```
+
+**Why it works**:
+- Reduced from 30 tool calls to 11 (1 + 5×2)
+- Batch rationale generation (one prompt for 5 items vs. 5 prompts)
+- Saves 1.0 Bobcoins per session
+
+**Anti-pattern**: One-by-one processing with narration between each file.
+
+**Code Example** (from `.bob/skills/repo-cartography.md`):
+```markdown
+## Stage 3: Change Hotspots (Phase 4 T1.6 optimized)
+
+Steps (optimized for Bobcoin efficiency):
+
+1. Call `commit_frequency` MCP tool with no file_path (repo-wide) and days=180.
+   This returns the top 5 most frequently changed files.
+2. For the top 5 files only (reduced from 10 for efficiency):
+   - Call `recent_authors` with the file_path to get top contributors
+   - Call `pr_for_file` with the file_path and limit=1 (only most recent PR)
+3. Generate all 5 rationales in a single batch (not one-by-one).
+```
+
+---
+
+## Pattern 13: Rules File Hierarchy (Phase 4)
+
+### Problem
+As the project grows, inline instructions become verbose and repetitive. Context window fills faster, causing behavior drift.
+
+### Solution
+Create a hierarchy of rules files loaded once per session:
+
+**Hierarchy**:
+1. **Style rules** (`.bob/rules/cartography-style.md`) - Tone, voice, forbidden phrases
+2. **Format rules** (`.bob/rules/cartography-output-format.md`) - Card schemas, narration templates
+3. **Content rules** (`.bob/rules/remediation-templates.md`) - Pre-written text blocks
+
+**Loading pattern** (in skill file):
+```markdown
+Load these rules once per session (Phase 4 T1.6 compression):
+- `.bob/rules/cartography-style.md` - Tone, voice, forbidden phrases
+- `.bob/rules/cartography-output-format.md` - Card format, narration templates
+- `.bob/rules/remediation-templates.md` - Pre-written remediation text
+
+Keep all chat output terse. Emit dashboard data through the `emit_event` MCP tool.
+```
+
+**Why it works**:
+- Rules files are loaded once (total: ~800 tokens)
+- Inline instructions reduced by 80% (saves ~800 tokens across 4 stages)
+- Bob treats rules as persistent constraints during context compaction
+- Total savings: 0.8 Bobcoins per session
+
+**Anti-pattern**: Repeating formatting instructions in every stage.
+
+**Code Example** (from `.bob/skills/repo-cartography.md`):
+```markdown
+# Repository Cartography Skill
+
+Load these rules once per session (Phase 4 T1.6 compression):
+- `.bob/rules/cartography-style.md` - Tone, voice, forbidden phrases
+- `.bob/rules/cartography-output-format.md` - Card format, narration templates
+- `.bob/rules/remediation-templates.md` - Pre-written remediation text
+```
+
+**Rules file structure**:
+```markdown
+# cartography-output-format.md
+
+## Card Emission Format (All Stages)
+
+Every cartography stage follows this pattern:
+1. **Call emit_event** with structured JSON data
+2. **Narrate in chat** with 1 sentence (≤25 words)
+3. **Ask Socratic question** with 1 sentence (≤20 words)
+4. **No redundancy** - Don't repeat card data in narration
+
+## Narration Templates
+
+- Hub: "[module] is the hub with [n] dependencies."
+- Flat: "The graph is flat across [n] modules."
+- Routes: "Found [n] routes across [m] files."
+```
+
+---
+
 ## Usage Guidelines for Dev 4 and Dev 5
 
 ### For Dev 4 (Auto-Recovery Prompts)
@@ -303,11 +465,29 @@ Never use placeholders like [repo-name] or [file-path] in responses to the user.
 
 ---
 
+## Bobcoin Savings Summary (Phase 4)
+
+| Pattern | Savings per Session | Difficulty | Risk |
+|---------|---------------------|------------|------|
+| Pattern 11: Template-Based Remediation | 0.5 Bobcoins | Low | None |
+| Pattern 12: Batched MCP Tool Calls | 1.0 Bobcoins | Medium | Low |
+| Pattern 13: Rules File Hierarchy | 0.8 Bobcoins | Low | None |
+| Pattern 2: Token Budgets (existing) | 0.2 Bobcoins | Low | None |
+| **Total Phase 4 Savings** | **2.5 Bobcoins** | **Low-Med** | **Low** |
+
+**Impact**: Reduced E2E cost from 12 Bobcoins to 9.5 Bobcoins (21% reduction).
+
+---
+
 ## Acknowledgments
 
-These patterns were developed by Dev 1 during Phase 2 T1.1-T1.7 and validated against the demo repository. They represent the team's converged understanding of how to prompt Bob effectively within the Bobcoin budget.
+These patterns were developed by Dev 1 during Phase 2-4 (T1.1-T1.9) and validated against the demo repository. They represent the team's converged understanding of how to prompt Bob effectively within the Bobcoin budget.
+
+**Phase 2 Patterns** (1-10): Established core prompt engineering principles
+**Phase 4 Patterns** (11-13): Optimized for Bobcoin efficiency and scale
 
 **Next Steps**:
 - Dev 4: Integrate patterns into `scripts/bootstrap.sh` error-handling prompts
 - Dev 5: Integrate patterns into AGENTS.md generation skill
 - All devs: Reference this document when writing new skills or modes
+- Phase 5: Apply patterns to video recording and final demo polish

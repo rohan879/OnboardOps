@@ -6,7 +6,18 @@ Returns the most recent merged PRs touching a given file using GitHub REST API
 import os
 import httpx
 from datetime import datetime
+from typing import Union
 from mcp.contracts import PrForFileInput, PrForFileOutput, PullRequestInfo
+from mcp.errors import (
+    MCPToolError,
+    network_error,
+    rate_limit_error,
+    timeout_error,
+)
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from utils.retry import with_retry
 
 
 # GitHub API configuration
@@ -31,7 +42,17 @@ def extract_repo_info() -> tuple[str, str]:
     return "fastapi", "full-stack-fastapi-template"
 
 
-def pr_for_file(input_data: PrForFileInput) -> PrForFileOutput:
+@with_retry(
+    max_retries=3, backoff_base=1.0, log_func=lambda msg: print(f"[pr_for_file] {msg}")
+)
+def _fetch_github_data_with_retry(
+    client: httpx.Client, url: str, headers: dict, params: dict = None
+):
+    """Helper function to fetch GitHub data with retry logic"""
+    return client.get(url, headers=headers, params=params)
+
+
+def pr_for_file(input_data: PrForFileInput) -> Union[PrForFileOutput, MCPToolError]:
     """
     Get the most recent merged PRs that touched a specific file
 
@@ -39,6 +60,9 @@ def pr_for_file(input_data: PrForFileInput) -> PrForFileOutput:
     then finds the associated PRs.
 
     Caches aggressively since PRs don't change after merge.
+
+    Returns PrForFileOutput on success or MCPToolError on failure.
+    Falls back to mock data if GitHub API unavailable.
     """
     file_path = input_data.file_path
     limit = input_data.limit
@@ -66,7 +90,17 @@ def pr_for_file(input_data: PrForFileInput) -> PrForFileOutput:
         }
 
         with httpx.Client(timeout=5.0) as client:
-            commits_response = client.get(commits_url, headers=headers, params=params)
+            # Use retry wrapper for GitHub API call
+            commits_response = _fetch_github_data_with_retry(
+                client, commits_url, headers, params
+            )
+
+            # Check for rate limiting
+            if commits_response.status_code == 403:
+                remaining = commits_response.headers.get("X-RateLimit-Remaining", "0")
+                if remaining == "0":
+                    retry_after = commits_response.headers.get("X-RateLimit-Reset")
+                    return rate_limit_error(int(retry_after) if retry_after else None)
 
             if commits_response.status_code != 200:
                 # Fall back to mock on API error
@@ -84,11 +118,11 @@ def pr_for_file(input_data: PrForFileInput) -> PrForFileOutput:
 
                 commit_sha = commit["sha"]
 
-                # Get PRs associated with this commit
+                # Get PRs associated with this commit (with retry)
                 prs_url = (
                     f"{GITHUB_API_BASE}/repos/{owner}/{repo}/commits/{commit_sha}/pulls"
                 )
-                prs_response = client.get(prs_url, headers=headers)
+                prs_response = _fetch_github_data_with_retry(client, prs_url, headers)
 
                 if prs_response.status_code == 200:
                     prs = prs_response.json()
@@ -129,8 +163,12 @@ def pr_for_file(input_data: PrForFileInput) -> PrForFileOutput:
             # No PRs found, return empty list (not an error)
             return PrForFileOutput(file_path=file_path, pull_requests=[])
 
+    except httpx.TimeoutException:
+        return timeout_error(f"GitHub API call for {file_path}", 5)
+    except httpx.NetworkError as e:
+        return network_error(f"GitHub API call for {file_path}", str(e))
     except Exception as e:
-        # On any error, fall back to mock data
+        # On any error, fall back to mock data (graceful degradation)
         print(
             f"[pr_for_file] Error fetching from GitHub API: {e}, falling back to mock"
         )

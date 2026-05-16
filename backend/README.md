@@ -184,6 +184,87 @@ Make sure your virtual environment is activated and dependencies are installed.
 **WebSocket connection fails:**
 Ensure the backend server is running and CORS is properly configured for your frontend origin.
 
+## Error Handling
+
+All MCP tools return structured errors instead of raising exceptions. This enables graceful degradation in Bob skills.
+
+### Error Response Format
+
+```python
+{
+    "error_code": "GIT_COMMAND_ERROR",
+    "message": "Failed to execute git blame: file not found",
+    "retryable": false,
+    "details": {
+        "file_path": "src/missing.py",
+        "command": "git blame"
+    }
+}
+```
+
+### Error Codes
+
+| Code | Description | Retryable | Common Causes |
+|------|-------------|-----------|---------------|
+| `GIT_COMMAND_ERROR` | Git operation failed | No | File not found, invalid repo |
+| `FILE_NOT_FOUND` | Requested file doesn't exist | No | Typo, deleted file |
+| `NETWORK_ERROR` | Network request failed | Yes | Connection timeout, DNS failure |
+| `RATE_LIMIT` | API rate limit exceeded | Yes | Too many requests |
+| `TIMEOUT` | Operation timed out | Yes | Slow network, large file |
+| `REPO_NOT_CONFIGURED` | Demo repo not set | No | Missing DEMO_REPO_PATH |
+| `UNKNOWN_ERROR` | Unexpected error | No | Internal server error |
+
+### Retry Semantics
+
+Network operations (GitHub API calls) automatically retry with exponential backoff:
+- **Retry delays:** 1s, 2s, 4s (max 3 attempts)
+- **Retryable errors:** Network errors, timeouts, rate limits (503)
+- **Non-retryable errors:** 404 Not Found, 401 Unauthorized, 400 Bad Request
+
+Example retry behavior:
+```python
+# First attempt fails with 503 → wait 1s → retry
+# Second attempt fails with 503 → wait 2s → retry
+# Third attempt fails with 503 → wait 4s → retry
+# Fourth attempt fails → return structured error
+```
+
+### Health Check Endpoints
+
+Each tool has a self-test endpoint for preflight verification:
+
+```bash
+# Check if git_blame_summary is healthy
+curl http://localhost:8765/tools/git_blame_summary/healthz
+
+# Response on success (200 OK):
+{"status": "healthy", "tool": "git_blame_summary"}
+
+# Response on failure (503 Service Unavailable):
+{
+    "status": "unhealthy",
+    "tool": "git_blame_summary",
+    "error": "Demo repo not configured"
+}
+```
+
+**Available health check endpoints:**
+- `/tools/git_blame_summary/healthz`
+- `/tools/commit_frequency/healthz`
+- `/tools/recent_authors/healthz`
+- `/tools/pr_for_file/healthz`
+- `/tools/file_changelog/healthz`
+- `/tools/rationale_for_commit/healthz`
+- `/tools/incident_for_file/healthz`
+
+**Preflight script integration:**
+```bash
+# scripts/preflight.sh checks all 7 health endpoints
+for tool in git_blame_summary commit_frequency recent_authors pr_for_file file_changelog rationale_for_commit incident_for_file; do
+    curl -f http://localhost:8765/tools/$tool/healthz || exit 1
+done
+```
+
 ## Phase 3 Status (T2.4 - T2.7 Complete)
 
 ✅ All 7 MCP tools fully implemented with real data
@@ -194,6 +275,14 @@ Ensure the backend server is running and CORS is properly configured for your fr
 ✅ WebSocket event broadcasting
 ✅ Session management with 30-minute timeout
 ✅ Structured logging and metrics
+
+## Phase 4 Status (T2.1 - T2.6 Complete)
+
+✅ Structured error handling for all 7 tools (T2.2)
+✅ Stress test infrastructure - 50 sessions × 20 tools (T2.3)
+✅ GitHub API retry with exponential backoff (T2.4)
+✅ Health check endpoints for preflight verification (T2.5)
+✅ Comprehensive error documentation (T2.6)
 
 ## Stretch Goals (T2.8 - T2.9)
 

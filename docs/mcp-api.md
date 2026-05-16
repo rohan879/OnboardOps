@@ -374,6 +374,8 @@ Emit a structured event to the WebSocket bridge for dashboard display.
 
 ## Error Codes
 
+### HTTP Status Codes
+
 | HTTP Code | Meaning | Example |
 |-----------|---------|---------|
 | 200 | Success | Tool executed successfully |
@@ -381,13 +383,226 @@ Emit a structured event to the WebSocket bridge for dashboard display.
 | 404 | Not Found | Tool name not recognized |
 | 422 | Validation Error | Invalid input schema |
 | 500 | Internal Error | Unexpected server error |
+| 503 | Service Unavailable | Tool health check failed |
+
+### MCP Tool Error Codes
+
+All tools return structured errors with the following codes:
+
+| Error Code | Description | Retryable | Example |
+|------------|-------------|-----------|---------|
+| `GIT_COMMAND_ERROR` | Git operation failed | ✅ Yes | File not in git history |
+| `FILE_NOT_FOUND` | File doesn't exist | ❌ No | Invalid file path |
+| `NETWORK_ERROR` | Network operation failed | ✅ Yes | GitHub API unreachable |
+| `RATE_LIMIT` | API rate limit exceeded | ✅ Yes | GitHub rate limit hit |
+| `TIMEOUT` | Operation exceeded timeout | ✅ Yes | Git operation took >5s |
+| `REPO_NOT_CONFIGURED` | Demo repo not set | ❌ No | Missing ONBOARDOPS_DEMO_REPO_PATH |
+| `UNKNOWN_ERROR` | Unexpected error | ❌ No | Unhandled exception |
 
 ### Error Response Format
 
+**HTTP Error (403, 404, 500):**
 ```json
 {
   "detail": "Access to file path '.env' is blocked by allow-list"
 }
+```
+
+**Tool Error (200 with error field):**
+```json
+{
+  "tool_name": "git_blame_summary",
+  "result": {},
+  "error": "FILE_NOT_FOUND: File not found: backend/missing.py"
+}
+```
+
+**Structured Error Object (in result):**
+```json
+{
+  "tool_name": "git_blame_summary",
+  "result": {
+    "error_code": "FILE_NOT_FOUND",
+    "message": "File not found: backend/missing.py",
+    "retryable": false,
+    "details": {
+      "file_path": "backend/missing.py"
+    }
+  },
+  "error": null
+}
+```
+
+### Graceful Degradation
+
+Tools that depend on external services (GitHub API, git repo) fall back to mock data when unavailable. This ensures the demo continues even if:
+- GitHub token is not configured
+- Demo repository is not accessible
+- Network is unavailable
+
+**Example:** `pr_for_file` returns plausible mock PRs if GitHub API fails.
+
+---
+
+## Retry Semantics
+
+### Automatic Retry Logic
+
+GitHub API calls (in `pr_for_file`, `rationale_for_commit`, `incident_for_file`) automatically retry on transient failures:
+
+**Retry Configuration:**
+- **Max retries:** 3
+- **Backoff:** Exponential (1s, 2s, 4s)
+- **Retryable errors:**
+  - `httpx.TimeoutException`
+  - `httpx.NetworkError`
+  - `httpx.ConnectError`
+  - `httpx.RemoteProtocolError`
+
+**Example Retry Sequence:**
+```
+Attempt 1: NetworkError → wait 1s
+Attempt 2: NetworkError → wait 2s
+Attempt 3: NetworkError → wait 4s
+Attempt 4: NetworkError → return error
+```
+
+### Rate Limiting
+
+GitHub API rate limits are detected and reported:
+
+**Detection:**
+- HTTP 403 with `X-RateLimit-Remaining: 0`
+
+**Response:**
+```json
+{
+  "error_code": "RATE_LIMIT",
+  "message": "GitHub API rate limit exceeded",
+  "retryable": true,
+  "details": {
+    "retry_after_seconds": 3600
+  }
+}
+```
+
+**Client Behavior:**
+- Wait for `retry_after_seconds` before retrying
+- Or fall back to cached data if available
+- Or use mock data for demo purposes
+
+### Client-Side Retry Recommendations
+
+For `retryable: true` errors, clients should:
+1. Wait with exponential backoff (1s, 2s, 4s)
+2. Check cache for stale data (better than no data)
+3. Fall back to mock data for demos
+4. Surface error to user after 3 attempts
+
+**Example Client Code:**
+```python
+def call_tool_with_retry(tool_name, arguments, max_retries=3):
+    for attempt in range(max_retries):
+        response = client.post("/mcp/invoke", json={
+            "tool_name": tool_name,
+            "arguments": arguments
+        })
+        
+        if response.status_code == 200:
+            data = response.json()
+            if not data.get("error"):
+                return data["result"]
+            
+            # Check if retryable
+            if "retryable" in data.get("result", {}):
+                if not data["result"]["retryable"]:
+                    raise Exception(data["error"])
+        
+        # Retry with backoff
+        if attempt < max_retries - 1:
+            time.sleep(2 ** attempt)
+    
+    raise Exception("Max retries exceeded")
+```
+
+---
+
+## Health Check Endpoints
+
+### Tool Health Checks
+
+Each tool has a dedicated health check endpoint for preflight verification.
+
+**Endpoint:** `GET /tools/{tool_name}/healthz`
+
+**Example:**
+```bash
+curl http://localhost:8765/tools/git_blame_summary/healthz
+```
+
+**Response (Healthy):**
+```json
+{
+  "tool": "git_blame_summary",
+  "status": "healthy",
+  "latency_ms": 45.2,
+  "details": "Self-test passed"
+}
+```
+
+**Response (Unhealthy):**
+```json
+{
+  "tool": "git_blame_summary",
+  "status": "unhealthy",
+  "error": "Demo repo not configured or not found",
+  "retryable": false
+}
+```
+
+### Health Check Matrix
+
+| Tool | Check Performed | Failure Condition |
+|------|----------------|-------------------|
+| `git_blame_summary` | Run blame on README.md | Repo not accessible |
+| `commit_frequency` | Get commit count | Repo not accessible |
+| `recent_authors` | Mock-only | Always healthy |
+| `pr_for_file` | Check GitHub token | Token missing (warning only) |
+| `file_changelog` | Check repo access | Repo not accessible (falls back to mock) |
+| `rationale_for_commit` | Check repo access | Repo not accessible (falls back to mock) |
+| `incident_for_file` | Check repo access | Repo not accessible (falls back to mock) |
+| `emit_event` | No dependencies | Always healthy |
+
+### Preflight Script Integration
+
+The health check endpoints are designed for use in preflight scripts:
+
+```bash
+#!/bin/bash
+# scripts/preflight.sh
+
+echo "Checking MCP tool health..."
+
+for tool in git_blame_summary commit_frequency pr_for_file; do
+  response=$(curl -s http://localhost:8765/tools/$tool/healthz)
+  status=$(echo $response | jq -r '.status')
+  
+  if [ "$status" != "healthy" ]; then
+    echo "❌ $tool is unhealthy"
+    echo $response | jq
+    exit 1
+  else
+    echo "✅ $tool is healthy"
+  fi
+done
+
+echo "All tools healthy!"
+```
+
+**Usage:**
+```bash
+# Run before every demo recording
+./scripts/preflight.sh && ./scripts/start-demo.sh
 ```
 
 ---

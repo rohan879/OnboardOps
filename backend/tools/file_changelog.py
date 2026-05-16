@@ -5,9 +5,12 @@ Returns ordered list of commits touching a specific file using GitPython
 
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 import git
 from mcp.contracts import FileChangelogInput, FileChangelogOutput, CommitInfo
+from mcp.errors import (
+    MCPToolError,
+)
 
 
 def get_repo() -> Optional[git.Repo]:
@@ -21,7 +24,9 @@ def get_repo() -> Optional[git.Repo]:
         return None
 
 
-def file_changelog(input_data: FileChangelogInput) -> FileChangelogOutput:
+def file_changelog(
+    input_data: FileChangelogInput,
+) -> Union[FileChangelogOutput, MCPToolError]:
     """
     Get commit history for a specific file
 
@@ -34,12 +39,16 @@ def file_changelog(input_data: FileChangelogInput) -> FileChangelogOutput:
 
     Uses GitPython with explicit path filtering.
     Caches aggressively (commit history is immutable).
+
+    Returns FileChangelogOutput on success or MCPToolError on failure.
+    Falls back to mock data if repo unavailable.
     """
     file_path = input_data.file_path
     limit = input_data.limit
 
     repo = get_repo()
     if not repo:
+        # Repo not configured - return mock data (graceful degradation)
         return _mock_file_changelog(input_data)
 
     try:
