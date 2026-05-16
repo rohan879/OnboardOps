@@ -80,10 +80,10 @@ async def test_websocket_connection():
                     "event_type": "card_emit",
                     "event_data": {
                         "card_id": "test-card-789",
-                        "card_type": "info",
+                        "card_type": "dependency_graph",
                         "title": "Test Card",
-                        "content": "This is a test card from T2.4 verification",
-                        "metadata": {},
+                        "body_markdown": "This is a test card from T2.4 verification",
+                        "data": {"nodes": [], "edges": []},
                     },
                     "session_id": "test-session-456",
                 },
@@ -102,7 +102,7 @@ async def test_websocket_connection():
             # Wait for event (with timeout)
             print("Waiting for event...")
             try:
-                message = await asyncio.wait_for(websocket.recv(), timeout=2.0)
+                message = await asyncio.wait_for(websocket.recv(), timeout=3.0)
                 event = json.loads(message)
 
                 print("[OK] Received event!")

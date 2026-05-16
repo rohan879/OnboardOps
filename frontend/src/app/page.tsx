@@ -10,9 +10,9 @@ import { BobcoinMeter } from '@/components/BobcoinMeter';
 import { LoadingState, SkeletonLoader } from '@/components/LoadingState';
 import { ErrorState, ErrorBanner, EmptyState } from '@/components/ErrorState';
 import { AutoRecoveryBanner, useAutoRecovery } from '@/components/AutoRecoveryBanner';
-import { EntryPointsCard, EntryPointsData } from '@/components/cards/EntryPointsCard';
-import { HotspotsCard, HotspotsData } from '@/components/cards/HotspotsCard';
-import { ConventionsCard, ConventionsData } from '@/components/cards/ConventionsCard';
+import { EntryPointsCard, EntryPoint, EntryPointsData } from '@/components/cards/EntryPointsCard';
+import { HotspotsCard, Hotspot, HotspotsData } from '@/components/cards/HotspotsCard';
+import { Convention, ConventionsCard, ConventionsData } from '@/components/cards/ConventionsCard';
 import CertificationPanel, { CertificationQuestion } from '@/components/CertificationPanel';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
@@ -89,10 +89,10 @@ function entryPointsDataFromCard(card: Event | undefined): EntryPointsData | nul
   
   const data = card.data.data as Record<string, unknown>;
   return {
-    routes: (data.routes as any[]) || [],
-    cli: (data.cli as any[]) || [],
-    jobs: (data.jobs as any[]) || [],
-    consumers: (data.consumers as any[]) || [],
+    routes: Array.isArray(data.routes) ? (data.routes as EntryPoint[]) : [],
+    cli: Array.isArray(data.cli) ? (data.cli as EntryPoint[]) : [],
+    jobs: Array.isArray(data.jobs) ? (data.jobs as EntryPoint[]) : [],
+    consumers: Array.isArray(data.consumers) ? (data.consumers as EntryPoint[]) : [],
   };
 }
 
@@ -101,7 +101,7 @@ function hotspotsDataFromCard(card: Event | undefined): HotspotsData | null {
   
   const data = card.data.data as Record<string, unknown>;
   return {
-    files: (data.files as any[]) || [],
+    files: Array.isArray(data.files) ? (data.files as Hotspot[]) : [],
   };
 }
 
@@ -110,7 +110,7 @@ function conventionsDataFromCard(card: Event | undefined): ConventionsData | nul
   
   const data = card.data.data as Record<string, unknown>;
   return {
-    conventions: (data.conventions as any[]) || [],
+    conventions: Array.isArray(data.conventions) ? (data.conventions as Convention[]) : [],
   };
 }
 

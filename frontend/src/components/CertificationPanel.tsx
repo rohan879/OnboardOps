@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, AlertCircle, Award, Sparkles } from 'lucide-react';
-import { gradeAnimations, celebrationVariants } from '@/lib/animations';
+import { gradeAnimations, celebrationVariants } from '@/components/animations';
 
 export interface CertificationQuestion {
   id: string;
@@ -27,19 +27,24 @@ export default function CertificationPanel({
 }: CertificationPanelProps) {
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
   const [showCelebration, setShowCelebration] = useState(false);
+  const celebrationShownRef = useRef(false);
 
   // Check if certification is achieved (2 of 3 pass)
   const passCount = questions.filter((q) => q.grade === 'pass').length;
-  const isNowCertified = passCount >= 2;
+  const isNowCertified = isCertified || passCount >= 2;
 
   useEffect(() => {
-    if (isNowCertified && !showCelebration) {
-      setShowCelebration(true);
-      // Auto-hide celebration after 5 seconds
-      const timer = setTimeout(() => setShowCelebration(false), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [isNowCertified, showCelebration]);
+    if (!isNowCertified || celebrationShownRef.current) return;
+
+    celebrationShownRef.current = true;
+    const showTimer = setTimeout(() => setShowCelebration(true), 0);
+    const hideTimer = setTimeout(() => setShowCelebration(false), 5000);
+
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [isNowCertified]);
 
   const handleAnswerChange = (questionId: string, value: string) => {
     setLocalAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -74,42 +79,7 @@ export default function CertificationPanel({
       fail: 'Fail',
     };
 
-    // Enhanced animations per grade type
-    const animations = {
-      pass: {
-        initial: { scale: 0, opacity: 0 },
-        animate: {
-          scale: [0, 1.1, 1],
-          opacity: 1,
-          boxShadow: [
-            '0 0 0px rgba(36, 161, 72, 0)',
-            '0 0 20px rgba(36, 161, 72, 0.4)',
-            '0 0 0px rgba(36, 161, 72, 0)',
-          ],
-        },
-        transition: { duration: 0.5, times: [0, 0.7, 1] },
-      },
-      partial: {
-        initial: { scale: 0, opacity: 0, rotate: -10 },
-        animate: {
-          scale: [1, 1.05, 1],
-          opacity: 1,
-          rotate: 0,
-        },
-        transition: { type: 'spring' as const, stiffness: 300, damping: 15 },
-      },
-      fail: {
-        initial: { scale: 0, opacity: 0 },
-        animate: {
-          scale: 1,
-          opacity: 1,
-          x: [-4, 4, -4, 4, 0],
-        },
-        transition: { duration: 0.4 },
-      },
-    };
-
-    const anim = animations[grade];
+    const anim = gradeAnimations[grade];
 
     return (
       <motion.div
@@ -210,7 +180,7 @@ export default function CertificationPanel({
                   }`}
                 >
                   <p className="text-xs font-medium text-[#6F6F6F] mb-1">
-                    Bob's Feedback:
+                    Bob&apos;s Feedback:
                   </p>
                   <p className="text-sm text-[#161616] leading-relaxed">
                     {question.rationale}
@@ -270,7 +240,7 @@ export default function CertificationPanel({
                     Congratulations!
                   </h3>
                   <p className="text-sm text-[#6F6F6F]">
-                    You've earned your repository certification
+                    You&apos;ve earned your repository certification
                   </p>
                 </div>
                 <div className="flex gap-1 mt-2">
