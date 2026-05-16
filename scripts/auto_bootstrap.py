@@ -17,9 +17,12 @@ from typing import Dict, Optional, Tuple
 
 # Configuration
 MAX_RETRIES = 3
+DEFAULT_TIMEOUT = 180  # 3 minutes in seconds
 BOOTSTRAP_SCRIPT = Path(__file__).parent / "bootstrap.sh"
+CHECKPOINT_SCRIPT = Path(__file__).parent / "bootstrap_with_checkpoint.sh"
 ERROR_LOG = Path("/tmp/onboardops-bootstrap-error.log")
 RECOVERY_LOG = Path("/tmp/onboardops-recovery.log")
+TIMEOUT_LOG = Path("/tmp/onboardops-timeout.log")
 
 # ANSI Colors
 RED = '\033[0;31m'
@@ -33,17 +36,37 @@ NC = '\033[0m'  # No Color
 class BootstrapOrchestrator:
     """Orchestrates bootstrap with Bob Shell error diagnosis and recovery."""
     
-    def __init__(self, auto_recover: bool = False):
+    def __init__(self, auto_recover: bool = False, timeout: int = DEFAULT_TIMEOUT):
         self.auto_recover = auto_recover
+        self.timeout = timeout
         self.retry_count = 0
         self.recovery_history = []
+        self.start_time = None
+        self.timed_out = False
         
     def run_bootstrap(self) -> Tuple[int, str, str]:
         """Run bootstrap script and capture output."""
         print(f"{BLUE}=== Running Bootstrap (Attempt {self.retry_count + 1}/{MAX_RETRIES}) ==={NC}")
+        
+        # Check if we've exceeded timeout
+        if self.start_time:
+            elapsed = time.time() - self.start_time
+            remaining = self.timeout - elapsed
+            if remaining <= 0:
+                self.timed_out = True
+                return 124, "", "Bootstrap timeout exceeded"
+            print(f"{YELLOW}Time remaining: {int(remaining)}s{NC}")
+        
         print()
         
         try:
+            # Calculate timeout for this run
+            if self.start_time:
+                elapsed = time.time() - self.start_time
+                run_timeout = max(10, int(self.timeout - elapsed))
+            else:
+                run_timeout = self.timeout
+            
             # Run bootstrap with auto-recover flag if enabled
             cmd = [str(BOOTSTRAP_SCRIPT)]
             if self.auto_recover:
@@ -53,11 +76,15 @@ class BootstrapOrchestrator:
                 cmd,
                 capture_output=True,
                 text=True,
-                cwd=BOOTSTRAP_SCRIPT.parent.parent
+                cwd=BOOTSTRAP_SCRIPT.parent.parent,
+                timeout=run_timeout
             )
             
             return result.returncode, result.stdout, result.stderr
             
+        except subprocess.TimeoutExpired:
+            self.timed_out = True
+            return 124, "", f"Bootstrap exceeded {self.timeout}s timeout"
         except Exception as e:
             return 1, "", str(e)
     
@@ -594,14 +621,61 @@ Reply in JSON format:
         print(f"{YELLOW}Failed to start database service{NC}")
         print(f"{YELLOW}Manual action required: Start database manually{NC}")
         return False
+    def _restore_checkpoint_on_timeout(self):
+        """Restore checkpoint if timeout occurred."""
+        print(f"{RED}⏱️  Bootstrap timeout exceeded ({self.timeout}s){NC}")
+        print(f"{YELLOW}Attempting to restore checkpoint...{NC}")
+        
+        # Log timeout event
+        timeout_data = {
+            "timestamp": time.time(),
+            "timeout_seconds": self.timeout,
+            "retry_count": self.retry_count,
+            "recovery_history": self.recovery_history
+        }
+        TIMEOUT_LOG.write_text(json.dumps(timeout_data, indent=2))
+        
+        # Try to restore checkpoint
+        try:
+            result = subprocess.run(
+                ["bash", str(CHECKPOINT_SCRIPT), "restore"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                print(f"{GREEN}✓ Checkpoint restored successfully{NC}")
+                return True
+            else:
+                print(f"{YELLOW}⚠ Checkpoint restoration failed: {result.stderr[:200]}{NC}")
+                return False
+                
+        except Exception as e:
+            print(f"{RED}Error restoring checkpoint: {e}{NC}")
+            return False
+    
     def orchestrate(self) -> int:
-        """Main orchestration loop."""
+        """Main orchestration loop with timeout enforcement."""
         print(f"{CYAN}╔═══════════════════════════════════════════════════════╗{NC}")
         print(f"{CYAN}║  OnboardOps Auto-Bootstrap with Bob Shell AI         ║{NC}")
         print(f"{CYAN}╚═══════════════════════════════════════════════════════╝{NC}")
         print()
         
+        if self.timeout > 0:
+            print(f"{BLUE}Timeout: {self.timeout}s (3 minutes){NC}")
+            print()
+        
+        # Start timeout timer
+        self.start_time = time.time()
+        
         while self.retry_count < MAX_RETRIES:
+            # Check for timeout before each attempt
+            if self.start_time:
+                elapsed = time.time() - self.start_time
+                if elapsed >= self.timeout:
+                    self.timed_out = True
+                    break
             # Run bootstrap
             exit_code, stdout, stderr = self.run_bootstrap()
             
@@ -628,6 +702,12 @@ Reply in JSON format:
             # Bootstrap failed
             print()
             print(f"{RED}✗ Bootstrap failed with exit code {exit_code}{NC}")
+            
+            # Check for timeout
+            if exit_code == 124 or self.timed_out:
+                print(f"{RED}Bootstrap timed out{NC}")
+                break
+            
             print()
             
             # Check if we should retry
@@ -660,6 +740,23 @@ Reply in JSON format:
                 print(f"{YELLOW}No error output to diagnose{NC}")
                 break
         
+        # Handle timeout
+        if self.timed_out:
+            print()
+            print(f"{RED}╔═══════════════════════════════════════════════════════╗{NC}")
+            print(f"{RED}║  ⏱️  Bootstrap Timeout                                ║{NC}")
+            print(f"{RED}╚═══════════════════════════════════════════════════════╝{NC}")
+            print()
+            
+            # Restore checkpoint
+            self._restore_checkpoint_on_timeout()
+            
+            print()
+            print(f"{YELLOW}Bootstrap exceeded {self.timeout}s timeout{NC}")
+            print(f"Timeout log: {TIMEOUT_LOG}")
+            
+            return 124  # Distinct exit code for timeout
+        
         # Failed after all retries
         print()
         print(f"{RED}╔═══════════════════════════════════════════════════════╗{NC}")
@@ -676,6 +773,8 @@ Reply in JSON format:
         
         print()
         print(f"{YELLOW}Please review the errors and try manual recovery{NC}")
+        print(f"Error log: {ERROR_LOG}")
+        print(f"Recovery log: {RECOVERY_LOG}")
         
         return 1
 
@@ -692,10 +791,19 @@ def main():
         action="store_true",
         help="Enable automatic recovery without prompts"
     )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT,
+        help=f"Maximum time in seconds for bootstrap (default: {DEFAULT_TIMEOUT}s / 3 minutes)"
+    )
     
     args = parser.parse_args()
     
-    orchestrator = BootstrapOrchestrator(auto_recover=args.auto_recover)
+    orchestrator = BootstrapOrchestrator(
+        auto_recover=args.auto_recover,
+        timeout=args.timeout
+    )
     exit_code = orchestrator.orchestrate()
     
     sys.exit(exit_code)
