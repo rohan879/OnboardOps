@@ -16,14 +16,14 @@ This tour showcases:
 
 ---
 
-## 📚 Guided Tour: 15 Essential Sessions
+## 📚 Guided Tour: 10 Essential Sessions
 
 ### 🏗️ Foundation & Architecture (Dev 1)
 
 #### 1. **Vertical Slice Implementation** (`dev1/01_vertical-slice.md`)
-**Why it matters:** Shows Bob helping architect the entire system from scratch  
-**Key techniques:** System design, file structure planning, dependency mapping  
-**Bobcoins:** ~3  
+**Why it matters:** Shows Bob helping architect the entire system from scratch
+**Key techniques:** System design, file structure planning, dependency mapping
+**Bobcoins:** ~3
 **Highlights:**
 - Bob suggests MCP architecture for institutional knowledge
 - Iterative refinement of the onboard mode structure
@@ -36,36 +36,36 @@ This tour showcases:
 ### 🎨 Real-Time Dashboard (Dev 3)
 
 #### 2. **Cartography Card Component** (`dev3/09_phase2-cartography-card.md`)
-**Why it matters:** Complex React component with real-time data binding  
-**Key techniques:** TypeScript interfaces, Framer Motion animations, IBM design system  
-**Bobcoins:** ~2  
+**Why it matters:** Complex React component with real-time data binding
+**Key techniques:** TypeScript interfaces, Framer Motion animations, IBM design system
+**Bobcoins:** ~2
 **Highlights:**
 - Bob generates type-safe props interface
 - Suggests animation patterns for card state transitions
 - Integrates IBM Carbon design tokens
 
 #### 3. **Dependency Graph Visualization** (`dev3/10_phase2-dependency-graph.md`)
-**Why it matters:** D3.js integration for interactive graph rendering  
-**Key techniques:** SVG manipulation, force-directed layout, zoom/pan controls  
-**Bobcoins:** ~3  
+**Why it matters:** D3.js integration for interactive graph rendering
+**Key techniques:** SVG manipulation, force-directed layout, zoom/pan controls
+**Bobcoins:** ~3
 **Highlights:**
 - Bob helps debug D3 force simulation parameters
 - Suggests accessibility improvements for graph navigation
 - Optimizes rendering performance for large graphs
 
 #### 4. **WebSocket Integration** (`dev3/12_phase2-websocket-integration.md`)
-**Why it matters:** Real-time event streaming with reconnection logic  
-**Key techniques:** React hooks, exponential backoff, Zustand state management  
-**Bobcoins:** ~2  
+**Why it matters:** Real-time event streaming with reconnection logic
+**Key techniques:** React hooks, exponential backoff, Zustand state management
+**Bobcoins:** ~2
 **Highlights:**
 - Bob suggests robust error handling patterns
 - Implements connection state machine
 - Adds telemetry for connection quality
 
 #### 5. **Stopwatch Session Wiring** (`dev3/15_phase2-stopwatch-session-wiring.md`)
-**Why it matters:** Synchronizing UI state with backend session lifecycle  
-**Key techniques:** Event-driven architecture, time synchronization, state persistence  
-**Bobcoins:** ~1.5  
+**Why it matters:** Synchronizing UI state with backend session lifecycle
+**Key techniques:** Event-driven architecture, time synchronization, state persistence
+**Bobcoins:** ~1.5
 **Highlights:**
 - Bob identifies race condition in session start/stop
 - Suggests using monotonic timestamps
@@ -75,128 +75,93 @@ This tour showcases:
 
 ### 🔧 Backend & MCP Tools (Dev 2)
 
-#### 6. **MCP Tool Contracts** (Session TBD)
-**Why it matters:** Pydantic models for type-safe MCP communication  
-**Key techniques:** Schema validation, error handling, API design  
-**Bobcoins:** ~2  
-**Expected highlights:**
-- Bob generates Pydantic models from requirements
-- Suggests validation rules for git operations
-- Implements discriminated unions for tool responses
+#### 6. **Integration Debugging** (`dev2/01_phase3-integration-debugging.md`)
+**Why it matters:** Real debugging workflow with allow-list violations
+**Key techniques:** Pattern matching, error handling, structured logging
+**Bobcoins:** ~0.5
+**Highlights:**
+- Discovered file path blocking issue with `.env` files
+- Fixed allow-list pattern matching for wildcards
+- Verified 403 error responses with structured messages
 
-#### 7. **Git Blame Summary Tool** (Session TBD)
-**Why it matters:** Complex git operations with performance optimization  
-**Key techniques:** GitPython, caching, incremental updates  
-**Bobcoins:** ~3  
-**Expected highlights:**
-- Bob helps optimize git log parsing
-- Suggests caching strategy for blame data
-- Implements timeout protection for large repos
-
----
-
-### 🚀 Infrastructure & Bootstrap (Dev 4)
-
-#### 8. **Auto-Recovery Pattern Detection** (Session TBD)
-**Why it matters:** Regex-based error detection and automated fixes  
-**Key techniques:** Pattern matching, subprocess management, state machines  
-**Bobcoins:** ~2.5  
-**Expected highlights:**
-- Bob suggests regex patterns for common errors
-- Implements retry logic with exponential backoff
-- Adds structured logging for debugging
-
-#### 9. **Bob Shell Piping Harness** (Session TBD)
-**Why it matters:** Non-interactive Bob Shell usage for automation  
-**Key techniques:** Subprocess piping, JSON parsing, error propagation  
-**Bobcoins:** ~1.5  
-**Expected highlights:**
-- Bob helps design the piping protocol
-- Suggests Bobcoin budgeting strategy
-- Implements graceful degradation when Bob unavailable
+#### 7. **Performance Tuning** (`dev2/02_phase3-performance-tuning.md`)
+**Why it matters:** Optimizing cache hit rates and LRU eviction
+**Key techniques:** Cache analysis, memory profiling, load testing
+**Bobcoins:** ~0
+**Highlights:**
+- Analyzed cache statistics showing 85% hit rate
+- Tuned LRU eviction threshold to 1000 entries
+- Verified no memory leaks under 2000-call load test
 
 ---
 
 ### 🔗 Integration & Features (Dev 5)
 
-#### 10. **Session Telemetry Capture** (Session TBD)
-**Why it matters:** JSONL-based event streaming for replay and analysis  
-**Key techniques:** WebSocket server, event serialization, file I/O  
-**Bobcoins:** ~2  
-**Expected highlights:**
-- Bob suggests JSONL format for append-only logs
-- Implements rotation strategy for large sessions
-- Adds PII scrubbing for sensitive data
-
-#### 11. **Starter PR Generation with Bob** (Session TBD)
-**Why it matters:** Bob generating code via Bob Shell (meta!)  
-**Key techniques:** Subprocess management, diff validation, safety checks  
-**Bobcoins:** ~3  
-**Expected highlights:**
+#### 8. **Starter PR Generation with Bob** (`dev5/01_f7-starter-pr-implementation.md`)
+**Why it matters:** Bob generating code via Bob Shell (meta!)
+**Key techniques:** Subprocess management, diff validation, safety checks, checkpoint system
+**Bobcoins:** ~3.5
+**Highlights:**
 - Bob helps design the starter-pr skill
-- Suggests bounded diff constraints (≤30 lines)
-- Implements checkpoint-based rollback
+- Implements bounded diff constraints (≤30 lines)
+- Adds checkpoint-based rollback for safety
+- Test verification before PR open
 
-#### 12. **AGENTS.md Full Composition** (Session TBD)
-**Why it matters:** Generating personalized repository documentation  
-**Key techniques:** Template rendering, cartography data aggregation, Bob Shell integration  
-**Bobcoins:** ~2.5  
-**Expected highlights:**
+#### 9. **AGENTS.md Full Composition** (`dev5/02_f8-agents-md-implementation.md`)
+**Why it matters:** Generating personalized repository documentation
+**Key techniques:** Template rendering, cartography data aggregation, token budget management
+**Bobcoins:** ~2.8
+**Highlights:**
 - Bob suggests 5-section structure
 - Implements idempotent regeneration
 - Adds user-edited section preservation
+- Graceful degradation for missing data
 
-#### 13. **Checkpoint Wrapping for F7** (Session TBD)
-**Why it matters:** Git-based state management for safe operations  
-**Key techniques:** Git stash, branch management, error recovery  
-**Bobcoins:** ~1.5  
-**Expected highlights:**
-- Bob suggests using git stash for uncommitted changes
-- Implements atomic checkpoint creation
-- Adds restoration verification
-
-#### 14. **Dashboard Replay Mode** (Session TBD)
-**Why it matters:** Time-travel debugging for onboarding sessions  
-**Key techniques:** JSONL parsing, playback controls, state reconstruction  
-**Bobcoins:** ~2  
-**Expected highlights:**
-- Bob suggests scrubber UI for timeline navigation
-- Implements variable playback speed (1x, 2x, 5x, 10x)
-- Adds screenshot capture for documentation
-
-#### 15. **/init Compatibility Verification** (Session TBD)
-**Why it matters:** Automated testing of AGENTS.md quality  
-**Key techniques:** Context analysis, awareness scoring, Bob Shell testing  
-**Bobcoins:** ~1  
-**Expected highlights:**
-- Bob suggests 5-point awareness scoring system
-- Implements context marker extraction
-- Adds JSON output for CI/CD integration
+#### 10. **Integration Debugging - Telemetry** (`dev5/03_integration-debugging-telemetry.md`)
+**Why it matters:** Systematic debugging of async event streaming
+**Key techniques:** Race condition analysis, async queue implementation, WebSocket debugging
+**Bobcoins:** ~1.2
+**Highlights:**
+- Identified race condition in event emission
+- Implemented async queue for ordered delivery
+- Added connection state tracking
+- Verified event ordering under load
 
 ---
 
 ## 📊 Statistics Across All Sessions
 
 ### By Developer
-- **Dev 1 (Bob Architect):** 1 session exported (15-20 expected)
-- **Dev 2 (Backend/MCP):** 0 sessions exported (12-15 expected)
-- **Dev 3 (Frontend):** 8 sessions exported (10-12 expected)
-- **Dev 4 (Infrastructure):** 0 sessions exported (8-10 expected)
-- **Dev 5 (Integration):** 0 sessions exported (10-12 expected)
+- **Dev 1 (Bob Architect):** 1 session exported
+  - Focus: Vertical slice, system architecture, Bob mode design
+- **Dev 2 (Backend/MCP):** 3 sessions exported
+  - Focus: Integration debugging, performance tuning, allow-list enforcement
+- **Dev 3 (Frontend):** 8 sessions exported
+  - Focus: React components, WebSocket integration, real-time UI
+- **Dev 4 (Infrastructure):** 0 sessions exported (manual work, no Bob usage)
+  - Focus: Bootstrap engine, demo repo selection, Bob Shell harness
+- **Dev 5 (Integration):** 4 sessions exported
+  - Focus: F7 starter PR, F8 AGENTS.md, telemetry, integration debugging
 
-**Total:** 9 sessions exported, ~55-70 expected by end of hackathon
+**Total:** 16 sessions exported across 4 developers
 
 ### By Phase
-- **Phase 1 (H+0 to H+2):** 1 session
-- **Phase 2 (H+2 to H+10):** 8 sessions
-- **Phase 3 (H+10 to H+28):** 0 sessions (in progress)
-- **Phase 4 (H+28 to H+40):** 0 sessions (not started)
+- **Phase 1 (H+0 to H+2):** 1 session (Dev 1 vertical slice)
+- **Phase 2 (H+2 to H+10):** 8 sessions (Dev 3 frontend components)
+- **Phase 3 (H+10 to H+28):** 7 sessions (Dev 2 backend, Dev 5 integration)
+- **Phase 4 (H+28 to H+40):** 0 sessions (documentation and polish, minimal Bob usage)
 
 ### Bobcoin Usage
-- **Total spent across exported sessions:** ~15 Bobcoins
-- **Budget remaining:** ~185 Bobcoins (200 total - 15 spent)
-- **Average per session:** ~1.7 Bobcoins
-- **Most expensive session:** Dependency Graph Visualization (~3 Bobcoins)
+- **Dev 1:** ~3 Bobcoins (1 session)
+- **Dev 2:** ~1 Bobcoin (3 sessions, mostly manual work)
+- **Dev 3:** ~15 Bobcoins (8 sessions, complex UI work)
+- **Dev 4:** ~0 Bobcoins (manual infrastructure work)
+- **Dev 5:** ~7 Bobcoins (4 sessions, integration features)
+
+**Total spent:** ~26 Bobcoins across 16 sessions
+**Budget remaining:** ~174 Bobcoins (200 total - 26 spent)
+**Average per session:** ~1.6 Bobcoins
+**Most expensive session:** Dependency Graph Visualization (~3 Bobcoins, Dev 3)
 
 ---
 
@@ -343,17 +308,22 @@ These sessions provide:
 
 ## 📅 Maintenance
 
-**Last Updated:** Phase 3, H+26  
-**Maintained By:** Dev 5 (Integration Engineer)  
-**Next Update:** Phase 4, after final session exports
+**Last Updated:** Phase 4, H+38 (Final Curation)
+**Maintained By:** Dev 5 (Integration Engineer)
+**Status:** Complete - Ready for submission
 
 **Curation Status:**
-- ✅ Phase 1 sessions reviewed
-- ✅ Phase 2 sessions reviewed
-- ⏳ Phase 3 sessions in progress
-- ⏳ Phase 4 sessions not started
+- ✅ Phase 1 sessions reviewed (1 session)
+- ✅ Phase 2 sessions reviewed (8 sessions)
+- ✅ Phase 3 sessions reviewed (7 sessions)
+- ✅ Phase 4 sessions reviewed (0 sessions - documentation phase, minimal Bob usage)
+- ✅ Statistics updated with actual counts
+- ✅ Guided tour refined to 10 essential sessions
+- ✅ All session READMEs verified
+
+**Final Session Count:** 16 sessions across 4 developers (Dev 4 did manual infrastructure work)
 
 ---
 
-**Total Reading Time:** ~10 minutes for guided tour, ~2 hours for all sessions  
-**Recommended for Judges:** Start with the 15 essential sessions above, then explore by interest
+**Total Reading Time:** ~8 minutes for guided tour, ~90 minutes for all sessions
+**Recommended for Judges:** Start with the 10 essential sessions above, then explore by developer focus area
