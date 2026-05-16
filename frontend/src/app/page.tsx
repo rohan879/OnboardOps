@@ -13,10 +13,11 @@ import { AutoRecoveryBanner, useAutoRecovery } from '@/components/AutoRecoveryBa
 import { EntryPointsCard, EntryPointsData } from '@/components/cards/EntryPointsCard';
 import { HotspotsCard, HotspotsData } from '@/components/cards/HotspotsCard';
 import { ConventionsCard, ConventionsData } from '@/components/cards/ConventionsCard';
+import CertificationPanel, { CertificationQuestion } from '@/components/CertificationPanel';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
 import { useEventsStore, Event } from '@/store/events';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Sample graph data for testing and as a fallback before Bob emits real data.
 const sampleGraphData: GraphData = {
@@ -115,6 +116,7 @@ function conventionsDataFromCard(card: Event | undefined): ConventionsData | nul
 
 export default function Home() {
   const [showEventStream, setShowEventStream] = useState(false);
+  const [certificationQuestions, setCertificationQuestions] = useState<CertificationQuestion[]>([]);
   const { isConnected } = useEvents();
   useEventHandlers();
   const connectionState = useEventsStore((state) => state.connectionState);
@@ -128,6 +130,50 @@ export default function Home() {
   
   // Auto-recovery banner state
   const { currentEvent, showRecovery, dismissRecovery } = useAutoRecovery();
+
+  // Process certification events
+  useEffect(() => {
+    events.forEach((event) => {
+      if (event.type === 'question_ask') {
+        const data = event.data as { id?: string; topic?: string; question?: string };
+        if (data.id && data.question) {
+          setCertificationQuestions((prev) => {
+            const exists = prev.find((q) => q.id === data.id);
+            if (exists) return prev;
+            return [
+              ...prev,
+              {
+                id: data.id as string,
+                topic: data.topic || 'General',
+                questionText: data.question as string,
+              },
+            ];
+          });
+        }
+      } else if (event.type === 'certification_grade') {
+        const data = event.data as {
+          question_id?: string;
+          grade?: 'pass' | 'partial' | 'fail';
+          rationale?: string;
+          answer?: string;
+        };
+        if (data.question_id) {
+          setCertificationQuestions((prev) =>
+            prev.map((q) =>
+              q.id === data.question_id
+                ? {
+                    ...q,
+                    grade: data.grade,
+                    rationale: data.rationale,
+                    answer: data.answer || q.answer,
+                  }
+                : q
+            )
+          );
+        }
+      }
+    });
+  }, [events]);
 
   const dependencyCard = findCard(events, 'dependency_graph');
   const entryCard = findCard(events, 'entry_points');
@@ -404,15 +450,17 @@ export default function Home() {
           )}
 
           {/* Certification Panel */}
-          <div>
-            <h2 className="text-sm font-semibold text-ibm-gray-100 mb-3">
-              Certification
-            </h2>
-            <div className="bg-ibm-gray-10 rounded-lg p-4">
-              <p className="text-xs text-ibm-gray-70">
-                Socratic quiz panel placeholder
-              </p>
-            </div>
+          <div className="flex-1 min-h-0 border border-ibm-gray-20 rounded-lg overflow-hidden">
+            <CertificationPanel
+              questions={certificationQuestions}
+              onAnswerChange={(questionId, answer) => {
+                setCertificationQuestions((prev) =>
+                  prev.map((q) =>
+                    q.id === questionId ? { ...q, answer } : q
+                  )
+                );
+              }}
+            />
           </div>
         </aside>
       </div>
