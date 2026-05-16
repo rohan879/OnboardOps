@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useReplay } from '@/hooks/useReplay';
 import { useEventsStore } from '@/store/events';
 import { Stopwatch } from '@/components/Stopwatch';
@@ -10,6 +10,8 @@ import { EventStream } from '@/components/EventStream';
 function ReplayContent() {
   const searchParams = useSearchParams();
   const sessionFile = searchParams.get('file') || '';
+  const presentationMode = searchParams.get('presentation') === 'true';
+  const startOffset = parseInt(searchParams.get('offset') || '0');
   const [speed, setSpeed] = useState(1.0);
   
   const {
@@ -29,11 +31,51 @@ function ReplayContent() {
   
   // Calculate elapsed time from events
   const startTime = events.length > 0 ? new Date(events[events.length - 1].timestamp) : new Date();
+  
+  // Keyboard shortcuts for video production
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          if (isPlaying && !isPaused) {
+            pause();
+          } else if (isPaused) {
+            resume();
+          } else {
+            play();
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          // TODO: Implement next event navigation when useReplay supports it
+          console.log('Next event (not yet implemented)');
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          // TODO: Implement previous event navigation when useReplay supports it
+          console.log('Previous event (not yet implemented)');
+          break;
+        case 'Escape':
+          e.preventDefault();
+          stop();
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isPlaying, isPaused, play, pause, resume, stop]);
 
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
+      <header className={`border-b border-gray-200 bg-white ${presentationMode ? 'hidden' : ''}`}>
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             {/* Stopwatch */}
@@ -68,9 +110,16 @@ function ReplayContent() {
       </header>
 
       {/* Main content */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className={`mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 ${presentationMode ? 'pt-4' : ''}`}>
+        {/* Keyboard shortcuts hint (only in presentation mode) */}
+        {presentationMode && (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+            <strong>Keyboard Shortcuts:</strong> Space = Play/Pause | Esc = Stop | ← → = Navigate (coming soon)
+          </div>
+        )}
+        
         {/* Session info */}
-        <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div className={`mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4 ${presentationMode ? 'hidden' : ''}`}>
           <h2 className="mb-2 text-lg font-semibold text-gray-900">Session Replay</h2>
           <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
             <div>
@@ -109,7 +158,7 @@ function ReplayContent() {
         )}
 
         {/* Controls */}
-        <div className="mb-6 flex items-center space-x-4">
+        <div className={`mb-6 flex items-center space-x-4 ${presentationMode ? 'hidden' : ''}`}>
           {!isPlaying && !isPaused && (
             <button
               onClick={play}
