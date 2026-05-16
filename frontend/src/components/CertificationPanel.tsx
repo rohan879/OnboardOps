@@ -95,7 +95,23 @@ export default function CertificationPanel({
   };
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-white relative">
+      {/* Story-beat screen-edge highlight when certified */}
+      <AnimatePresence>
+        {isNowCertified && showCelebration && (
+          <motion.div
+            className="fixed inset-0 pointer-events-none z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.3, 0] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 2 }}
+            style={{
+              background: 'radial-gradient(circle at center, rgba(36, 161, 72, 0.2), transparent 70%)',
+            }}
+          />
+        )}
+      </AnimatePresence>
+      
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
