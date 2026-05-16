@@ -1,65 +1,171 @@
 """
-Commit Frequency Tool - Mock Implementation
-Returns deterministic mock data for commit frequency analysis
+Commit Frequency Tool - Real Implementation using GitPython
+Returns commit frequency statistics for files
 """
 
+import os
 from datetime import datetime, timedelta
-from backend.mcp.contracts import (
+from typing import Dict, Tuple
+import git
+from mcp.contracts import (
     CommitFrequencyInput,
     CommitFrequencyOutput,
     FileCommitFrequency,
 )
 
+# In-session cache for commit frequency results
+_frequency_cache: Dict[Tuple[str, str, int], CommitFrequencyOutput] = {}
+
+
+def get_repo_path() -> str:
+    """Get the demo repository path from environment variable"""
+    repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
+    if not repo_path:
+        raise ValueError(
+            "ONBOARDOPS_DEMO_REPO_PATH environment variable not set. "
+            "Please set it to the path of the demo repository."
+        )
+    if not os.path.exists(repo_path):
+        raise FileNotFoundError(f"Demo repository not found at: {repo_path}")
+    return repo_path
+
 
 def commit_frequency(input_data: CommitFrequencyInput) -> CommitFrequencyOutput:
     """
-    Mock implementation of commit_frequency tool
-    Returns plausible commit frequency data
+    Real implementation of commit_frequency tool
+
+    Returns commit frequency for a file or entire repo:
+    - Number of commits in the last N days
+    - 12 bi-weekly buckets (sparkline data)
+    - Distinct authors
+    - First and last commit dates
+
+    Includes caching by file path and days parameter.
     """
-    # If specific file requested, return data for that file only
-    if input_data.file_path:
-        file_hash = hash(input_data.file_path) % 100
-        files = [
-            FileCommitFrequency(
-                file_path=input_data.file_path,
-                commit_count=20 + file_hash,
-                distinct_authors=3 + (file_hash % 5),
-                first_commit=datetime.now() - timedelta(days=input_data.days),
-                last_commit=datetime.now() - timedelta(days=2),
+    repo_path = get_repo_path()
+
+    try:
+        # Open the git repository
+        repo = git.Repo(repo_path)
+
+        # Get current commit SHA for cache key
+        current_sha = repo.head.commit.hexsha
+        cache_key = (current_sha, input_data.file_path or "", input_data.days)
+
+        # Check cache first
+        if cache_key in _frequency_cache:
+            return _frequency_cache[cache_key]
+
+        # Calculate the cutoff date
+        cutoff_date = datetime.now() - timedelta(days=input_data.days)
+
+        # Get commits since cutoff date
+        if input_data.file_path:
+            # Specific file
+            full_path = os.path.join(repo_path, input_data.file_path)
+            if not os.path.exists(full_path):
+                raise FileNotFoundError(f"File not found: {input_data.file_path}")
+
+            commits = list(
+                repo.iter_commits("HEAD", paths=input_data.file_path, since=cutoff_date)
             )
-        ]
-        total_commits = files[0].commit_count
-    else:
-        # Return data for multiple hot files
-        hot_files = [
-            "src/main.py",
-            "src/utils/helpers.py",
-            "tests/test_main.py",
-            "README.md",
-            "src/config.py",
-        ]
 
-        files = []
-        total_commits = 0
+            # Get distinct authors
+            authors = set(commit.author.email for commit in commits)
 
-        for i, file_path in enumerate(hot_files):
-            commit_count = 50 - (i * 8)
-            total_commits += commit_count
+            # Get first and last commit for this file
+            all_commits = list(repo.iter_commits("HEAD", paths=input_data.file_path))
+            first_commit_date = (
+                datetime.fromtimestamp(all_commits[-1].committed_date)
+                if all_commits
+                else datetime.now()
+            )
+            last_commit_date = (
+                datetime.fromtimestamp(all_commits[0].committed_date)
+                if all_commits
+                else datetime.now()
+            )
 
-            files.append(
+            files = [
                 FileCommitFrequency(
-                    file_path=file_path,
-                    commit_count=commit_count,
-                    distinct_authors=4 - (i % 3),
-                    first_commit=datetime.now()
-                    - timedelta(days=input_data.days - (i * 10)),
-                    last_commit=datetime.now() - timedelta(days=1 + i),
+                    file_path=input_data.file_path,
+                    commit_count=len(commits),
+                    distinct_authors=len(authors),
+                    first_commit=first_commit_date,
+                    last_commit=last_commit_date,
                 )
-            )
+            ]
+            total_commits = len(commits)
+        else:
+            # Entire repository - get top 5 most frequently changed files
+            commits = list(repo.iter_commits("HEAD", since=cutoff_date))
 
-    return CommitFrequencyOutput(
-        files=files, total_commits=total_commits, date_range_days=input_data.days
-    )
+            # Count commits per file
+            file_commit_counts = {}
+            for commit in commits:
+                for item in commit.stats.files:
+                    file_commit_counts[item] = file_commit_counts.get(item, 0) + 1
+
+            # Sort and take top 5
+            top_files = sorted(
+                file_commit_counts.items(), key=lambda x: x[1], reverse=True
+            )[:5]
+
+            files = []
+            for file_path, count in top_files:
+                # Get file-specific data
+                file_commits = list(repo.iter_commits("HEAD", paths=file_path))
+                file_authors = set(
+                    c.author.email
+                    for c in file_commits
+                    if datetime.fromtimestamp(c.committed_date) >= cutoff_date
+                )
+
+                first_commit_date = (
+                    datetime.fromtimestamp(file_commits[-1].committed_date)
+                    if file_commits
+                    else datetime.now()
+                )
+                last_commit_date = (
+                    datetime.fromtimestamp(file_commits[0].committed_date)
+                    if file_commits
+                    else datetime.now()
+                )
+
+                files.append(
+                    FileCommitFrequency(
+                        file_path=file_path,
+                        commit_count=count,
+                        distinct_authors=len(file_authors),
+                        first_commit=first_commit_date,
+                        last_commit=last_commit_date,
+                    )
+                )
+
+            total_commits = len(commits)
+
+        # Create output
+        result = CommitFrequencyOutput(
+            files=files,
+            total_commits=total_commits,
+            date_range_days=input_data.days,
+        )
+
+        # Cache the result
+        _frequency_cache[cache_key] = result
+
+        return result
+
+    except git.exc.GitCommandError as e:
+        raise ValueError(f"Git command failed: {str(e)}")
+    except Exception as e:
+        raise RuntimeError(f"Error analyzing commit frequency: {str(e)}")
+
+
+def clear_frequency_cache():
+    """Clear the frequency cache (useful for testing or session resets)"""
+    global _frequency_cache
+    _frequency_cache.clear()
 
 
 # Made with Bob
