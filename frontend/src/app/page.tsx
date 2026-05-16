@@ -11,6 +11,7 @@ import { LoadingState, SkeletonLoader } from '@/components/LoadingState';
 import { ErrorState, ErrorBanner, EmptyState } from '@/components/ErrorState';
 import { AutoRecoveryBanner, useAutoRecovery } from '@/components/AutoRecoveryBanner';
 import { EntryPointsCard, EntryPointsData } from '@/components/cards/EntryPointsCard';
+import { HotspotsCard, HotspotsData } from '@/components/cards/HotspotsCard';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
 import { useEventsStore, Event } from '@/store/events';
@@ -93,6 +94,15 @@ function entryPointsDataFromCard(card: Event | undefined): EntryPointsData | nul
   };
 }
 
+function hotspotsDataFromCard(card: Event | undefined): HotspotsData | null {
+  if (!card?.data.data) return null;
+  
+  const data = card.data.data as Record<string, unknown>;
+  return {
+    files: (data.files as any[]) || [],
+  };
+}
+
 export default function Home() {
   const [showEventStream, setShowEventStream] = useState(false);
   const { isConnected } = useEvents();
@@ -115,6 +125,7 @@ export default function Home() {
   const conventionCard = findCard(events, 'conventions');
   const graphData = graphDataFromCard(dependencyCard);
   const entryPointsData = entryPointsDataFromCard(entryCard);
+  const hotspotsData = hotspotsDataFromCard(hotspotCard);
 
   // Demo states for loading/error components
   const [showLoadingDemo, setShowLoadingDemo] = useState(false);
@@ -194,9 +205,18 @@ export default function Home() {
               title={String(hotspotCard?.data.title || 'Change Hotspots')}
               state={hotspotCard ? 'complete' : 'pending'}
             >
-              <div className="text-sm text-ibm-gray-70">
-                {String(hotspotCard?.data.body_markdown || 'Waiting to analyze hotspots')}
-              </div>
+              {typeof hotspotCard?.data.body_markdown === 'string' && (
+                <p className="text-sm text-ibm-gray-70 mb-4">
+                  {hotspotCard.data.body_markdown}
+                </p>
+              )}
+              {hotspotsData ? (
+                <HotspotsCard data={hotspotsData} />
+              ) : (
+                <div className="text-sm text-ibm-gray-70 text-center py-4">
+                  Waiting to analyze hotspots...
+                </div>
+              )}
             </CartographyCard>
 
             <CartographyCard
