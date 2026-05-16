@@ -1,4 +1,6 @@
-# Reference Demo Machine Specification - T4.7
+# Reference Demo Machine Specification - T4.7 / Phase 3 T4.1
+
+**Updated:** Phase 3 - Added nvm prerequisite for Node version auto-recovery
 
 **Task Owner:** Dev 4 (Infra / Bob Shell)  
 **Date:** 2026-05-15  

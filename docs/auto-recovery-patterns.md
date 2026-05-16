@@ -539,15 +539,126 @@ fi
 
 ---
 
-## Next Steps
+---
 
-1. **T4.5:** Implement these patterns in `scripts/bootstrap.sh`
-2. **Phase 2:** Add MCP tool support for institutional knowledge
-3. **Phase 3:** Test auto-recovery against demo repository
-4. **Phase 4:** Refine based on real-world testing
+## Phase 3 Additional Patterns
+
+### Pattern 6: Missing or Incomplete Virtualenv (T4.2)
+
+**Detection Signal:**
+```regex
+(ModuleNotFoundError|No module named|ImportError.*site-packages|virtualenv.*not found)
+```
+
+**Recovery Action:**
+1. Check if `.venv/` or `venv/` directory exists
+2. If missing, create: `python3 -m venv venv`
+3. If corrupted, remove and recreate
+4. Activate virtualenv and install dependencies from `requirements.txt` or `pyproject.toml`
+5. Verify: `pip list` shows expected packages
+
+**Priority:** P0 (Critical) - Blocks Python application startup
+
+**Estimated Recovery Time:** 30-120 seconds (depends on dependency count)
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2026-05-15  
+### Pattern 7: Missing Seed Data (T4.3)
+
+**Detection Signal:**
+```regex
+(no data found|empty database|seed.*required|initial data.*missing)
+```
+
+**Recovery Action:**
+1. Check for seed script in common locations:
+   - `python -m demo.seed`
+   - `python scripts/seed.py`
+   - `bash scripts/seed.sh`
+2. Check `pyproject.toml` for seed command in `[project.scripts]`
+3. Run seed script with timeout (120s)
+4. Verify: Health check passes after seed
+
+**Priority:** P1 (High) - Blocks application functionality but not startup
+
+**Estimated Recovery Time:** 10-60 seconds (depends on seed data size)
+
+---
+
+### Pattern 8: Database Not Running (T4.4)
+
+**Detection Signal:**
+```regex
+(connection refused.*database|could not connect.*postgres|database.*not running|ECONNREFUSED.*5432)
+```
+
+**Recovery Action:**
+1. Check for `docker-compose.yml` or `docker-compose.yaml`
+2. Identify database service name (postgres, mysql, mongo, db, database)
+3. Run: `docker compose up -d <service-name>`
+4. Wait 10 seconds for database to be ready
+5. Verify: Connection succeeds
+
+**Priority:** P0 (Critical) - Blocks all database operations
+
+**Estimated Recovery Time:** 15-30 seconds (Docker startup time)
+
+---
+
+## Pattern Priority Summary (Updated)
+
+| Pattern | Priority | Frequency | Impact | Recovery Time |
+|---------|----------|-----------|--------|---------------|
+| 1. Docker Not Running | P0 | High | Critical | 30-60s |
+| 2. Missing .env | P0 | Very High | Critical | 1-2s |
+| 3. Port Conflict | P1 | Medium | High | 2-3s |
+| 4. Database Not Initialized | P0 | High | Critical | 10-30s |
+| 5. Version Mismatch | P1 | Medium | High | 5-60s |
+| 6. Missing Virtualenv | P0 | High | Critical | 30-120s |
+| 7. Missing Seed Data | P1 | Medium | High | 10-60s |
+| 8. Database Not Running | P0 | High | Critical | 15-30s |
+
+---
+
+## Implementation Status
+
+### Phase 1 (Complete)
+- ✅ Pattern documentation
+- ✅ Detection regex patterns
+- ✅ Recovery action specifications
+
+### Phase 2 (Complete)
+- ✅ Port-in-use auto-recovery (Pattern 3)
+- ✅ AI-assisted error-pipe loop
+- ✅ Bootstrap with checkpoint API
+
+### Phase 3 (In Progress)
+- ✅ Node version mismatch auto-recovery (Pattern 5 / T4.1)
+- ✅ Missing virtualenv auto-recovery (Pattern 6 / T4.2)
+- ✅ Missing seed data auto-recovery (Pattern 7 / T4.3)
+- ✅ Database not running auto-recovery (Pattern 8 / T4.4)
+- ⏳ Idempotence verification (T4.5)
+- ⏳ Three-minute timeout enforcement (T4.6)
+- ⏳ Robust Bob Shell prompting (T4.7)
+- ⏳ Demo machine reset script (T4.8)
+- ⏳ Event payload polish (T4.9)
+- ⏳ Full stress test (T4.10)
+- ⏳ Session export + handoff (T4.11)
+
+---
+
+## Next Steps
+
+1. **T4.5:** Verify bootstrap idempotence (<5s on healthy environment)
+2. **T4.6:** Add 3-minute hard timeout with checkpoint rollback
+3. **T4.7:** Enhance Bob Shell prompting with JSON schema constraints
+4. **T4.8:** Create demo machine reset script
+5. **T4.9:** Polish WebSocket event payloads for dashboard
+6. **T4.10:** Run full stress test (10 iterations, all patterns)
+7. **T4.11:** Export curated Bob sessions and hand off to Phase 4
+
+---
+
+**Document Version:** 2.0
+**Last Updated:** 2026-05-16
 **Owner:** Dev 4 (Infra / Bob Shell)

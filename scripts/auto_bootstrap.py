@@ -154,7 +154,25 @@ Reply in JSON format:
                 "category": "permission-denied",
                 "confidence": 0.90
             }
-        elif "network" in stderr_lower or "connection" in stderr_lower or "timeout" in stderr_lower:
+        elif "modulenotfounderror" in stderr_lower or "no module named" in stderr_lower:
+            return {
+                "diagnosis": "Python module not found - virtualenv may be missing or incomplete",
+                "category": "missing-virtualenv",
+                "confidence": 0.85
+            }
+        elif "no users" in stderr_lower or "no data" in stderr_lower or "table empty" in stderr_lower or "seed" in stderr_lower:
+            return {
+                "diagnosis": "Database appears to be empty - seed data may be missing",
+                "category": "missing-seed-data",
+                "confidence": 0.80
+            }
+        elif "connection refused" in stderr_lower and ("database" in stderr_lower or "postgres" in stderr_lower or "mysql" in stderr_lower):
+            return {
+                "diagnosis": "Database connection refused - database service may not be running",
+                "category": "database-not-running",
+                "confidence": 0.90
+            }
+        elif "network" in stderr_lower or ("connection" in stderr_lower and "timeout" in stderr_lower):
             return {
                 "diagnosis": "Network connectivity issue detected",
                 "category": "network-error",
@@ -180,6 +198,9 @@ Reply in JSON format:
             "docker-not-running": self._recover_docker,
             "missing-dependency": self._recover_missing_dependency,
             "version-mismatch": self._recover_version_mismatch,
+            "missing-virtualenv": self._recover_missing_virtualenv,
+            "missing-seed-data": self._recover_missing_seed_data,
+            "database-not-running": self._recover_database_not_running,
             "env-missing": self._recover_env_missing,
             "permission-denied": self._recover_permission,
             "network-error": self._recover_network,
@@ -242,8 +263,74 @@ Reply in JSON format:
         return False
     
     def _recover_version_mismatch(self, diagnosis: Dict) -> bool:
-        """Recover from version mismatch."""
+        """Recover from version mismatch (Node.js with nvm)."""
         print(f"{BLUE}Recovery: Version mismatch detected{NC}")
+        
+        # Try to detect Node version requirement from toolchain
+        toolchain_file = Path("/tmp/onboardops-toolchain.json")
+        if toolchain_file.exists():
+            try:
+                import json
+                toolchain = json.loads(toolchain_file.read_text())
+                node_req = toolchain.get('node_version_required', '')
+                
+                if node_req and node_req != 'any':
+                    print(f"Required Node version: {node_req}")
+                    
+                    # Check if nvm is available
+                    nvm_check = subprocess.run(
+                        ["bash", "-c", "command -v nvm"],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if nvm_check.returncode == 0 or Path.home().joinpath(".nvm").exists():
+                        print(f"{BLUE}Attempting to install and switch to Node {node_req} using nvm{NC}")
+                        
+                        # Extract version number (e.g., ">=18.0.0" -> "18")
+                        import re
+                        version_match = re.search(r'(\d+)', node_req)
+                        if version_match:
+                            version = version_match.group(1)
+                            
+                            try:
+                                # Source nvm and install required version
+                                nvm_script = f"""
+                                export NVM_DIR="$HOME/.nvm"
+                                [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                                nvm install {version}
+                                nvm use {version}
+                                """
+                                
+                                result = subprocess.run(
+                                    ["bash", "-c", nvm_script],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=120
+                                )
+                                
+                                if result.returncode == 0:
+                                    print(f"{GREEN}✓ Node version {version} installed and activated{NC}")
+                                    return True
+                                else:
+                                    print(f"{RED}✗ Failed to install Node {version}{NC}")
+                                    print(f"Error: {result.stderr}")
+                                    return False
+                                    
+                            except subprocess.TimeoutExpired:
+                                print(f"{RED}✗ nvm install timed out{NC}")
+                                return False
+                            except Exception as e:
+                                print(f"{RED}Error using nvm: {e}{NC}")
+                                return False
+                    else:
+                        print(f"{YELLOW}nvm not found. Please install nvm first:{NC}")
+                        print("  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash")
+                        return False
+                        
+            except Exception as e:
+                print(f"{YELLOW}Could not read toolchain info: {e}{NC}")
+        
         print(f"{YELLOW}Manual action required: Update to required version{NC}")
         return False
     
@@ -290,6 +377,223 @@ Reply in JSON format:
         print(f"Diagnosis: {diagnosis['diagnosis']}")
         return False
     
+    
+    def _recover_missing_virtualenv(self, diagnosis: Dict) -> bool:
+        """Recover from missing or incomplete virtualenv (T4.2)."""
+        print(f"{BLUE}Recovery: Missing or incomplete virtualenv detected{NC}")
+        
+        venv_path = Path(".venv") if Path(".venv").exists() else Path("venv")
+        
+        # Check if venv exists
+        if not venv_path.exists():
+            print(f"Creating Python virtual environment at {venv_path}")
+            try:
+                subprocess.run(
+                    ["python3", "-m", "venv", str(venv_path)],
+                    check=True,
+                    timeout=60
+                )
+                print(f"{GREEN}✓ Virtual environment created{NC}")
+            except Exception as e:
+                print(f"{RED}Error creating virtualenv: {e}{NC}")
+                return False
+        
+        # Activate and install dependencies
+        print("Installing dependencies in virtualenv...")
+        activate_script = venv_path / "bin" / "activate"
+        
+        if not activate_script.exists():
+            print(f"{RED}Virtualenv appears corrupted, recreating...{NC}")
+            import shutil
+            shutil.rmtree(venv_path)
+            return self._recover_missing_virtualenv(diagnosis)  # Retry
+        
+        try:
+            # Install requirements
+            pip_path = venv_path / "bin" / "pip"
+            
+            if Path("requirements.txt").exists():
+                print("Installing from requirements.txt...")
+                subprocess.run(
+                    [str(pip_path), "install", "-r", "requirements.txt"],
+                    check=True,
+                    timeout=300
+                )
+            
+            if Path("pyproject.toml").exists():
+                print("Installing from pyproject.toml...")
+                subprocess.run(
+                    [str(pip_path), "install", "-e", "."],
+                    check=True,
+                    timeout=300
+                )
+            
+            print(f"{GREEN}✓ Dependencies installed successfully{NC}")
+            return True
+            
+        except subprocess.TimeoutExpired:
+            print(f"{RED}Installation timed out{NC}")
+            return False
+        except Exception as e:
+            print(f"{RED}Error installing dependencies: {e}{NC}")
+            return False
+    
+    def _recover_missing_seed_data(self, diagnosis: Dict) -> bool:
+        """Recover from missing seed data (T4.3)."""
+        print(f"{BLUE}Recovery: Missing seed data detected{NC}")
+        
+        # Try to find and run seed script
+        seed_scripts = [
+            ("python", ["python", "-m", "demo.seed"]),
+            ("python", ["python", "scripts/seed.py"]),
+            ("python", ["python", "seed.py"]),
+            ("bash", ["bash", "scripts/seed.sh"]),
+            ("bash", ["bash", "seed.sh"]),
+        ]
+        
+        # Check pyproject.toml for seed script
+        if Path("pyproject.toml").exists():
+            try:
+                # Try to parse pyproject.toml for seed script
+                # Use tomllib (Python 3.11+) or tomli (fallback)
+                try:
+                    import tomllib
+                    with open("pyproject.toml", "rb") as f:
+                        data = tomllib.load(f)
+                except ImportError:
+                    try:
+                        import tomli
+                        with open("pyproject.toml", "rb") as f:
+                            data = tomli.load(f)
+                    except ImportError:
+                        # No TOML parser available, skip
+                        data = {}
+                
+                scripts = data.get("project", {}).get("scripts", {})
+                if "seed" in scripts:
+                    seed_cmd = scripts["seed"]
+                    print(f"Found seed command in pyproject.toml: {seed_cmd}")
+                    seed_scripts.insert(0, ("python", seed_cmd.split()))
+            except Exception:
+                pass
+        
+        for script_type, cmd in seed_scripts:
+            # Check if script exists
+            if script_type == "python":
+                script_path = cmd[-1].replace("-m", "").replace(".", "/") + ".py"
+                if not Path(script_path).exists() and not cmd[1] == "-m":
+                    continue
+            elif script_type == "bash":
+                if not Path(cmd[-1]).exists():
+                    continue
+            
+            print(f"Attempting to run seed script: {' '.join(cmd)}")
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                
+                if result.returncode == 0:
+                    print(f"{GREEN}✓ Seed data populated successfully{NC}")
+                    return True
+                else:
+                    print(f"{YELLOW}Seed script failed: {result.stderr[:200]}{NC}")
+                    
+            except FileNotFoundError:
+                continue
+            except subprocess.TimeoutExpired:
+                print(f"{RED}Seed script timed out{NC}")
+                return False
+            except Exception as e:
+                print(f"{YELLOW}Error running seed script: {e}{NC}")
+                continue
+        
+        print(f"{YELLOW}No seed script found or all attempts failed{NC}")
+        print(f"{YELLOW}Manual action required: Populate seed data{NC}")
+        return False
+    
+    def _recover_database_not_running(self, diagnosis: Dict) -> bool:
+        """Recover from database not running (T4.4)."""
+        print(f"{BLUE}Recovery: Database not running detected{NC}")
+        
+        # Check for docker-compose
+        compose_file = None
+        if Path("docker-compose.yml").exists():
+            compose_file = "docker-compose.yml"
+        elif Path("docker-compose.yaml").exists():
+            compose_file = "docker-compose.yaml"
+        
+        if not compose_file:
+            print(f"{YELLOW}No docker-compose file found{NC}")
+            print(f"{YELLOW}Manual action required: Start database service{NC}")
+            return False
+        
+        print(f"Found {compose_file}, attempting to start database service...")
+        
+        # Try to identify database service name
+        db_services = []
+        try:
+            with open(compose_file, 'r') as f:
+                content = f.read().lower()
+                if 'postgres' in content:
+                    db_services.append('postgres')
+                if 'mysql' in content:
+                    db_services.append('mysql')
+                if 'mongodb' in content or 'mongo:' in content:
+                    db_services.append('mongo')
+                if 'db:' in content:
+                    db_services.append('db')
+                if 'database:' in content:
+                    db_services.append('database')
+        except Exception as e:
+            print(f"{YELLOW}Could not parse docker-compose file: {e}{NC}")
+        
+        if not db_services:
+            # Try to start all services
+            print("Starting all docker-compose services...")
+            db_services = ['']  # Empty string means all services
+        
+        for service in db_services:
+            try:
+                cmd = ["docker", "compose", "up", "-d"]
+                if service:
+                    cmd.append(service)
+                    print(f"Starting service: {service}")
+                
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                
+                if result.returncode == 0:
+                    print(f"{GREEN}✓ Docker Compose services started{NC}")
+                    
+                    # Wait for database to be ready
+                    print("Waiting for database to be ready (10 seconds)...")
+                    time.sleep(10)
+                    
+                    # Try to verify database is reachable
+                    # This is a simple check - actual health check is in bootstrap
+                    print(f"{GREEN}✓ Database should now be accessible{NC}")
+                    return True
+                else:
+                    print(f"{YELLOW}docker compose up failed: {result.stderr[:200]}{NC}")
+                    
+            except subprocess.TimeoutExpired:
+                print(f"{RED}docker compose up timed out{NC}")
+                return False
+            except Exception as e:
+                print(f"{YELLOW}Error starting docker compose: {e}{NC}")
+                continue
+        
+        print(f"{YELLOW}Failed to start database service{NC}")
+        print(f"{YELLOW}Manual action required: Start database manually{NC}")
+        return False
     def orchestrate(self) -> int:
         """Main orchestration loop."""
         print(f"{CYAN}╔═══════════════════════════════════════════════════════╗{NC}")
