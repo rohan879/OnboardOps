@@ -114,6 +114,15 @@ class CardEmit(BaseEvent):
     data: Dict[str, Any]  # Structured data for visualization
 
 
+class QuestionAsk(BaseEvent):
+    """Event emitted when Bob asks a Socratic validation question"""
+
+    event_type: Literal["question_ask"] = "question_ask"
+    stage: str
+    question: str
+    expected_answer_hint: Optional[str] = None
+
+
 # ============================================================================
 # Certification Events
 # ============================================================================
@@ -167,6 +176,7 @@ EventType = Union[
     CheckpointCreate,
     CheckpointRestore,
     CardEmit,
+    QuestionAsk,
     CertificationGrade,
     SessionStart,
     SessionEnd,

@@ -11,6 +11,16 @@ export default function Home() {
   const [showEventStream, setShowEventStream] = useState(false);
   const { isConnected } = useEvents();
   const connectionState = useEventsStore((state) => state.connectionState);
+  const events = useEventsStore((state) => state.events);
+  const cards = events.filter((event) => event.type === 'card_emit');
+  const cardByType = new Map(cards.map((event) => [event.data.card_type, event]));
+
+  const steps = [
+    { type: 'dependency_graph', label: 'Dependency Graph' },
+    { type: 'entry_points', label: 'Entry Points' },
+    { type: 'hotspots', label: 'Change Hotspots' },
+    { type: 'conventions', label: 'Conventions' },
+  ];
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -32,19 +42,32 @@ export default function Home() {
         {/* Main Panel - 4-card stepper */}
         <main className="flex-1 p-6">
           <div className="grid grid-cols-4 gap-4 mb-6">
-            {[1, 2, 3, 4].map((step) => (
+            {steps.map((step, index) => {
+              const card = cardByType.get(step.type);
+
+              return (
               <div
-                key={step}
-                className="bg-ibm-gray-10 rounded-lg p-6 border-2 border-transparent hover:border-ibm-blue-60 transition-colors"
+                key={step.type}
+                className={`rounded-lg p-6 border-2 transition-colors ${
+                  card
+                    ? 'bg-white border-ibm-blue-60 shadow-sm'
+                    : 'bg-ibm-gray-10 border-transparent'
+                }`}
               >
                 <div className="text-sm font-semibold text-ibm-gray-70 mb-2">
-                  Step {step}
+                  Step {index + 1}
                 </div>
-                <div className="text-xs text-ibm-gray-70">
-                  Placeholder card
+                <h3 className="text-base font-semibold text-ibm-gray-100 mb-2">
+                  {String(card?.data.title || step.label)}
+                </h3>
+                <div className="text-xs text-ibm-gray-70 line-clamp-4">
+                  {card
+                    ? String(card.data.body_markdown || JSON.stringify(card.data.data).slice(0, 160))
+                    : 'Waiting for card event'}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           
           <div className="bg-ibm-gray-10 rounded-lg p-6">

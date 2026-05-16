@@ -51,11 +51,14 @@ export function useEvents() {
   useEffect(() => {
     if (lastMessage !== null) {
       try {
-        const event = JSON.parse(lastMessage.data);
+        const message = JSON.parse(lastMessage.data);
+        const event = message.event || message;
         addEvent({
-          id: event.id || crypto.randomUUID(),
-          type: event.type || 'unknown',
-          timestamp: event.timestamp || new Date().toISOString(),
+          id: event.event_id || event.id || crypto.randomUUID(),
+          type: event.event_type || event.type || 'unknown',
+          timestamp: event.timestamp
+            ? new Date(event.timestamp * 1000).toISOString()
+            : new Date().toISOString(),
           data: event,
         });
       } catch (error) {

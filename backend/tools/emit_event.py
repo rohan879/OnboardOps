@@ -14,6 +14,7 @@ from ws.events import (
     CheckpointCreate,
     CheckpointRestore,
     CardEmit,
+    QuestionAsk,
     CertificationGrade,
     SessionStart,
     SessionEnd,
@@ -90,6 +91,8 @@ async def emit_event(input_data: EmitEventInput) -> EmitEventOutput:
             event = CheckpointRestore(**input_data.event_data)
         elif input_data.event_type == "card_emit":
             event = CardEmit(**input_data.event_data)
+        elif input_data.event_type == "question_ask":
+            event = QuestionAsk(**input_data.event_data)
         elif input_data.event_type == "certification_grade":
             event = CertificationGrade(**input_data.event_data)
         elif input_data.event_type == "session_start":
@@ -101,6 +104,7 @@ async def emit_event(input_data: EmitEventInput) -> EmitEventOutput:
                 success=False,
                 event_id="",
                 message=f"Unknown event type: {input_data.event_type}",
+                session_id=session_id,
             )
 
         # Broadcast the event to the session
