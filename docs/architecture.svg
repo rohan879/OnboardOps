@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <!-- IBM Design System Colors -->
+  <defs>
+    <style>
+      .ibm-blue { fill: #0F62FE; }
+      .ibm-blue-light { fill: #4589FF; }
+      .ibm-gray-100 { fill: #161616; }
+      .ibm-gray-80 { fill: #393939; }
+      .ibm-gray-20 { fill: #E0E0E0; }
+      .ibm-white { fill: #FFFFFF; }
+      .ibm-green { fill: #24A148; }
+      .ibm-purple { fill: #8A3FFC; }
+      .ibm-orange { fill: #FF832B; }
+      
+      .title-text { font-family: 'IBM Plex Sans', sans-serif; font-size: 32px; font-weight: 600; fill: #161616; }
+      .subtitle-text { font-family: 'IBM Plex Sans', sans-serif; font-size: 16px; fill: #6F6F6F; }
+      .component-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 18px; font-weight: 600; fill: #FFFFFF; }
+      .component-text { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; fill: #FFFFFF; }
+      .label-text { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; fill: #161616; }
+      .small-text { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; fill: #6F6F6F; }
+      
+      .arrow { stroke: #0F62FE; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .arrow-bidirectional { stroke: #0F62FE; stroke-width: 2; fill: none; marker-end: url(#arrowhead); marker-start: url(#arrowhead-reverse); }
+      .arrow-ws { stroke: #8A3FFC; stroke-width: 2; fill: none; marker-end: url(#arrowhead-purple); stroke-dasharray: 5,5; }
+      .arrow-mcp { stroke: #24A148; stroke-width: 2; fill: none; marker-end: url(#arrowhead-green); }
+    </style>
+    
+    <!-- Arrow markers -->
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#0F62FE" />
+    </marker>
+    <marker id="arrowhead-reverse" markerWidth="10" markerHeight="10" refX="1" refY="3" orient="auto">
+      <polygon points="10 0, 0 3, 10 6" fill="#0F62FE" />
+    </marker>
+    <marker id="arrowhead-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#8A3FFC" />
+    </marker>
+    <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#24A148" />
+    </marker>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#F4F4F4"/>
+  
+  <!-- Title -->
+  <text x="600" y="40" text-anchor="middle" class="title-text">OnboardOps Architecture</text>
+  <text x="600" y="65" text-anchor="middle" class="subtitle-text">The 10-Minute Repo Whisperer — Built with IBM Bob IDE</text>
+  
+  <!-- ========== BOB IDE (Center) ========== -->
+  <g id="bob-ide">
+    <rect x="450" y="150" width="300" height="280" rx="8" class="ibm-blue" opacity="0.95"/>
+    <text x="600" y="180" text-anchor="middle" class="component-title">IBM Bob IDE</text>
+    
+    <!-- Custom Mode -->
+    <rect x="470" y="200" width="260" height="60" rx="4" class="ibm-blue-light"/>
+    <text x="600" y="225" text-anchor="middle" class="component-text" font-weight="600">/onboard Mode</text>
+    <text x="600" y="245" text-anchor="middle" class="component-text" font-size="11">Socratic onboarding guide</text>
+    
+    <!-- Skills -->
+    <rect x="470" y="275" width="125" height="70" rx="4" class="ibm-gray-80"/>
+    <text x="532" y="300" text-anchor="middle" class="component-text" font-size="12">Repo Cartography</text>
+    <text x="532" y="318" text-anchor="middle" class="small-text" fill="#E0E0E0">4 stages:</text>
+    <text x="532" y="332" text-anchor="middle" class="small-text" fill="#E0E0E0">• Dependencies</text>
+    <text x="532" y="343" text-anchor="middle" class="small-text" fill="#E0E0E0">• Entry Points</text>
+    
+    <rect x="605" y="275" width="125" height="70" rx="4" class="ibm-gray-80"/>
+    <text x="667" y="300" text-anchor="middle" class="component-text" font-size="12">Certification</text>
+    <text x="667" y="318" text-anchor="middle" class="small-text" fill="#E0E0E0">12 questions</text>
+    <text x="667" y="332" text-anchor="middle" class="small-text" fill="#E0E0E0">Socratic grading</text>
+    
+    <!-- MCP Binding -->
+    <rect x="470" y="360" width="260" height="50" rx="4" class="ibm-green" opacity="0.9"/>
+    <text x="600" y="382" text-anchor="middle" class="component-text">MCP Client</text>
+    <text x="600" y="400" text-anchor="middle" class="component-text" font-size="11">.bob/mcp.json binding</text>
+  </g>
+  
+  <!-- ========== Backend (Left) ========== -->
+  <g id="backend">
+    <rect x="50" y="250" width="320" height="380" rx="8" class="ibm-gray-100" opacity="0.95"/>
+    <text x="210" y="280" text-anchor="middle" class="component-title">Backend (FastAPI)</text>
+    <text x="210" y="300" text-anchor="middle" class="small-text" fill="#E0E0E0">localhost:8765</text>
+    
+    <!-- MCP Server -->
+    <rect x="70" y="320" width="280" height="140" rx="4" class="ibm-green" opacity="0.9"/>
+    <text x="210" y="345" text-anchor="middle" class="component-text">Institutional Knowledge MCP Server</text>
+    <text x="210" y="365" text-anchor="middle" class="component-text" font-size="11">7 Git Analysis Tools:</text>
+    
+    <text x="90" y="385" class="component-text" font-size="10">• git_blame_summary</text>
+    <text x="90" y="400" class="component-text" font-size="10">• commit_frequency</text>
+    <text x="90" y="415" class="component-text" font-size="10">• recent_authors</text>
+    <text x="90" y="430" class="component-text" font-size="10">• pr_for_file</text>
+    
+    <text x="230" y="385" class="component-text" font-size="10">• file_changelog</text>
+    <text x="230" y="400" class="component-text" font-size="10">• rationale_for_commit</text>
+    <text x="230" y="415" class="component-text" font-size="10">• incident_for_file</text>
+    <text x="230" y="435" class="component-text" font-size="9">p95 latency: 290-720ms</text>
+    
+    <!-- WebSocket Bridge -->
+    <rect x="70" y="475" width="280" height="70" rx="4" class="ibm-purple" opacity="0.9"/>
+    <text x="210" y="500" text-anchor="middle" class="component-text">WebSocket Event Bridge</text>
+    <text x="210" y="518" text-anchor="middle" class="component-text" font-size="11">Real-time event streaming</text>
+    <text x="210" y="533" text-anchor="middle" class="component-text" font-size="10">ws://localhost:8765/events</text>
+    
+    <!-- GitHub Integration -->
+    <rect x="70" y="560" width="280" height="50" rx="4" class="ibm-gray-80"/>
+    <text x="210" y="582" text-anchor="middle" class="component-text">GitHub Integration</text>
+    <text x="210" y="600" text-anchor="middle" class="component-text" font-size="10">GitPython + GitHub API</text>
+  </g>
+  
+  <!-- ========== Frontend (Right) ========== -->
+  <g id="frontend">
+    <rect x="830" y="250" width="320" height="380" rx="8" class="ibm-gray-100" opacity="0.95"/>
+    <text x="990" y="280" text-anchor="middle" class="component-title">Frontend (Next.js 14)</text>
+    <text x="990" y="300" text-anchor="middle" class="small-text" fill="#E0E0E0">localhost:3000</text>
+    
+    <!-- Dashboard -->
+    <rect x="850" y="320" width="280" height="100" rx="4" class="ibm-blue-light" opacity="0.9"/>
+    <text x="990" y="345" text-anchor="middle" class="component-text">Real-Time Dashboard</text>
+    <text x="990" y="365" text-anchor="middle" class="component-text" font-size="11">IBM Design System</text>
+    <text x="870" y="385" class="component-text" font-size="10">• Live stopwatch</text>
+    <text x="870" y="400" class="component-text" font-size="10">• 4-card stepper</text>
+    <text x="1010" y="385" class="component-text" font-size="10">• Event stream</text>
+    <text x="1010" y="400" class="component-text" font-size="10">• Certification panel</text>
+    
+    <!-- WebSocket Client -->
+    <rect x="850" y="435" width="280" height="60" rx="4" class="ibm-purple" opacity="0.9"/>
+    <text x="990" y="460" text-anchor="middle" class="component-text">WebSocket Client</text>
+    <text x="990" y="478" text-anchor="middle" class="component-text" font-size="10">Auto-reconnect with backoff</text>
+    
+    <!-- State Management -->
+    <rect x="850" y="510" width="135" height="50" rx="4" class="ibm-gray-80"/>
+    <text x="917" y="532" text-anchor="middle" class="component-text" font-size="11">Zustand Store</text>
+    <text x="917" y="548" text-anchor="middle" class="component-text" font-size="9">Event history</text>
+    
+    <rect x="995" y="510" width="135" height="50" rx="4" class="ibm-gray-80"/>
+    <text x="1062" y="532" text-anchor="middle" class="component-text" font-size="11">Framer Motion</text>
+    <text x="1062" y="548" text-anchor="middle" class="component-text" font-size="9">Card animations</text>
+    
+    <!-- Replay Mode -->
+    <rect x="850" y="575" width="280" height="40" rx="4" class="ibm-orange" opacity="0.9"/>
+    <text x="990" y="597" text-anchor="middle" class="component-text">Replay Mode (0 Bobcoins)</text>
+    <text x="990" y="610" text-anchor="middle" class="component-text" font-size="9">JSONL session playback</text>
+  </g>
+  
+  <!-- ========== Bootstrap Engine (Bottom Left) ========== -->
+  <g id="bootstrap">
+    <rect x="50" y="660" width="200" height="110" rx="8" class="ibm-orange" opacity="0.9"/>
+    <text x="150" y="685" text-anchor="middle" class="component-title">Bootstrap Engine</text>
+    <text x="150" y="705" text-anchor="middle" class="component-text" font-size="11">Auto-Recovery (5 patterns):</text>
+    <text x="70" y="725" class="component-text" font-size="10">• Port conflicts</text>
+    <text x="70" y="740" class="component-text" font-size="10">• Node version</text>
+    <text x="70" y="755" class="component-text" font-size="10">• Missing virtualenv</text>
+  </g>
+  
+  <!-- ========== Demo Repository (Bottom Center) ========== -->
+  <g id="demo-repo">
+    <rect x="280" y="660" width="200" height="110" rx="8" class="ibm-gray-80" opacity="0.95"/>
+    <text x="380" y="685" text-anchor="middle" class="component-title">Demo Repository</text>
+    <text x="380" y="705" text-anchor="middle" class="component-text" font-size="11">Target codebase</text>
+    <text x="300" y="725" class="component-text" font-size="10">• Forked repo</text>
+    <text x="300" y="740" class="component-text" font-size="10">• Git history</text>
+    <text x="300" y="755" class="component-text" font-size="10">• Test suite</text>
+  </g>
+  
+  <!-- ========== Starter PR Generator (Bottom Right) ========== -->
+  <g id="starter-pr">
+    <rect x="950" y="660" width="200" height="110" rx="8" class="ibm-green" opacity="0.9"/>
+    <text x="1050" y="685" text-anchor="middle" class="component-title">Starter PR (F7)</text>
+    <text x="1050" y="705" text-anchor="middle" class="component-text" font-size="11">Bob-driven generation:</text>
+    <text x="970" y="725" class="component-text" font-size="10">• Code + tests</text>
+    <text x="970" y="740" class="component-text" font-size="10">• Test verification</text>
+    <text x="970" y="755" class="component-text" font-size="10">• PR with timestamp</text>
+  </g>
+  
+  <!-- ========== AGENTS.md Generator (Bottom Far Right) ========== -->
+  <g id="agents-md">
+    <rect x="720" y="660" width="200" height="110" rx="8" class="ibm-blue-light" opacity="0.9"/>
+    <text x="820" y="685" text-anchor="middle" class="component-title">AGENTS.md (F8)</text>
+    <text x="820" y="705" text-anchor="middle" class="component-text" font-size="11">Personalized artifact:</text>
+    <text x="740" y="725" class="component-text" font-size="10">• Cartography summary</text>
+    <text x="740" y="740" class="component-text" font-size="10">• Conventions</text>
+    <text x="740" y="755" class="component-text" font-size="10">• SME identification</text>
+  </g>
+  
+  <!-- ========== Arrows and Data Flow ========== -->
+  
+  <!-- Bob to Backend (MCP) -->
+  <path d="M 450 390 L 370 390" class="arrow-mcp"/>
+  <text x="410" y="385" class="label-text">MCP Protocol</text>
+  <text x="410" y="400" class="small-text">(7 tools)</text>
+  
+  <!-- Backend to Frontend (WebSocket) -->
+  <path d="M 370 510 L 830 510" class="arrow-ws"/>
+  <text x="600" y="505" class="label-text">WebSocket Events</text>
+  <text x="600" y="520" class="small-text">(real-time streaming)</text>
+  
+  <!-- Bob to Frontend (User) -->
+  <path d="M 750 300 L 830 300" class="arrow"/>
+  <text x="780" y="295" class="label-text">User</text>
+  <text x="780" y="310" class="small-text">interaction</text>
+  
+  <!-- Backend to Demo Repo -->
+  <path d="M 210 630 L 320 660" class="arrow"/>
+  <text x="250" y="645" class="small-text">Git analysis</text>
+  
+  <!-- Bootstrap to Demo Repo -->
+  <path d="M 250 715 L 280 715" class="arrow"/>
+  <text x="260" y="710" class="small-text">Setup</text>
+  
+  <!-- Bob to Starter PR -->
+  <path d="M 700 430 Q 850 550 950 715" class="arrow"/>
+  <text x="800" y="580" class="small-text">Generate PR</text>
+  
+  <!-- Bob to AGENTS.md -->
+  <path d="M 650 430 Q 700 550 720 715" class="arrow"/>
+  <text x="680" y="580" class="small-text">Build artifact</text>
+  
+  <!-- Legend -->
+  <g id="legend">
+    <rect x="500" y="660" width="190" height="110" rx="4" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="1"/>
+    <text x="595" y="680" text-anchor="middle" class="label-text" font-weight="600">Data Flow Legend</text>
+    
+    <line x1="515" y1="695" x2="545" y2="695" class="arrow-mcp"/>
+    <text x="555" y="700" class="small-text">MCP Protocol</text>
+    
+    <line x1="515" y1="715" x2="545" y2="715" class="arrow-ws"/>
+    <text x="555" y="720" class="small-text">WebSocket</text>
+    
+    <line x1="515" y1="735" x2="545" y2="735" class="arrow"/>
+    <text x="555" y="740" class="small-text">HTTP / User Action</text>
+    
+    <text x="595" y="760" text-anchor="middle" class="small-text" font-style="italic">Bob IDE orchestrates all flows</text>
+  </g>
+  
+  <!-- Footer -->
+  <text x="600" y="790" text-anchor="middle" class="small-text">OnboardOps — Built for IBM Bob Hackathon 2026 — MIT License</text>
+</svg>
+
+<!-- Made with Bob -->

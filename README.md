@@ -179,7 +179,7 @@ This will:
 
 ## Architecture
 
-![Architecture Diagram](docs/architecture.png)
+![Architecture Diagram](docs/architecture.svg)
 
 ### Components
 
