@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, AlertCircle, Award, Sparkles } from 'lucide-react';
+import { gradeAnimations, celebrationVariants } from '@/lib/animations';
 
 export interface CertificationQuestion {
   id: string;
@@ -73,11 +74,48 @@ export default function CertificationPanel({
       fail: 'Fail',
     };
 
+    // Enhanced animations per grade type
+    const animations = {
+      pass: {
+        initial: { scale: 0, opacity: 0 },
+        animate: {
+          scale: [0, 1.1, 1],
+          opacity: 1,
+          boxShadow: [
+            '0 0 0px rgba(36, 161, 72, 0)',
+            '0 0 20px rgba(36, 161, 72, 0.4)',
+            '0 0 0px rgba(36, 161, 72, 0)',
+          ],
+        },
+        transition: { duration: 0.5, times: [0, 0.7, 1] },
+      },
+      partial: {
+        initial: { scale: 0, opacity: 0, rotate: -10 },
+        animate: {
+          scale: [1, 1.05, 1],
+          opacity: 1,
+          rotate: 0,
+        },
+        transition: { type: 'spring' as const, stiffness: 300, damping: 15 },
+      },
+      fail: {
+        initial: { scale: 0, opacity: 0 },
+        animate: {
+          scale: 1,
+          opacity: 1,
+          x: [-4, 4, -4, 4, 0],
+        },
+        transition: { duration: 0.4 },
+      },
+    };
+
+    const anim = animations[grade];
+
     return (
       <motion.div
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+        initial={anim.initial}
+        animate={anim.animate}
+        transition={anim.transition}
         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-sm font-medium ${styles[grade]}`}
       >
         {getGradeIcon(grade)}
@@ -207,10 +245,10 @@ export default function CertificationPanel({
             className="absolute inset-0 bg-[#24A148]/5 backdrop-blur-sm flex items-center justify-center pointer-events-none"
           >
             <motion.div
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              exit={{ scale: 0, rotate: 180 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+              variants={celebrationVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
               className="bg-white rounded-2xl shadow-2xl px-8 py-6 border-2 border-[#24A148]"
             >
               <div className="flex flex-col items-center gap-3">
