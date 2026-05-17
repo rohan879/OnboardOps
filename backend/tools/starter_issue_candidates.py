@@ -124,7 +124,7 @@ def starter_issue_candidates(
     ranked first, then recency breaks ties.
     """
     owner, repo = extract_repo_info(
-        input_data.repository_url or input_data.repository
+        input_data.repository or input_data.repository_url
     )
     repository = f"{owner}/{repo}"
     preferred_labels = [label.strip().lower() for label in input_data.labels if label]

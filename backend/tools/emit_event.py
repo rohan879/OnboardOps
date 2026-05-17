@@ -32,7 +32,11 @@ class EmitEventInput(BaseModel):
     event_type: str = Field(..., description="Type of event to emit")
     event_data: Dict[str, Any] = Field(..., description="Event data payload")
     session_id: Optional[str] = Field(
-        None, description="Session ID for routing (auto-generated if not provided)"
+        None,
+        description=(
+            "Session ID for routing. Use the value returned by session_start; "
+            "non-start events fall back to the latest active session if omitted."
+        ),
     )
 
 
@@ -60,15 +64,38 @@ async def emit_event(input_data: EmitEventInput) -> EmitEventOutput:
     The event is validated, wrapped in an envelope, and broadcast to all
     WebSocket clients subscribed to the session.
 
-    If no session_id is provided, a new session is created automatically.
+    If no session_id is provided, session_start creates a fresh session. Later
+    events attach to the most recently active session, or to the active
+    WebSocket subscription after a backend restart, so Bob can recover when it
+    forgets to pass the returned session_id.
     """
     try:
         # Handle session creation/retrieval
         session_id = input_data.session_id
         if session_id is None:
-            # Create a new session
-            session_id = await session_manager.create_session()
-            print(f"[EMIT_EVENT] Created new session: {session_id}")
+            if input_data.event_type == "session_start":
+                # Session starts are explicit boundaries and should not reuse
+                # an older dashboard session.
+                session_id = await session_manager.create_session()
+                print(f"[EMIT_EVENT] Created new session: {session_id}")
+            else:
+                # Compatibility fallback for Bob calls that omit session_id
+                # after session_start. Without this, scoped WebSockets miss
+                # cartography cards because every card gets a new session.
+                session_id = await session_manager.get_latest_active_session_id()
+                if session_id is None:
+                    session_id = await manager.get_latest_session_id()
+                    if session_id is None:
+                        session_id = await session_manager.create_session()
+                        print(f"[EMIT_EVENT] Created fallback session: {session_id}")
+                    else:
+                        await session_manager.create_session(session_id)
+                        print(
+                            "[EMIT_EVENT] Recovered session from WebSocket: "
+                            f"{session_id}"
+                        )
+                else:
+                    print(f"[EMIT_EVENT] Reusing active session: {session_id}")
         else:
             # Touch existing session to update activity
             session_exists = await session_manager.touch_session(session_id)
@@ -76,6 +103,15 @@ async def emit_event(input_data: EmitEventInput) -> EmitEventOutput:
                 # Session expired or doesn't exist, create it
                 session_id = await session_manager.create_session(session_id)
                 print(f"[EMIT_EVENT] Recreated expired session: {session_id}")
+
+        if input_data.event_type == "session_start":
+            await session_manager.update_session_metadata(
+                session_id,
+                {
+                    "repository_url": input_data.event_data.get("repository_url"),
+                    "onboardee_name": input_data.event_data.get("onboardee_name"),
+                },
+            )
 
         # Parse the event based on event_type
         event: EventType

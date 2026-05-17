@@ -69,21 +69,18 @@ class DashboardAnswerManager:
         try:
             await asyncio.wait_for(waiter.wait(), timeout=timeout_seconds)
         except TimeoutError:
-            async with self._lock:
-                for record in self._answers.values():
-                    if record.question_id == question_id:
-                        return record
             return None
 
         async with self._lock:
-            return self._answers.get(key) or next(
-                (
-                    record
-                    for record in self._answers.values()
-                    if record.question_id == question_id
-                ),
-                None,
-            )
+            return self._answers.get(key)
+
+    async def clear(self) -> None:
+        """Clear stored answers and wake pending waiters during tests or resets."""
+        async with self._lock:
+            for waiter in self._waiters.values():
+                waiter.set()
+            self._answers.clear()
+            self._waiters.clear()
 
 
 dashboard_answer_manager = DashboardAnswerManager()

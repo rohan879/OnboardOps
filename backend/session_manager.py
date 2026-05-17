@@ -136,6 +136,63 @@ class SessionManager:
             return True
         return False
 
+    async def get_latest_active_session_id(self) -> Optional[str]:
+        """
+        Return the most recently active non-expired session ID.
+
+        This is a compatibility fallback for Bob tool calls that omit
+        session_id after a session_start event has already created the
+        dashboard session.
+        """
+        async with self._lock:
+            latest_session: Optional[Session] = None
+            expired: list[str] = []
+
+            for session_id, session in self.sessions.items():
+                if session.is_expired(self.timeout_minutes):
+                    expired.append(session_id)
+                    continue
+
+                if (
+                    latest_session is None
+                    or session.last_activity > latest_session.last_activity
+                ):
+                    latest_session = session
+
+            for session_id in expired:
+                del self.sessions[session_id]
+                log_fn = get_logger()
+                if log_fn:
+                    log_fn("session_expired", session_id)
+
+            if latest_session is None:
+                return None
+
+            latest_session.touch()
+            return latest_session.session_id
+
+    async def update_session_metadata(
+        self, session_id: str, metadata: Dict[str, Any]
+    ) -> bool:
+        """Merge metadata into an active session."""
+        session = await self.get_session(session_id)
+        if not session:
+            return False
+
+        session.metadata.update(
+            {key: value for key, value in metadata.items() if value is not None}
+        )
+        session.touch()
+        return True
+
+    async def get_session_metadata(self, session_id: str) -> Dict[str, Any]:
+        """Return a shallow copy of session metadata."""
+        session = await self.get_session(session_id)
+        if not session:
+            return {}
+
+        return dict(session.metadata)
+
     async def close_session(self, session_id: str):
         """Explicitly close a session and invalidate its cache"""
         async with self._lock:

@@ -131,13 +131,16 @@ Call `emit_event` at each substep:
    `status`, `total_duration_ms`, `total_bobcoins_spent`, and `pr_url` when
    available. When no PR URL exists yet, also include
    `starter_task_proposed`, `starter_task_file`, `starter_task_description`,
-   and `starter_task_commit_message` so the dashboard can show the suggested
-   first contribution instead of a zero-issue empty state.
+   `starter_task_commit_message`, `starter_task_line_count`,
+   `starter_task_files_touched`, `starter_task_safety_score`, and
+   `starter_task_safety_reasons` so the dashboard can show the suggested
+   first contribution and its beginner-safety profile instead of a zero-issue
+   empty state.
 
 If GitHub credentials, API quota, or PR creation are unavailable, emit
 `session_end` with `status: "completed"`, `pr_url: null`, and the structured
-starter task fields after presenting the local diff or the exact manual issue
-URL. Never finish this skill without a `session_end` event.
+starter task plus safety fields after presenting the local diff or the exact
+manual issue URL. Never finish this skill without a `session_end` event.
 
 ## Output Format
 

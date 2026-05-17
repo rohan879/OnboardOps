@@ -55,6 +55,6 @@ make test                  # Run all tests
 ## Critical Gotchas
 
 1. **Port 8765 must be free**: Backend MCP server fails silently if port in use - check with `lsof -i :8765`
-2. **Session IDs auto-create**: [`emit_event`](../../backend/tools/emit_event.py:66-77) creates session if None - Bob doesn't manage this
+2. **Session IDs must propagate**: [`emit_event`](../../backend/tools/emit_event.py:66-92) creates a fresh `session_start`; reuse that returned ID for every later dashboard event
 3. **SIGHUP reloads allowlist**: [`allowlist_manager.py`](../../backend/allowlist_manager.py:52-55) hot-reloads on SIGHUP (Unix only) - no restart needed
 4. **Makefile targets are stubs**: Many targets warn if files missing - not all features implemented yet

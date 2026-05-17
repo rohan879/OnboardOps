@@ -17,6 +17,8 @@ Load these rules once per session (Phase 4 T1.6 compression):
 - `.bob/rules/remediation-templates.md` - Pre-written remediation text
 
 Keep all chat output terse. Emit dashboard data through the `emit_event` MCP tool.
+Use the `session_id` returned by the initial `session_start` event on every
+cartography `card_emit` and `question_ask` call.
 
 ## Output Validation and Safety Rails (Phase 4 T1.5)
 
@@ -39,6 +41,7 @@ When calling `emit_event`, use this exact structure:
 ```json
 {
   "event_type": "card_emit",
+  "session_id": "<session_id from session_start>",
   "event_data": {
     "card_type": "dependency_graph",
     "title": "Dependency Graph",
@@ -71,6 +74,7 @@ If the MCP server or dashboard reports a parse error:
    
    {
      "event_type": "card_emit",
+     "session_id": "<session_id from session_start>",
      "event_data": {
        "card_type": "[TYPE]",
        "title": "[TITLE]",
@@ -286,13 +290,16 @@ Only the `institutional-knowledge` MCP server is configured. Do not call a
 the MCP server is unavailable; `commit_frequency` is the primary source of git
 history.
 
-1. Call `commit_frequency` MCP tool with no file_path (repo-wide) and days=180.
+1. Call `commit_frequency` MCP tool with no file_path (repo-wide), days=180,
+   and the active `session_id`. If you know the repository URL or `owner/repo`,
+   include it as `repository` so the backend can use GitHub history when no
+   local repo path is configured.
    This returns the top 5 most frequently changed files.
    **Error handling**: If tool fails or returns empty, retry once. If retry fails,
    emit placeholder card (see Error Handling section below) and continue to Stage 4.
-   If the error says `ONBOARDOPS_DEMO_REPO_PATH` is missing, ask the user to set
-   it to the local clone and retry; do not switch to a nonexistent GitHub MCP
-   server.
+   If the error says `ONBOARDOPS_DEMO_REPO_PATH` is missing and no repository URL
+   is available, ask the user to set it to the local clone and retry; do not
+   switch to a nonexistent GitHub MCP server.
 2. For the top 5 files only (reduced from 10 for efficiency):
    - Call `recent_authors` with the file_path to get top contributors
    - Call `pr_for_file` with the file_path and limit=1 (only most recent PR)

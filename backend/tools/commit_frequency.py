@@ -33,6 +33,21 @@ GITHUB_API_BASE = "https://api.github.com"
 GIT_LOG_TIMEOUT_SECONDS = 25
 GIT_LOG_MAX_COMMITS = 5000
 GIT_LOG_MARKER = "__ONBOARDOPS_COMMIT__"
+BOT_AUTHOR_MARKERS = ("[bot]", "bot@", "github-actions", "dependabot", "renovate")
+
+
+def _is_bot_author(author: str | None) -> bool:
+    if not author:
+        return False
+
+    normalized = author.strip().lower()
+    return any(marker in normalized for marker in BOT_AUTHOR_MARKERS)
+
+
+def _ranked_human_authors(author_counts: dict[str, int]) -> list[str]:
+    ranked = sorted(author_counts.items(), key=lambda item: item[1], reverse=True)
+    humans = [author for author, _count in ranked if not _is_bot_author(author)]
+    return humans or [author for author, _count in ranked]
 
 
 def _commit_buckets(commits, cutoff_date: datetime, days: int, bucket_count: int = 12):
@@ -74,6 +89,8 @@ def _run_git_log(
     """Read recent file activity with one native git process."""
     command = [
         "git",
+        "-c",
+        f"safe.directory={repo_path}",
         "-C",
         repo_path,
         "log",
@@ -108,7 +125,7 @@ def _run_git_log(
         if line.startswith(GIT_LOG_MARKER):
             total_commits += 1
             parts = line.split("\x1f")
-            current_author = parts[3] if len(parts) > 3 and parts[3] else parts[2]
+            current_author = parts[2] if len(parts) > 2 and parts[2] else parts[3]
             timestamp = int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0
             current_date = (
                 datetime.fromtimestamp(timestamp) if timestamp else datetime.now()
@@ -116,10 +133,12 @@ def _run_git_log(
             continue
 
         file_activity = activity.setdefault(
-            line, {"count": 0, "authors": set(), "dates": []}
+            line, {"count": 0, "authors": set(), "author_counts": {}, "dates": []}
         )
         file_activity["count"] = int(file_activity["count"]) + 1
         file_activity["authors"].add(current_author)
+        author_counts = file_activity["author_counts"]
+        author_counts[current_author] = int(author_counts.get(current_author, 0)) + 1
         file_activity["dates"].append(current_date)
 
     return total_commits, activity
@@ -130,11 +149,14 @@ def _file_frequency_from_activity(
 ) -> FileCommitFrequency:
     dates = activity["dates"]
     authors = activity["authors"]
+    ranked_authors = _ranked_human_authors(activity.get("author_counts", {}))
 
     return FileCommitFrequency(
         file_path=file_path,
         commit_count=int(activity["count"]),
         distinct_authors=len(authors),
+        top_author=ranked_authors[0] if ranked_authors else None,
+        authors=ranked_authors[:5],
         first_commit=min(dates) if dates else datetime.now(),
         last_commit=max(dates) if dates else datetime.now(),
         commit_frequency=_date_buckets(dates, cutoff_date, days),
@@ -190,10 +212,18 @@ def _github_author_key(commit: dict) -> str:
     )
 
 
+def _repository_hint(input_data: CommitFrequencyInput) -> str | None:
+    return (
+        input_data.repository
+        or os.getenv("ONBOARDOPS_DEMO_REPO")
+        or os.getenv("NEXT_PUBLIC_REPOSITORY_URL")
+    )
+
+
 def _commit_frequency_from_github(
     input_data: CommitFrequencyInput,
 ) -> Union[CommitFrequencyOutput, MCPToolError]:
-    repo_info = _extract_repo_info(input_data.repository)
+    repo_info = _extract_repo_info(_repository_hint(input_data))
     if not repo_info:
         return repo_not_configured_error()
 
@@ -236,6 +266,14 @@ def _commit_frequency_from_github(
                     file_path=input_data.file_path,
                     commit_count=len(commits),
                     distinct_authors=len(authors),
+                    top_author=_ranked_human_authors(
+                        {author: 1 for author in authors}
+                    )[0]
+                    if authors
+                    else None,
+                    authors=_ranked_human_authors({author: 1 for author in authors})[
+                        :5
+                    ],
                     first_commit=first_commit,
                     last_commit=last_commit,
                     commit_frequency=_date_buckets(
@@ -267,11 +305,18 @@ def _commit_frequency_from_github(
 
                     activity = file_activity.setdefault(
                         file_path,
-                        {"dates": [], "authors": set(), "count": 0},
+                        {
+                            "dates": [],
+                            "authors": set(),
+                            "author_counts": {},
+                            "count": 0,
+                        },
                     )
                     activity["count"] = int(activity["count"]) + 1
                     activity["dates"].append(committed_at)
                     activity["authors"].add(author)
+                    author_counts = activity["author_counts"]
+                    author_counts[author] = int(author_counts.get(author, 0)) + 1
 
             files = []
             for file_path, activity in sorted(
@@ -281,11 +326,14 @@ def _commit_frequency_from_github(
             )[:5]:
                 dates = activity["dates"]
                 authors = activity["authors"]
+                ranked_authors = _ranked_human_authors(activity["author_counts"])
                 files.append(
                     FileCommitFrequency(
                         file_path=file_path,
                         commit_count=int(activity["count"]),
                         distinct_authors=len(authors),
+                        top_author=ranked_authors[0] if ranked_authors else None,
+                        authors=ranked_authors[:5],
                         first_commit=min(dates) if dates else datetime.now(),
                         last_commit=max(dates) if dates else datetime.now(),
                         commit_frequency=_date_buckets(
@@ -337,18 +385,26 @@ def commit_frequency(
     try:
         repo_path = get_repo_path(input_data.repo_path)
     except ValueError:
-        if input_data.repository:
+        if _repository_hint(input_data):
             return _commit_frequency_from_github(input_data)
         return repo_not_configured_error()
     except FileNotFoundError as e:
-        if input_data.repository:
+        if _repository_hint(input_data):
             return _commit_frequency_from_github(input_data)
         return unknown_error("get_repo_path", e)
 
     try:
         # Get current commit SHA for cache key
         current_sha = subprocess.run(
-            ["git", "-C", repo_path, "rev-parse", "HEAD"],
+            [
+                "git",
+                "-c",
+                f"safe.directory={repo_path}",
+                "-C",
+                repo_path,
+                "rev-parse",
+                "HEAD",
+            ],
             capture_output=True,
             text=True,
             timeout=5,
@@ -374,7 +430,7 @@ def commit_frequency(
 
             file_activity = activity.get(
                 input_data.file_path,
-                {"count": 0, "authors": set(), "dates": []},
+                {"count": 0, "authors": set(), "author_counts": {}, "dates": []},
             )
             files = [
                 _file_frequency_from_activity(

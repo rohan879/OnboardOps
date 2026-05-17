@@ -507,6 +507,74 @@ body {
   color: var(--text-2);
 }
 
+.provenance-pill {
+  border-left: 3px solid var(--border-3);
+  color: var(--text-3);
+  display: grid;
+  flex: 0 0 auto;
+  gap: 3px;
+  max-width: 260px;
+  padding-left: 12px;
+}
+
+.provenance-pill span {
+  color: var(--text-2);
+  font-size: 11px;
+  letter-spacing: 0.32px;
+  line-height: 14px;
+  text-transform: uppercase;
+}
+
+.provenance-pill code {
+  color: var(--cyan);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.provenance-pill small {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.team-knowledge-map {
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+  padding: 14px;
+}
+
+.team-knowledge-grid {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+.team-knowledge-grid > div {
+  background: var(--bg);
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.team-knowledge-grid strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.team-knowledge-grid span {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.team-knowledge-grid code {
+  color: var(--cyan);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .stopwatch-hero {
   align-items: flex-end;
   display: flex;
@@ -603,31 +671,34 @@ body {
   text-transform: uppercase;
 }
 
-.metric-blue svg {
-  color: var(--primary);
-}
-
-.metric-green svg {
-  color: var(--success);
-}
-
-.metric-cyan svg {
-  color: var(--cyan);
-}
-
-.metric-magenta svg {
-  color: var(--magenta);
+.metric-label svg {
+  color: var(--text-3);
 }
 
 .metric-status {
   align-items: center;
-  color: var(--success);
   display: flex;
   font-size: 12px;
   gap: 6px;
   letter-spacing: 0.32px;
   line-height: 16px;
   text-transform: uppercase;
+}
+
+.metric-status-blue {
+  color: var(--primary);
+}
+
+.metric-status-green {
+  color: var(--success);
+}
+
+.metric-status-cyan {
+  color: var(--cyan);
+}
+
+.metric-status-magenta {
+  color: var(--magenta);
 }
 
 .metric-value {
@@ -637,6 +708,22 @@ body {
   letter-spacing: 0;
   line-height: 1.04;
   margin-top: 12px;
+}
+
+.metric-tile-blue .metric-value {
+  color: var(--cyan);
+}
+
+.metric-tile-green .metric-value {
+  color: var(--success);
+}
+
+.metric-tile-cyan .metric-value {
+  color: var(--cyan);
+}
+
+.metric-tile-magenta .metric-value {
+  color: var(--magenta);
 }
 
 .metric-tile p {
@@ -1344,6 +1431,18 @@ body {
   border-left: 3px solid var(--danger);
 }
 
+.remediation-card {
+  background: var(--bg);
+  border-left: 3px solid var(--cyan);
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.remediation-card p {
+  color: var(--text-2);
+  margin: 6px 0 0;
+}
+
 .cert-nav {
   align-items: center;
   display: flex;
@@ -1471,6 +1570,43 @@ body {
   display: block;
   margin-top: 3px;
   overflow-wrap: anywhere;
+}
+
+.starter-safety {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.starter-safety > div {
+  background: var(--bg-1);
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+}
+
+.starter-safety span {
+  color: var(--text-3);
+  font-size: 11px;
+  letter-spacing: 0.32px;
+  line-height: 14px;
+  text-transform: uppercase;
+}
+
+.starter-safety strong {
+  color: var(--text);
+  font-family: var(--font-carbon-mono);
+  font-size: 12px;
+}
+
+.starter-safety-reasons {
+  color: var(--text-2);
+  margin: 0;
+  padding-left: 18px;
+}
+
+.starter-safety-reasons li {
+  margin: 3px 0;
 }
 
 .starter-suggestion a {
@@ -1640,7 +1776,8 @@ body {
   }
 
   .metric-grid,
-  .carbon-footer {
+  .carbon-footer,
+  .team-knowledge-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -1678,7 +1815,9 @@ body {
   .stage-rail,
   .convention-grid,
   .answer-grid,
-  .carbon-footer {
+  .carbon-footer,
+  .team-knowledge-grid,
+  .starter-safety {
     grid-template-columns: 1fr;
   }
 

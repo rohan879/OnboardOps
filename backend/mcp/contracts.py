@@ -71,6 +71,12 @@ class FileCommitFrequency(BaseModel):
     file_path: str
     commit_count: int
     distinct_authors: int
+    top_author: Optional[str] = Field(
+        None, description="Most active human author for ownership context"
+    )
+    authors: List[str] = Field(
+        default_factory=list, description="Recent human authors ranked by commits"
+    )
     first_commit: datetime
     last_commit: datetime
     commit_frequency: List[int] = Field(

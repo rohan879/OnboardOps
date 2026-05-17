@@ -385,7 +385,7 @@ def get_mcp_tools() -> List[MCPTool]:
         ),
         MCPTool(
             name="commit_frequency",
-            description="Get commit frequency statistics for files",
+            description="Get commit frequency statistics for files. Uses the active session repository when session_id is provided or omitted during an active session.",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -397,6 +397,14 @@ def get_mcp_tools() -> List[MCPTool]:
                         "type": "integer",
                         "description": "Number of days to look back",
                         "default": 180,
+                    },
+                    "repository": {
+                        "type": "string",
+                        "description": "Repository URL or owner/name fallback when ONBOARDOPS_DEMO_REPO_PATH is not set",
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Active onboarding session ID",
                     },
                 },
             },
@@ -494,7 +502,7 @@ def get_mcp_tools() -> List[MCPTool]:
         ),
         MCPTool(
             name="emit_event",
-            description="Emit a structured event to the WebSocket bridge for dashboard display, including cartography, certification, and bootstrap recovery events. Auto-creates session if session_id not provided.",
+            description="Emit a structured event to the WebSocket bridge for dashboard display, including cartography, certification, and bootstrap recovery events. session_start creates a session; later events should reuse its session_id.",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -508,7 +516,7 @@ def get_mcp_tools() -> List[MCPTool]:
                     },
                     "session_id": {
                         "type": "string",
-                        "description": "Session ID for routing (auto-generated if not provided)",
+                        "description": "Session ID for routing. Use the value returned by session_start; non-start events fall back to the latest active session if omitted.",
                     },
                 },
                 "required": ["event_type", "event_data"],
@@ -681,6 +689,41 @@ class MCPToolResponse(BaseModel):
     error: Optional[str] = None
 
 
+async def enrich_tool_arguments_from_session(
+    tool_name: str, arguments: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Add session-scoped repo context when Bob omits it from follow-up tool calls.
+
+    Bob's dashboard events carry the session_id, but some repo tools are often
+    invoked with only direct inputs. Hydrating the session_id and repository URL
+    here keeps MCP tools source-of-truth-driven without requiring Bob to repeat
+    the same parameters every time.
+    """
+    enriched = dict(arguments)
+    repo_context_tools = {"commit_frequency", "starter_issue_candidates"}
+    if tool_name not in repo_context_tools:
+        return enriched
+
+    session_id = enriched.get("session_id")
+    if not session_id:
+        session_id = await session_manager.get_latest_active_session_id()
+        if session_id:
+            enriched["session_id"] = session_id
+
+    if not session_id:
+        return enriched
+
+    metadata = await session_manager.get_session_metadata(session_id)
+    repository_url = metadata.get("repository_url")
+    if repository_url and not (
+        enriched.get("repository") or enriched.get("repository_url")
+    ):
+        enriched["repository"] = repository_url
+
+    return enriched
+
+
 @app.post("/mcp/invoke", response_model=MCPToolResponse)
 async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
     """
@@ -689,7 +732,7 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
     Logs all calls with structured logging and records metrics
     """
     tool_name = request.tool_name
-    arguments = request.arguments
+    arguments = await enrich_tool_arguments_from_session(tool_name, request.arguments)
 
     # Extract session_id from arguments if present (for caching)
     session_id = arguments.get("session_id")

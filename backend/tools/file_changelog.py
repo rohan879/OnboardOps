@@ -4,13 +4,15 @@ Returns ordered list of commits touching a specific file using GitPython
 """
 
 import os
-import hashlib
 from datetime import datetime
 from typing import Optional, Union
 import git
 from mcp.contracts import FileChangelogInput, FileChangelogOutput, CommitInfo
 from mcp.errors import (
     MCPToolError,
+    git_command_error,
+    repo_not_configured_error,
+    unknown_error,
 )
 
 
@@ -42,15 +44,13 @@ def file_changelog(
     Caches aggressively (commit history is immutable).
 
     Returns FileChangelogOutput on success or MCPToolError on failure.
-    Falls back to mock data if repo unavailable.
     """
     file_path = input_data.file_path
     limit = input_data.limit
 
     repo = get_repo()
     if not repo:
-        # Repo not configured - return mock data (graceful degradation)
-        return _mock_file_changelog(input_data)
+        return repo_not_configured_error()
 
     try:
         commits = []
@@ -82,53 +82,10 @@ def file_changelog(
 
         return FileChangelogOutput(file_path=file_path, commits=commits)
 
+    except git.exc.GitCommandError as e:
+        return git_command_error(file_path, str(e))
     except Exception as e:
-        print(f"[file_changelog] Error: {e}, falling back to mock")
-        return _mock_file_changelog(input_data)
-
-
-def _mock_file_changelog(input_data: FileChangelogInput) -> FileChangelogOutput:
-    """
-    Fallback mock implementation when git is unavailable
-    Returns plausible commit history for any file
-    """
-    from datetime import timedelta
-
-    # Generate deterministic commits based on file path
-    file_hash = (
-        int(hashlib.sha256(input_data.file_path.encode()).hexdigest()[:8], 16) % 1000
-    )
-
-    commit_templates = [
-        ("feat: Implement new functionality", "Alice Chen", "alice.chen@example.com"),
-        ("fix: Resolve critical bug", "Bob Martinez", "bob.martinez@example.com"),
-        ("refactor: Improve code quality", "Carol Johnson", "carol.j@example.com"),
-        ("docs: Update inline documentation", "David Kim", "david.kim@example.com"),
-        ("test: Add comprehensive tests", "Emma Wilson", "emma.w@example.com"),
-        ("perf: Optimize performance", "Frank Zhang", "frank.zhang@example.com"),
-        ("style: Format code", "Grace Lee", "grace.lee@example.com"),
-        ("chore: Update dependencies", "Henry Brown", "henry.b@example.com"),
-    ]
-
-    num_commits = min(input_data.limit, len(commit_templates))
-    commits = []
-
-    for i in range(num_commits):
-        template_idx = (file_hash + i) % len(commit_templates)
-        message, author, email = commit_templates[template_idx]
-
-        commits.append(
-            CommitInfo(
-                commit_hash=f"{file_hash + i:04d}abc{i:03d}def",
-                author=author,
-                email=email,
-                timestamp=datetime.now() - timedelta(days=7 * (i + 1)),
-                message=message,
-                files_changed=1 + (i % 3),
-            )
-        )
-
-    return FileChangelogOutput(file_path=input_data.file_path, commits=commits)
+        return unknown_error(f"file_changelog for {file_path}", e)
 
 
 # Made with Bob

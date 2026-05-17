@@ -26,7 +26,7 @@ Advanced mode has access to MCP and Browser tools in addition to standard coding
 - **Socratic stance is mandatory**: [`onboard.md`](../../.bob/modes/onboard.md:23) forbids code writing except during Starter PR - redirect to discovery
 
 ### MCP Integration
-- **emit_event auto-creates sessions**: [`emit_event.py`](../../backend/tools/emit_event.py:66-77) creates session if `session_id` is None - Bob doesn't need to manage this
+- **emit_event session IDs**: [`emit_event.py`](../../backend/tools/emit_event.py:66-92) creates a fresh session for `session_start`; Bob should reuse the returned `session_id` on every later dashboard event
 - **WebSocket broadcasts are session-scoped**: Events only go to clients subscribed to that session_id
 - **SIGHUP reloads allowlist**: [`allowlist_manager.py`](../../backend/allowlist_manager.py:52-55) hot-reloads on SIGHUP (Unix only) - no restart needed
 
@@ -60,6 +60,6 @@ make test                  # Run all tests
 ## Critical Gotchas
 
 1. **Port 8765 must be free**: Backend MCP server fails silently if port in use - check with `lsof -i :8765`
-2. **Session IDs auto-create**: [`emit_event`](../../backend/tools/emit_event.py:66-77) creates session if None - Bob doesn't manage this
+2. **Session IDs must propagate**: [`emit_event`](../../backend/tools/emit_event.py:66-92) has a fallback for omitted IDs, but Bob should pass the `session_start` ID to every later event
 3. **Cache is NOT global**: [`cache_manager.py`](../../backend/cache_manager.py:46-48) scopes cache to `(session_id, tool_name, input_hash)`
 4. **Makefile targets are stubs**: Many targets warn if files missing - not all features implemented yet

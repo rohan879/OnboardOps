@@ -217,6 +217,10 @@ class SessionEnd(BaseEvent):
     starter_task_url: Optional[str] = None
     starter_task_description: Optional[str] = None
     starter_task_commit_message: Optional[str] = None
+    starter_task_line_count: Optional[int] = None
+    starter_task_files_touched: Optional[int] = None
+    starter_task_safety_score: Optional[int] = None
+    starter_task_safety_reasons: list[str] = Field(default_factory=list)
 
 
 # ============================================================================

@@ -70,6 +70,7 @@ const REPOSITORY_URL = process.env.NEXT_PUBLIC_REPOSITORY_URL || '';
 const REPOSITORY_BRANCH = process.env.NEXT_PUBLIC_REPOSITORY_BRANCH || 'main';
 const TARGET_SECONDS = 10 * 60;
 const EMPTY_HOTSPOTS: Hotspot[] = [];
+const STARTER_ISSUE_CACHE_PREFIX = 'onboardops:starter-issues:';
 
 type AnalysisTabId = 'entry' | 'hotspot' | 'convention';
 type GraphRole = 'orchestrator' | 'bridge' | 'shared' | 'leaf';
@@ -115,6 +116,10 @@ interface StarterSuggestion {
   filePath?: string;
   url?: string;
   commitMessage?: string;
+  lineCount?: number;
+  filesTouched?: number;
+  safetyScore?: number;
+  safetyReasons: string[];
 }
 
 interface AnalysisTabConfig {
@@ -151,7 +156,7 @@ type RepositoryToolContext = Pick<
 >;
 
 function findCard(events: Event[], cardType: string) {
-  return events.find(
+  return [...events].reverse().find(
     (event) => event.type === 'card_emit' && event.data.card_type === cardType
   );
 }
@@ -789,6 +794,56 @@ function normalizeQuestionText(value: unknown) {
     : '';
 }
 
+function starterIssueCacheKey(repository: string | null | undefined) {
+  return `${STARTER_ISSUE_CACHE_PREFIX}${normalizeRepositoryReference(repository) || 'default'}`;
+}
+
+function isStarterIssue(value: unknown): value is StarterIssue {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.issueNumber === 'number' &&
+    typeof record.title === 'string' &&
+    typeof record.url === 'string' &&
+    Array.isArray(record.labels) &&
+    typeof record.state === 'string' &&
+    typeof record.updatedAt === 'string'
+  );
+}
+
+function readCachedStarterIssues(repository: string | null | undefined) {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(starterIssueCacheKey(repository));
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter(isStarterIssue).slice(0, 5)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedStarterIssues(
+  repository: string | null | undefined,
+  issues: StarterIssue[]
+) {
+  if (typeof window === 'undefined' || issues.length === 0) return;
+
+  try {
+    window.localStorage.setItem(
+      starterIssueCacheKey(repository),
+      JSON.stringify(issues.slice(0, 5))
+    );
+  } catch {
+    // Ignore storage quota/private mode failures; the live fetch still works.
+  }
+}
+
 function isLocalRepositoryReference(value: string | null | undefined) {
   if (!value) return false;
 
@@ -914,6 +969,10 @@ function getRepositoryName(repository: string | null) {
   }
 }
 
+function repositoryIdentityKey(repository: string | null | undefined) {
+  return (normalizeRepositoryReference(repository) || '').toLowerCase();
+}
+
 function getStringField(
   record: Record<string, unknown> | undefined,
   keys: string[]
@@ -974,7 +1033,7 @@ function deriveSessionMeta({
     sessionStart?.data,
     ...events.map((event) => event.data),
   ] as Array<Record<string, unknown> | undefined>;
-  const repositoryUrl =
+  const repositoryReference =
     sources
       .map((source) =>
         getStringField(source, [
@@ -992,12 +1051,16 @@ function deriveSessionMeta({
     inferRepositoryFromEntryPoints(entryPointsData) ||
     starterRepository ||
     REPOSITORY_URL;
-  const repositoryDisplay = getRepositoryName(repositoryUrl);
+  const repositoryDisplaySource =
+    isLocalRepositoryReference(repositoryReference) && starterRepository
+      ? starterRepository
+      : repositoryReference;
+  const repositoryDisplay = getRepositoryName(repositoryDisplaySource);
   const [repositoryOwner, repositoryNameFromDisplay] = repositoryDisplay.includes('/')
     ? repositoryDisplay.split('/').slice(-2)
     : [null, repositoryDisplay];
-  const repositoryLink = /^https?:\/\//i.test(repositoryUrl)
-    ? repositoryUrl
+  const repositoryLink = /^https?:\/\//i.test(repositoryReference)
+    ? repositoryReference
     : repositoryOwner && repositoryNameFromDisplay
       ? `https://github.com/${repositoryOwner}/${repositoryNameFromDisplay}`
       : null;
@@ -1032,7 +1095,7 @@ function deriveSessionMeta({
       .find(Boolean) || null;
 
   return {
-    repositoryReference: repositoryUrl,
+    repositoryReference,
     repositoryDisplay,
     repositoryUrl: repositoryLink,
     repositoryOwner,
@@ -1089,6 +1152,23 @@ function getFirstString(value: unknown) {
   }
 
   return null;
+}
+
+function getStringList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(/\n|;/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 }
 
 function starterSuggestionFromRecord(
@@ -1151,20 +1231,53 @@ function starterSuggestionFromRecord(
       ]) || undefined,
     commitMessage:
       getStringField(data, [
-        'starter_task_commit_message',
-        'commit_message',
-      ]) || undefined,
+      'starter_task_commit_message',
+      'commit_message',
+    ]) || undefined,
+    lineCount: (() => {
+      const value = toFiniteNumber(
+        data.starter_task_line_count ?? data.line_count,
+        Number.NaN
+      );
+      return Number.isFinite(value) ? value : undefined;
+    })(),
+    filesTouched: (() => {
+      const value = toFiniteNumber(
+        data.starter_task_files_touched ?? data.files_touched,
+        Number.NaN
+      );
+      if (Number.isFinite(value)) return value;
+      if (filePath) return 1;
+      return undefined;
+    })(),
+    safetyScore: (() => {
+      const value = toFiniteNumber(
+        data.starter_task_safety_score ?? data.safety_score,
+        Number.NaN
+      );
+      return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : undefined;
+    })(),
+    safetyReasons: getStringList(
+      data.starter_task_safety_reasons ??
+        data.safety_reasons ??
+        data.safety_check
+    ),
   };
 }
 
 function buildStarterSuggestion(events: Event[]) {
-  for (const event of events) {
+  for (const event of [...events].reverse()) {
     if (event.type !== 'session_end') continue;
     const suggestion = starterSuggestionFromRecord(event.data);
     if (suggestion) return suggestion;
   }
 
   return null;
+}
+
+function compactMetricDetail(text: string, maxLength = 86) {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 function getStarterSuggestionUrl(
@@ -1185,6 +1298,92 @@ function getStarterSuggestionUrl(
     repositoryUrl || undefined,
     branch
   );
+}
+
+function buildTeamKnowledge(hotspotsData: HotspotsData | null) {
+  const authors = new Map<
+    string,
+    {
+      author: string;
+      commits: number;
+      files: Set<string>;
+      topFile: string;
+      topCommits: number;
+    }
+  >();
+
+  (hotspotsData?.files || []).forEach((file) => {
+    if (!file.top_author || file.top_author === 'Unknown') return;
+
+    const current =
+      authors.get(file.top_author) ||
+      {
+        author: file.top_author,
+        commits: 0,
+        files: new Set<string>(),
+        topFile: file.path,
+        topCommits: 0,
+      };
+
+    current.commits += file.commit_count;
+    current.files.add(file.path);
+    if (file.commit_count > current.topCommits) {
+      current.topFile = file.path;
+      current.topCommits = file.commit_count;
+    }
+    authors.set(file.top_author, current);
+  });
+
+  return Array.from(authors.values())
+    .sort((left, right) => right.commits - left.commits)
+    .slice(0, 4)
+    .map((item) => ({
+      author: item.author,
+      commits: item.commits,
+      files: item.files.size,
+      topFile: item.topFile,
+    }));
+}
+
+function getCertificationRemediation(question: CertificationQuestion | undefined) {
+  if (!question?.grade || question.grade === 'pass') return null;
+
+  const text = `${question.topic || ''} ${question.questionText}`.toLowerCase();
+  if (text.includes('hotspot') || text.includes('change') || text.includes('author')) {
+    return {
+      source: 'Change hotspots',
+      action: 'Review the hotspot row, trend buckets, and top author before retrying.',
+    };
+  }
+
+  if (
+    text.includes('entry') ||
+    text.includes('route') ||
+    text.includes('cli') ||
+    text.includes('request')
+  ) {
+    return {
+      source: 'Entry points',
+      action: 'Open the matching route or command row and answer from its handler/file.',
+    };
+  }
+
+  if (
+    text.includes('convention') ||
+    text.includes('naming') ||
+    text.includes('test') ||
+    text.includes('error')
+  ) {
+    return {
+      source: 'Project conventions',
+      action: 'Use the evidence file and snippet attached to the relevant convention.',
+    };
+  }
+
+  return {
+    source: 'Architecture graph',
+    action: 'Start from the graph node and fan-in/fan-out evidence, then retry.',
+  };
 }
 
 function formatClockTime(value: Date | string | null | undefined) {
@@ -1360,6 +1559,16 @@ function CarbonTag({
   return <span className={`carbon-tag carbon-tag-${tone}`}>{children}</span>;
 }
 
+function ProvenancePill({ tool, detail }: { tool: string; detail: string }) {
+  return (
+    <div className="provenance-pill">
+      <span>Source</span>
+      <code>{tool}</code>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
 function ShellHeader({
   sessionId,
   onExport,
@@ -1505,14 +1714,14 @@ function CarbonMetricTile({
   tone?: 'blue' | 'green' | 'cyan' | 'magenta';
 }) {
   return (
-    <div className="metric-tile">
+    <div className={`metric-tile metric-tile-${tone}`}>
       <div className="row between center">
         <div className={`metric-label metric-${tone}`}>
           <Icon size={16} />
           <span>{label}</span>
         </div>
         {status && (
-          <div className="metric-status">
+          <div className={`metric-status metric-status-${tone}`}>
             <span className="dot" />
             {status}
           </div>
@@ -1763,6 +1972,10 @@ function ArchitectureCartograph({
           </div>
         </div>
         <div className="toolbar-cluster">
+          <ProvenancePill
+            tool="card_emit.dependency_graph"
+            detail="module edges from Bob cartography"
+          />
           <span className="mini-chip">noise / hidden {graph.hiddenCount}</span>
           <span className="mini-chip">fan &gt;= live</span>
         </div>
@@ -2111,6 +2324,10 @@ function EntryPointsLens({
             <span className="mono">{sessionMeta.repositoryDisplay}</span>.
           </p>
         </div>
+        <ProvenancePill
+          tool="card_emit.entry_points"
+          detail="Bob cartography payload"
+        />
       </div>
       <div className="carbon-table entry-table">
         <div className="table-head">
@@ -2314,6 +2531,10 @@ function HotspotsLens({
   const files = data?.files?.length
     ? data.files
     : fallbackData?.files ?? EMPTY_HOTSPOTS;
+  const teamKnowledge = useMemo(
+    () => buildTeamKnowledge({ files }),
+    [files]
+  );
   const maxCommits = Math.max(...files.map((file) => file.commit_count), 1);
   const [trendOverrides, setTrendOverrides] = useState<Record<string, number[]>>({});
   const missingTrendKey = useMemo(
@@ -2429,7 +2650,31 @@ function HotspotsLens({
           </div>
           <p>Hotspots show where recent changes concentrate and who has ownership context.</p>
         </div>
+        <ProvenancePill
+          tool={data?.files?.length ? 'card_emit.hotspots' : 'commit_frequency'}
+          detail={
+            data?.files?.length
+              ? 'Bob cartography payload'
+              : 'live git history fallback'
+          }
+        />
       </div>
+      {teamKnowledge.length > 0 && (
+        <div className="team-knowledge-map">
+          <div className="t-label-01">Who To Ask</div>
+          <div className="team-knowledge-grid">
+            {teamKnowledge.map((member) => (
+              <div key={member.author}>
+                <strong>{member.author}</strong>
+                <span>
+                  {member.commits} commits / {member.files} files
+                </span>
+                <code>{member.topFile}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="carbon-table hotspot-table">
         <div className="table-head">
           <span>Rank</span>
@@ -2512,6 +2757,10 @@ function ConventionsLens({
           </div>
           <p>Each convention is backed by a file or code example from Bob&apos;s survey.</p>
         </div>
+        <ProvenancePill
+          tool="card_emit.conventions"
+          detail="file-backed evidence snippets"
+        />
       </div>
       <div className="convention-grid">
         {conventions.map((convention, index) => {
@@ -2573,6 +2822,7 @@ function CertificationCarbon({
     questions.find((question) => question.id === activeQuestionId) ||
     questions.find((question) => !question.grade) ||
     questions[questions.length - 1];
+  const remediation = getCertificationRemediation(activeQuestion);
   const activeIndex = activeQuestion
     ? questions.findIndex((question) => question.id === activeQuestion.id)
     : -1;
@@ -2653,6 +2903,10 @@ function CertificationCarbon({
               ? 'Starter issue review is unlocked for this session.'
               : 'Answer questions here while Bob waits for dashboard submissions.'}
           </p>
+          <ProvenancePill
+            tool="question_ask + certification_grade"
+            detail="session-scoped Bob events"
+          />
         </aside>
       </div>
 
@@ -2734,6 +2988,13 @@ function CertificationCarbon({
             </div>
           )}
 
+          {remediation && (
+            <div className="remediation-card">
+              <div className="t-label-01">Adaptive remediation / {remediation.source}</div>
+              <p>{remediation.action}</p>
+            </div>
+          )}
+
           <div className="cert-nav">
             <button
               type="button"
@@ -2799,11 +3060,11 @@ function StarterPRCarbon({
       error.toLowerCase().includes('rate limit')
       ? 'API rate-limited'
       : 'lookup failed'
-    : isLoading
+    : isLoading && issues.length === 0
       ? 'loading'
       : starterSuggestion
-        ? '1 suggested task'
-        : issues.length;
+        ? `${issues.length} issues / 1 fallback task`
+        : `${issues.length} issues`;
 
   return (
     <div className="carbon-panel starter-panel">
@@ -2907,6 +3168,12 @@ function StarterPRCarbon({
             refresh when API budget is available.
           </div>
         )}
+        {!error && !isLoading && issues.length === 0 && starterSuggestion && (
+          <div className="starter-error neutral">
+            No open starter issues were returned for this session repository, so
+            Bob selected a bounded fallback task.
+          </div>
+        )}
         {starterSuggestion && (
           <section className="starter-suggestion">
             <div className="t-label-01">Suggested starter task</div>
@@ -2919,6 +3186,41 @@ function StarterPRCarbon({
               <small>
                 Commit <span>{starterSuggestion.commitMessage}</span>
               </small>
+            )}
+            <div className="starter-safety">
+              <div>
+                <span>Safety</span>
+                <strong>
+                  {typeof starterSuggestion.safetyScore === 'number'
+                    ? `${starterSuggestion.safetyScore}%`
+                    : 'pending'}
+                </strong>
+              </div>
+              <div>
+                <span>Scope</span>
+                <strong>
+                  {starterSuggestion.filesTouched
+                    ? `${starterSuggestion.filesTouched} file${
+                        starterSuggestion.filesTouched === 1 ? '' : 's'
+                      }`
+                    : 'unknown'}
+                </strong>
+              </div>
+              <div>
+                <span>Size</span>
+                <strong>
+                  {starterSuggestion.lineCount
+                    ? `${starterSuggestion.lineCount} lines`
+                    : 'not emitted'}
+                </strong>
+              </div>
+            </div>
+            {starterSuggestion.safetyReasons.length > 0 && (
+              <ul className="starter-safety-reasons">
+                {starterSuggestion.safetyReasons.slice(0, 3).map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
             )}
             {starterTargetUrl && (
               <a href={starterTargetUrl} target="_blank" rel="noreferrer">
@@ -3100,8 +3402,6 @@ function Dashboard() {
     issues: [],
   });
   const lastRecoveryEventId = useRef<string | null>(null);
-  const { isConnected } = useEvents();
-  useEventHandlers();
 
   const connectionState = useEventsStore((state) => state.connectionState);
   const events = useEventsStore((state) => state.events);
@@ -3129,6 +3429,8 @@ function Dashboard() {
       ? fallbackSessionId
       : null;
   }, [events, sessionStartEvent?.data.session_id]);
+  const { isConnected } = useEvents(currentSessionId);
+  useEventHandlers();
   const dependencyCard = findCard(events, 'dependency_graph');
   const entryCard = findCard(events, 'entry_points');
   const hotspotCard = findCard(events, 'hotspots');
@@ -3436,6 +3738,10 @@ function Dashboard() {
         ...prev,
         isLoading: true,
         error: null,
+        issues:
+          prev.issues.length > 0
+            ? prev.issues
+            : readCachedStarterIssues(requestedRepository),
       }));
 
       try {
@@ -3443,18 +3749,31 @@ function Dashboard() {
           MCP_HTTP_URL,
           requestedRepository
         );
-        setStarterIssuesState({
+        if (result.issues.length > 0) {
+          writeCachedStarterIssues(
+            result.repository || requestedRepository,
+            result.issues
+          );
+        }
+        setStarterIssuesState((prev) => ({
           isLoading: false,
           hasLoaded: true,
           error: null,
           repository: result.repository || requestedRepository,
-          issues: result.issues,
-        });
+          issues:
+            result.issues.length > 0 || force
+              ? result.issues
+              : prev.issues,
+        }));
       } catch (error) {
         setStarterIssuesState((prev) => ({
           ...prev,
           isLoading: false,
           hasLoaded: true,
+          issues:
+            prev.issues.length > 0
+              ? prev.issues
+              : readCachedStarterIssues(requestedRepository),
           error:
             error instanceof Error && error.message.trim()
               ? error.message
@@ -3471,14 +3790,19 @@ function Dashboard() {
   );
 
   const loadedStarterRepository = starterIssuesState.repository
-    ? getRepositoryName(starterIssuesState.repository)
+    ? repositoryIdentityKey(starterIssuesState.repository)
     : null;
+  const requestedStarterRepositoryKey = repositoryIdentityKey(
+    sessionMeta.repositoryReference ||
+      sessionMeta.repositoryUrl ||
+      sessionMeta.repositoryDisplay
+  );
 
   useEffect(() => {
     if (connectionState !== 'connected' || starterIssuesState.isLoading) return;
     if (
       starterIssuesState.hasLoaded &&
-      loadedStarterRepository === sessionMeta.repositoryDisplay
+      loadedStarterRepository === requestedStarterRepositoryKey
     ) {
       return;
     }
@@ -3488,7 +3812,7 @@ function Dashboard() {
     connectionState,
     loadedStarterRepository,
     loadStarterIssues,
-    sessionMeta.repositoryDisplay,
+    requestedStarterRepositoryKey,
     starterIssuesState.hasLoaded,
     starterIssuesState.isLoading,
   ]);
@@ -3511,6 +3835,10 @@ function Dashboard() {
   const entryPointCount = countEntryPoints(entryPointsData);
   const hotspotCount = hotspotsData?.files.length || 0;
   const conventionCount = conventionsData?.conventions.length || 0;
+  const teamKnowledgeForExport = useMemo(
+    () => buildTeamKnowledge(hotspotsData),
+    [hotspotsData]
+  );
   const passCount = certificationQuestions.filter(
     (question) => question.grade === 'pass'
   ).length;
@@ -3521,10 +3849,45 @@ function Dashboard() {
   const starterProgressCopy = latestPrUrl
     ? 'a starter PR is open'
     : starterSuggestion
-      ? '1 Bob-suggested starter task is ready'
+      ? `${starterIssuesState.issues.length} real issue candidates and 1 Bob fallback task are ready`
       : starterIssuesState.issues.length > 0
         ? `${starterIssuesState.issues.length} starter issue candidates are loaded`
         : '0 starter issue candidates are loaded';
+  const topStarterIssue = starterIssuesState.issues[0];
+  const starterMetric = (() => {
+    if (topStarterIssue) {
+      return {
+        value: `Issue #${topStarterIssue.issueNumber}`,
+        detail: latestPrUrl
+          ? compactMetricDetail(`PR drafted from real issue: ${topStarterIssue.title}`)
+          : 'Backed by a real open issue in the repository - not a synthetic exercise.',
+        status: latestPrUrl ? 'Drafted' : 'Ready',
+      };
+    }
+
+    if (latestPrUrl) {
+      return {
+        value: 'Drafted',
+        detail: 'Starter pull request URL was emitted at session end.',
+        status: 'Ready',
+      };
+    }
+
+    if (starterSuggestion) {
+      const score = starterSuggestion.safetyScore;
+      return {
+        value: typeof score === 'number' ? `${score}% safe` : 'Task ready',
+        detail: compactMetricDetail(`Bob fallback task: ${starterSuggestion.title}`),
+        status: 'Fallback',
+      };
+    }
+
+    return {
+      value: 'Pending',
+      detail: 'Waiting for issue candidates or a Bob suggested task.',
+      status: 'Waiting',
+    };
+  })();
   const startedAt =
     session.startTime ||
     (sessionStartEvent ? new Date(sessionStartEvent.timestamp) : null);
@@ -3594,6 +3957,27 @@ function Dashboard() {
       repository_url: sessionMeta.repositoryUrl,
       repository_branch: sessionMeta.branch,
       repository_commit: sessionMeta.commit,
+      onboarding_report: {
+        certification: {
+          passed_answers: passCount,
+          total_questions: certificationQuestions.length,
+        },
+        starter_task: starterSuggestion,
+        top_hotspots: (hotspotsData?.files || []).slice(0, 5).map((file) => ({
+          path: file.path,
+          commits: file.commit_count,
+          owner: file.top_author || 'Unknown',
+        })),
+        who_to_ask: teamKnowledgeForExport,
+        provenance: [
+          'dependency_graph: card_emit.dependency_graph',
+          'entry_points: card_emit.entry_points',
+          `hotspots: ${hotspotCard ? 'card_emit.hotspots' : 'commit_frequency fallback'}`,
+          'conventions: card_emit.conventions',
+          'certification: question_ask + certification_grade',
+          'starter_task: session_end starter_task_* fields',
+        ],
+      },
       bobcoin_budget: bobcoinBudget,
       cartography_steps: displayCartographySteps,
       certification_questions: certificationQuestions,
@@ -3610,6 +3994,10 @@ function Dashboard() {
     sessionMeta,
     starterIssuesState.issues,
     starterSuggestion,
+    passCount,
+    hotspotsData,
+    teamKnowledgeForExport,
+    hotspotCard,
   ]);
 
   return (
@@ -3761,18 +4149,10 @@ function Dashboard() {
             <CarbonMetricTile
               icon={GitPullRequest}
               label="Starter PR"
-              value={
-                latestPrUrl
-                  ? 'Opened'
-                  : starterSuggestion
-                    ? 'Suggested'
-                    : starterIssuesState.issues.length
-                      ? `${starterIssuesState.issues.length} issues`
-                      : 'Pending'
-              }
-              detail="Uses issue candidates, Bob's suggested task, and session_end PR URLs."
-              status={latestPrUrl || starterSuggestion ? 'Ready' : 'Waiting'}
-              tone="magenta"
+              value={starterMetric.value}
+              detail={starterMetric.detail}
+              status={starterMetric.status}
+              tone="blue"
             />
           </div>
 

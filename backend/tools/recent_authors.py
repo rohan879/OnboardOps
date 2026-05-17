@@ -1,75 +1,125 @@
 """
-Recent Authors Tool - Mock Implementation
-Returns deterministic mock data for recent author activity
+Recent Authors Tool
+Summarizes real author activity from the configured onboarding repository.
 """
 
-from datetime import datetime, timedelta
-import hashlib
+import os
+from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Union
-from mcp.contracts import (
-    RecentAuthorsInput,
-    RecentAuthorsOutput,
-    AuthorActivity,
-)
-from mcp.errors import MCPToolError
+
+import git
+
+from mcp.contracts import AuthorActivity, RecentAuthorsInput, RecentAuthorsOutput
+from mcp.errors import MCPToolError, repo_not_configured_error, unknown_error
+
+
+MAX_COMMITS_TO_SCAN = 2000
+BOT_AUTHOR_MARKERS = ("[bot]", "bot@", "github-actions", "dependabot", "renovate")
+
+
+def is_bot_author(name: str | None, email: str | None = None) -> bool:
+    normalized = f"{name or ''} {email or ''}".strip().lower()
+    return any(marker in normalized for marker in BOT_AUTHOR_MARKERS)
+
+
+def get_repo() -> git.Repo | None:
+    """Open the configured onboarding repository."""
+    repo_path = os.getenv("ONBOARDOPS_DEMO_REPO_PATH")
+    if not repo_path or not os.path.exists(repo_path):
+        return None
+
+    return git.Repo(repo_path)
 
 
 def recent_authors(
     input_data: RecentAuthorsInput,
 ) -> Union[RecentAuthorsOutput, MCPToolError]:
     """
-    Mock implementation of recent_authors tool
-    Returns plausible author activity data
+    Return recent author activity from git history.
+
+    The result is intentionally source-of-truth only: if the onboarding
+    repository is not configured or git cannot be read, the tool returns a
+    structured MCP error instead of synthetic author data.
     """
-    # Generate deterministic authors based on input
-    seed = (
-        int(
-            hashlib.sha256((input_data.file_path or "repo").encode()).hexdigest()[:8],
-            16,
+    try:
+        repo = get_repo()
+        if repo is None:
+            return repo_not_configured_error()
+
+        since = f"{max(1, input_data.days)} days ago"
+        stats: dict[str, dict[str, object]] = defaultdict(
+            lambda: {
+                "name": "",
+                "email": "",
+                "commit_count": 0,
+                "files_touched": set(),
+                "last_commit": None,
+            }
         )
-        % 100
-    )
 
-    authors_pool = [
-        ("Alice Chen", "alice.chen@example.com", 45, 23),
-        ("Bob Martinez", "bob.martinez@example.com", 38, 19),
-        ("Carol Johnson", "carol.j@example.com", 31, 15),
-        ("David Kim", "david.kim@example.com", 27, 12),
-        ("Emma Wilson", "emma.w@example.com", 22, 10),
-        ("Frank Zhang", "frank.zhang@example.com", 18, 8),
-        ("Grace Lee", "grace.lee@example.com", 14, 6),
-        ("Henry Brown", "henry.b@example.com", 11, 5),
-        ("Iris Patel", "iris.patel@example.com", 8, 4),
-        ("Jack Smith", "jack.smith@example.com", 5, 3),
-    ]
+        for commit in repo.iter_commits(
+            paths=input_data.file_path,
+            since=since,
+            max_count=MAX_COMMITS_TO_SCAN,
+        ):
+            email = commit.author.email or "unknown"
+            key = email.lower()
+            entry = stats[key]
+            entry["name"] = commit.author.name or email
+            entry["email"] = email
+            entry["commit_count"] = int(entry["commit_count"]) + 1
 
-    # Select authors based on limit
-    num_authors = min(input_data.limit, len(authors_pool))
-    authors = []
+            files_touched = entry["files_touched"]
+            if isinstance(files_touched, set):
+                if input_data.file_path:
+                    files_touched.add(input_data.file_path)
+                else:
+                    files_touched.update(commit.stats.files.keys())
 
-    for i in range(num_authors):
-        idx = (seed + i) % len(authors_pool)
-        name, email, base_commits, base_files = authors_pool[idx]
-
-        # Adjust based on whether it's file-specific or repo-wide
-        if input_data.file_path:
-            commit_count = max(1, base_commits // 5)
-            files_touched = 1
-        else:
-            commit_count = base_commits
-            files_touched = base_files
-
-        authors.append(
-            AuthorActivity(
-                name=name,
-                email=email,
-                commit_count=commit_count,
-                files_touched=files_touched,
-                last_commit=datetime.now() - timedelta(days=i * 3 + 1),
+            committed_at = datetime.fromtimestamp(
+                commit.committed_date, tz=timezone.utc
             )
-        )
+            last_commit = entry["last_commit"]
+            if not isinstance(last_commit, datetime) or committed_at > last_commit:
+                entry["last_commit"] = committed_at
 
-    return RecentAuthorsOutput(authors=authors, date_range_days=input_data.days)
+        ranked_authors = sorted(
+            stats.values(),
+            key=lambda item: (
+                int(item["commit_count"]),
+                item["last_commit"]
+                if isinstance(item["last_commit"], datetime)
+                else datetime.min.replace(tzinfo=timezone.utc),
+            ),
+            reverse=True,
+        )
+        human_authors = [
+            author
+            for author in ranked_authors
+            if not is_bot_author(str(author["name"]), str(author["email"]))
+        ]
+        authors = (human_authors or ranked_authors)[: max(0, input_data.limit)]
+
+        return RecentAuthorsOutput(
+            authors=[
+                AuthorActivity(
+                    name=str(author["name"]),
+                    email=str(author["email"]),
+                    commit_count=int(author["commit_count"]),
+                    files_touched=len(author["files_touched"])
+                    if isinstance(author["files_touched"], set)
+                    else 0,
+                    last_commit=author["last_commit"]
+                    if isinstance(author["last_commit"], datetime)
+                    else datetime.now(timezone.utc),
+                )
+                for author in authors
+            ],
+            date_range_days=input_data.days,
+        )
+    except Exception as exc:
+        return unknown_error("recent_authors", exc)
 
 
 # Made with Bob

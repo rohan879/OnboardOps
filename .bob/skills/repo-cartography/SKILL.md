@@ -111,13 +111,16 @@ Use MCP tools first. Do not run shell `git log` pipelines for hotspots unless
 the MCP server is unavailable; the `commit_frequency` tool already handles git
 history and returns dashboard-ready buckets.
 
-1. Call `commit_frequency` repo-wide for the last 180 days.
+1. Call `commit_frequency` repo-wide for the last 180 days with the active
+   `session_id`. Include `repository` when the repository URL or `owner/repo` is
+   known so the backend can use GitHub history without a local repo path.
 2. For the top files, call `recent_authors` and `pr_for_file`.
 3. Emit at most five hotspots, ranked by commit count.
 
-If `commit_frequency` fails because the repository path is not configured, ask
-the user to set `ONBOARDOPS_DEMO_REPO_PATH` to the local clone and retry this
-stage. Do not switch to a nonexistent `github` MCP server.
+If `commit_frequency` fails because the repository path is not configured and no
+repository URL is available, ask the user to set `ONBOARDOPS_DEMO_REPO_PATH` to
+the local clone and retry this stage. Do not switch to a nonexistent `github`
+MCP server.
 
 If shell fallback is unavoidable on Windows/PowerShell, do not use Unix tools
 such as `sort | uniq -c`, `wc`, or `head`. Use a bounded PowerShell-native

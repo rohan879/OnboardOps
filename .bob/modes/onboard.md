@@ -100,8 +100,11 @@ After certification passes:
    when available. Emit this event even when `pr_url` is null because the flow
    ended with a manual issue link or local diff. If no PR URL exists yet,
    include `starter_task_proposed`, `starter_task_file`,
-   `starter_task_description`, and `starter_task_commit_message` so the
-   dashboard can show Bob's selected first-contribution candidate.
+   `starter_task_description`, `starter_task_commit_message`,
+   `starter_task_line_count`, `starter_task_files_touched`,
+   `starter_task_safety_score`, and `starter_task_safety_reasons` so the
+   dashboard can show Bob's selected first-contribution candidate and why it is
+   beginner-safe.
 
 ### Stage 5: AGENTS.md Generation
 Generate a personalized `AGENTS.md` at repo root containing:

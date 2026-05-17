@@ -18,7 +18,8 @@ Start with exactly this four-part greeting:
 
 Before cartography, call the `institutional-knowledge` MCP server's
 `emit_event` tool with `event_type: "session_start"` so the dashboard stopwatch
-starts.
+starts. Save the returned `session_id` and pass it to every later
+`emit_event` and `wait_for_dashboard_answer` call.
 
 Then run the full OnboardOps cartography flow:
 
@@ -39,8 +40,10 @@ After certification, continue into Starter PR selection. If GitHub issue lookup
 is rate-limited, show the repository issue-search URL, choose a bounded fallback
 starter task, and still emit `session_end` with `pr_url: null` before ending.
 Include `starter_task_proposed`, `starter_task_file`,
-`starter_task_description`, and `starter_task_commit_message` on that event so
-the dashboard can display the chosen first contribution.
+`starter_task_description`, `starter_task_commit_message`,
+`starter_task_line_count`, `starter_task_files_touched`,
+`starter_task_safety_score`, and `starter_task_safety_reasons` on that event so
+the dashboard can display the chosen first contribution and its safety profile.
 
 Stay Socratic. Do not write code unless the explicit Starter PR stage has
 begun. After certification passes, continue into the Starter PR stage instead
