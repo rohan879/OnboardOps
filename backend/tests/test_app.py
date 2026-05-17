@@ -41,6 +41,18 @@ async def test_mcp_discovery_lists_required_tools():
     }.issubset(tool_names)
 
 
+async def test_mcp_get_discovery_lists_required_tools():
+    response = await make_request("GET", "/mcp")
+
+    assert response.status_code == 200
+    tool_names = {tool["name"] for tool in response.json()["tools"]}
+    assert {
+        "emit_event",
+        "starter_issue_candidates",
+        "wait_for_dashboard_answer",
+    }.issubset(tool_names)
+
+
 async def test_recent_authors_invocation_works_without_demo_repo():
     response = await make_request(
         "POST",

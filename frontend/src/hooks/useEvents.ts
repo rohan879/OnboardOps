@@ -1,18 +1,63 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { useEventsStore } from '@/store/events';
 
 const WS_URL =
   process.env.NEXT_PUBLIC_MCP_WS_URL || 'ws://127.0.0.1:8765/events';
+const HEALTH_URL = (() => {
+  try {
+    const parsed = new URL(WS_URL);
+    parsed.protocol = parsed.protocol === 'wss:' ? 'https:' : 'http:';
+    parsed.pathname = '/health';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return 'http://127.0.0.1:8765/health';
+  }
+})();
 
 export function useEvents() {
   const { addEvent, setConnectionState } = useEventsStore();
   const reconnectAttempt = useRef(0);
+  const hasLoggedSocketFailure = useRef(false);
+  const [isBridgeReachable, setIsBridgeReachable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const probeBridge = async () => {
+      try {
+        const response = await fetch(HEALTH_URL, {
+          cache: 'no-store',
+        });
+
+        if (!cancelled) {
+          setIsBridgeReachable(response.ok);
+        }
+      } catch {
+        if (!cancelled) {
+          setIsBridgeReachable(false);
+        }
+      }
+    };
+
+    void probeBridge();
+
+    const intervalId = window.setInterval(() => {
+      void probeBridge();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const { lastMessage, readyState } = useWebSocket(WS_URL, {
-    shouldReconnect: () => true,
+    shouldReconnect: () => isBridgeReachable,
     reconnectAttempts: 10,
     reconnectInterval: (attemptNumber) => {
       // Exponential backoff: 1s, 2s, 4s, 8s (max)
@@ -22,16 +67,32 @@ export function useEvents() {
     },
     onOpen: () => {
       reconnectAttempt.current = 0;
+      hasLoggedSocketFailure.current = false;
     },
     onClose: () => undefined,
-    onError: (error) => {
-      console.error('WebSocket error:', error);
+    onError: () => {
+      if (hasLoggedSocketFailure.current) {
+        return;
+      }
+
+      hasLoggedSocketFailure.current = true;
+      console.warn(
+        `WebSocket bridge at ${WS_URL} could not be opened. The dashboard will retry automatically.`
+      );
     },
-  });
+  }, isBridgeReachable);
 
   // Update connection state
   useEffect(() => {
+    if (!isBridgeReachable) {
+      setConnectionState('disconnected');
+      return;
+    }
+
     switch (readyState) {
+      case ReadyState.UNINSTANTIATED:
+        setConnectionState('disconnected');
+        break;
       case ReadyState.CONNECTING:
         setConnectionState('connecting');
         break;
@@ -43,7 +104,7 @@ export function useEvents() {
         setConnectionState('disconnected');
         break;
     }
-  }, [readyState, setConnectionState]);
+  }, [isBridgeReachable, readyState, setConnectionState]);
 
   // Process incoming messages
   useEffect(() => {
@@ -71,7 +132,7 @@ export function useEvents() {
 
   return {
     connectionState: readyState,
-    isConnected: readyState === ReadyState.OPEN,
+    isConnected: isBridgeReachable && readyState === ReadyState.OPEN,
   };
 }
 
