@@ -79,35 +79,36 @@ async def emit_event(input_data: EmitEventInput) -> EmitEventOutput:
 
         # Parse the event based on event_type
         event: EventType
+        event_payload = {**input_data.event_data, "session_id": session_id}
 
         if input_data.event_type == "turn_start":
-            event = TurnStart(**input_data.event_data)
+            event = TurnStart(**event_payload)
         elif input_data.event_type == "turn_end":
-            event = TurnEnd(**input_data.event_data)
+            event = TurnEnd(**event_payload)
         elif input_data.event_type == "tool_call":
-            event = ToolCall(**input_data.event_data)
+            event = ToolCall(**event_payload)
         elif input_data.event_type == "tool_response":
-            event = ToolResponse(**input_data.event_data)
+            event = ToolResponse(**event_payload)
         elif input_data.event_type == "checkpoint_create":
-            event = CheckpointCreate(**input_data.event_data)
+            event = CheckpointCreate(**event_payload)
         elif input_data.event_type == "checkpoint_restore":
-            event = CheckpointRestore(**input_data.event_data)
+            event = CheckpointRestore(**event_payload)
         elif input_data.event_type == "card_emit":
-            event = CardEmit(**input_data.event_data)
+            event = CardEmit(**event_payload)
         elif input_data.event_type == "question_ask":
-            event = QuestionAsk(**input_data.event_data)
+            event = QuestionAsk(**event_payload)
         elif input_data.event_type == "bootstrap_status":
-            event = BootstrapStatus(**input_data.event_data)
+            event = BootstrapStatus(**event_payload)
         elif input_data.event_type == "bootstrap_recovery":
-            event = BootstrapRecovery(**input_data.event_data)
+            event = BootstrapRecovery(**event_payload)
         elif input_data.event_type == "certification_grade":
-            event = CertificationGrade(**input_data.event_data)
+            event = CertificationGrade(**event_payload)
         elif input_data.event_type == "certification_complete":
-            event = CertificationComplete(**input_data.event_data)
+            event = CertificationComplete(**event_payload)
         elif input_data.event_type == "session_start":
-            event = SessionStart(**input_data.event_data)
+            event = SessionStart(**event_payload)
         elif input_data.event_type == "session_end":
-            event = SessionEnd(**input_data.event_data)
+            event = SessionEnd(**event_payload)
         else:
             return EmitEventOutput(
                 success=False,

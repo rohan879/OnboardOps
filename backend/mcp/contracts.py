@@ -229,6 +229,65 @@ class IncidentForFileOutput(BaseModel):
 
 
 # ============================================================================
+# Tool 8: starter_issue_candidates
+# ============================================================================
+
+
+class StarterIssueCandidatesInput(BaseModel):
+    """Input for starter_issue_candidates tool"""
+
+    limit: int = Field(3, description="Maximum number of issues to return")
+    labels: List[str] = Field(
+        default_factory=lambda: ["good first issue", "help wanted", "documentation"],
+        description="Preferred GitHub labels to prioritize",
+    )
+
+
+class StarterIssueCandidate(BaseModel):
+    """A GitHub issue that could seed a starter PR."""
+
+    issue_number: int
+    title: str
+    url: str
+    labels: List[str]
+    state: str
+    updated_at: datetime
+    body_excerpt: Optional[str] = None
+
+
+class StarterIssueCandidatesOutput(BaseModel):
+    """Output for starter_issue_candidates tool"""
+
+    repository: str
+    issues: List[StarterIssueCandidate]
+
+
+# ============================================================================
+# Tool 9: wait_for_dashboard_answer
+# ============================================================================
+
+
+class WaitForDashboardAnswerInput(BaseModel):
+    """Input for wait_for_dashboard_answer tool"""
+
+    session_id: str = Field(..., description="Active onboarding session ID")
+    question_id: str = Field(..., description="Certification question ID")
+    timeout_seconds: int = Field(
+        300, description="How long Bob should wait for the website answer"
+    )
+
+
+class DashboardAnswerOutput(BaseModel):
+    """Output for wait_for_dashboard_answer tool"""
+
+    session_id: str
+    question_id: str
+    question_text: Optional[str] = None
+    answer: str
+    submitted_at: datetime
+
+
+# ============================================================================
 # Validation and Testing
 # ============================================================================
 
@@ -251,6 +310,10 @@ def validate_contracts():
         RationaleForCommitOutput,
         IncidentForFileInput,
         IncidentForFileOutput,
+        StarterIssueCandidatesInput,
+        StarterIssueCandidatesOutput,
+        WaitForDashboardAnswerInput,
+        DashboardAnswerOutput,
     ]
 
     print("All MCP tool contract models defined:")

@@ -6,13 +6,14 @@ Institutional Knowledge MCP Server with WebSocket Bridge
 from fastapi import FastAPI, WebSocket, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import time
 import hashlib
 import json
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 # Import MCP tool implementations
 from tools import (
@@ -23,6 +24,8 @@ from tools import (
     file_changelog,
     rationale_for_commit,
     incident_for_file,
+    starter_issue_candidates,
+    wait_for_dashboard_answer,
 )
 from mcp import contracts
 from mcp.errors import MCPToolError
@@ -30,6 +33,7 @@ from tools.emit_event import emit_event, EmitEventInput
 from ws.handler import websocket_handler
 from session_manager import session_manager
 from cache_manager import cache_manager
+from dashboard_answer_manager import dashboard_answer_manager
 from observability import (
     logger,
     metrics_collector,
@@ -71,6 +75,24 @@ app.add_middleware(
 )
 
 
+class DashboardCertificationAnswerRequest(BaseModel):
+    """Answer submitted from the website certification panel."""
+
+    session_id: str
+    question_id: str
+    answer: str = Field(..., min_length=1)
+    question_text: Optional[str] = None
+
+
+class DashboardCertificationAnswerResponse(BaseModel):
+    """Acknowledgement for a dashboard-submitted certification answer."""
+
+    success: bool
+    session_id: str
+    question_id: str
+    submitted_at: datetime
+
+
 # ============================================================================
 # Health Check Endpoint
 # ============================================================================
@@ -108,6 +130,32 @@ async def metrics():
         - Uptime
     """
     return await metrics_collector.get_metrics()
+
+
+@app.post(
+    "/dashboard/certification/answers",
+    response_model=DashboardCertificationAnswerResponse,
+)
+async def submit_dashboard_certification_answer(
+    request: DashboardCertificationAnswerRequest,
+):
+    """Persist an answer typed into the website certification panel."""
+    if not request.answer.strip():
+        raise HTTPException(status_code=400, detail="Answer cannot be empty")
+
+    record = await dashboard_answer_manager.submit_answer(
+        request.session_id,
+        request.question_id,
+        request.answer,
+        request.question_text,
+    )
+
+    return DashboardCertificationAnswerResponse(
+        success=True,
+        session_id=record.session_id,
+        question_id=record.question_id,
+        submitted_at=record.submitted_at,
+    )
 
 
 # ============================================================================
@@ -240,6 +288,14 @@ async def tool_health_check(tool_name: str):
             if not repo_path or not os.path.exists(repo_path):
                 # Not an error - will fall back to mock
                 pass
+
+        elif tool_name == "starter_issue_candidates":
+            # Optional GitHub-backed tool. Empty results are acceptable.
+            pass
+
+        elif tool_name == "wait_for_dashboard_answer":
+            # In-memory coordination tool, no external dependencies.
+            pass
 
         elif tool_name == "emit_event":
             # Always healthy (no external dependencies)
@@ -462,6 +518,48 @@ async def mcp_discovery(request: Request):
                 "required": ["event_type", "event_data"],
             },
         ),
+        MCPTool(
+            name="starter_issue_candidates",
+            description="List open GitHub issues that are good starter-PR candidates, prioritizing labels such as good first issue and help wanted.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of issue candidates",
+                        "default": 3,
+                    },
+                    "labels": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Preferred GitHub labels to prioritize",
+                    },
+                },
+            },
+        ),
+        MCPTool(
+            name="wait_for_dashboard_answer",
+            description="Wait for an answer submitted through the website certification panel for a specific session and question.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Active onboarding session ID",
+                    },
+                    "question_id": {
+                        "type": "string",
+                        "description": "Certification question ID",
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "description": "Maximum wait time for a website answer",
+                        "default": 300,
+                    },
+                },
+                "required": ["session_id", "question_id"],
+            },
+        ),
     ]
 
     try:
@@ -602,9 +700,9 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
             )
             raise HTTPException(status_code=403, detail=str(e))
 
-        # Check cache if session_id is present and tool is cacheable
-        # emit_event is not cacheable (side effects)
-        if session_id and tool_name != "emit_event":
+        # Check cache if session_id is present and the tool is cacheable.
+        non_cacheable_tools = {"emit_event", "wait_for_dashboard_answer"}
+        if session_id and tool_name not in non_cacheable_tools:
             cached_result = await cache_manager.get(session_id, tool_name, arguments)
             if cached_result is not None:
                 cache_hit = True
@@ -652,6 +750,12 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
         elif tool_name == "incident_for_file":
             input_data = contracts.IncidentForFileInput(**arguments)
             result = incident_for_file(input_data)
+        elif tool_name == "starter_issue_candidates":
+            input_data = contracts.StarterIssueCandidatesInput(**arguments)
+            result = starter_issue_candidates(input_data)
+        elif tool_name == "wait_for_dashboard_answer":
+            input_data = contracts.WaitForDashboardAnswerInput(**arguments)
+            result = await wait_for_dashboard_answer(input_data)
         elif tool_name == "emit_event":
             # Special handling for emit_event (async, not cacheable)
             input_data = EmitEventInput(**arguments)
@@ -680,7 +784,7 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
 
             # Cache the error if session present
             error_dict = result.model_dump()
-            if session_id and tool_name != "emit_event":
+            if session_id and tool_name not in non_cacheable_tools:
                 await cache_manager.set(session_id, tool_name, arguments, error_dict)
 
             # Return error response (not raising exception - graceful degradation)
@@ -694,7 +798,7 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
         result_dict = result.model_dump()
 
         # Cache the result if session_id present and tool is cacheable
-        if session_id and tool_name != "emit_event":
+        if session_id and tool_name not in non_cacheable_tools:
             await cache_manager.set(session_id, tool_name, arguments, result_dict)
 
         latency_ms = (time.time() - start_time) * 1000
@@ -724,7 +828,7 @@ async def invoke_mcp_tool(request: MCPToolRequest, response: Response):
 
         # Cache error responses too (to avoid repeated failures)
         error_response = {"error": str(e)}
-        if session_id and tool_name != "emit_event":
+        if session_id and tool_name not in non_cacheable_tools:
             await cache_manager.set(session_id, tool_name, arguments, error_response)
 
         return MCPToolResponse(tool_name=tool_name, result={}, error=str(e))

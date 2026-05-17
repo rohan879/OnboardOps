@@ -20,21 +20,25 @@ This skill drives F7 (Starter PR Generator). Bob generates a small, safe diff th
 
 ## Task Selection
 
-Select one of three starter task types from `docs/starter-tasks.md`:
+Select starter work in this priority order:
 
-1. **Documentation + Test** (DEFAULT): Fix a doc typo + add a missing test case
-2. **Error Handler**: Add graceful error handling for an edge case
-3. **Code Documentation**: Add docstrings/JSDoc to undocumented functions
+1. **Open GitHub issue** (PREFERRED): call `starter_issue_candidates` and look
+   for a small open issue with labels like `good first issue`,
+   `help wanted`, or `documentation`
+2. **Documentation + Test**: fix a doc typo + add a missing test case
+3. **Error Handler**: add graceful error handling for an edge case
+4. **Code Documentation**: add docstrings/JSDoc to undocumented functions
 
-The task type is passed as input. If not specified, use type 1 (Documentation + Test).
+If issue-backed work is unavailable or too large for a safe starter diff, fall
+back to the documentation/test path.
 
 When asking the onboardee what to work on, use a plain numbered list in chat,
 not cramped inline options:
 
-1. Add a new read-only MCP tool.
-2. Improve error handling in an existing tool.
-3. Add a dashboard visualization component.
-4. Write tests for an untested module.
+1. Tackle the best open issue from GitHub, if one is small enough.
+2. Fix a documentation gap and add a matching test.
+3. Improve error handling in an existing edge case.
+4. Add missing docs to a utility or helper module.
 
 After the onboardee chooses, summarize the selected task in one sentence, then
 continue into the Starter PR generation flow.
@@ -47,11 +51,14 @@ Read the following to understand the codebase:
 - Recent cartography output (dependency graph, conventions)
 - Test file patterns (from entry points cartography)
 - Documentation style (from conventions cartography)
+- Open GitHub issue candidates (when available)
 - Starter task specification from `docs/starter-tasks.md`
 
 ### Step 2: Identify Target Files
 
 For the selected task type:
+- **Issue-backed**: prefer an open issue whose fix can be demonstrated in <=30
+  lines and one file
 - **Type 1**: Find README.md (or equivalent) + a test file with <100% coverage
 - **Type 2**: Find a route handler or API endpoint with missing error handling
 - **Type 3**: Find a utility module with undocumented public functions
@@ -122,8 +129,8 @@ Call `emit_event` at each substep:
 Return a JSON object:
 ```json
 {
-  "task_type": 1,
-  "task_title": "Documentation Fix + Test Case",
+  "task_type": 0,
+  "task_title": "Issue-backed starter fix",
   "files": ["README.md", "tests/test_utils.py"],
   "diff": "<unified diff string>",
   "commit_message": "<conventional commit message>",
@@ -202,7 +209,7 @@ Onboarded via OnboardOps in 9m 12s
 This skill is invoked by `scripts/open_starter_pr.py` via Bob Shell:
 
 ```bash
-echo '{"task_type": 1, "repo_path": "/path/to/repo"}' | \
+echo '{"task_type": 0, "repo_path": "/path/to/repo"}' | \
   bob --skill starter-pr --format json
 ```
 

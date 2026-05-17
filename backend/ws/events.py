@@ -28,6 +28,7 @@ class BaseEvent(BaseModel):
 
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     timestamp: float = Field(default_factory=lambda: datetime.now().timestamp())
+    session_id: Optional[str] = None
 
 
 # ============================================================================
@@ -123,6 +124,8 @@ class QuestionAsk(BaseEvent):
     question: str
     question_id: Optional[str] = None
     topic: Optional[str] = None
+    response_mode: Literal["free_text", "multiple_choice"] = "free_text"
+    options: list[str] = Field(default_factory=list)
     expected_answer_hint: Optional[str] = None
 
 
