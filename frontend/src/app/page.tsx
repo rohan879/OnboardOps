@@ -1,19 +1,30 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   Activity,
+  BookOpen,
   ChevronDown,
   ChevronUp,
   CircleDot,
+  Flame,
   GitPullRequest,
+  Globe,
   ShieldCheck,
   TimerReset,
   WifiOff,
 } from 'lucide-react';
 import { Stopwatch } from '@/components/Stopwatch';
 import { EventStream } from '@/components/EventStream';
-import { CartographyCard } from '@/components/CartographyCard';
+import { CartographyCard, type CardState } from '@/components/CartographyCard';
 import { DependencyGraph, GraphData } from '@/components/DependencyGraph';
 import { CartographyStepper } from '@/components/CartographyStepper';
 import { TranscriptPanel } from '@/components/TranscriptPanel';
@@ -43,6 +54,7 @@ import CertificationPanel, {
   CertificationSubmissionState,
 } from '@/components/CertificationPanel';
 import { IdleState } from '@/components/IdleState';
+import { StarterIssue, StarterIssuePanel } from '@/components/StarterIssuePanel';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
 import { useEventsStore, Event } from '@/store/events';
@@ -52,13 +64,13 @@ const MCP_HTTP_URL =
 
 const sampleGraphData: GraphData = {
   nodes: [
-    { id: 'app', name: 'app.py', group: 1, val: 15 },
-    { id: 'api', name: 'api.py', group: 1, val: 12 },
-    { id: 'models', name: 'models.py', group: 2, val: 12 },
-    { id: 'auth', name: 'auth.py', group: 3, val: 10 },
-    { id: 'db', name: 'database.py', group: 3, val: 10 },
-    { id: 'config', name: 'config.py', group: 2, val: 8 },
-    { id: 'utils', name: 'utils.py', group: 2, val: 8 },
+    { id: 'app', name: 'app.py', group: 1, val: 15, fanIn: 2, fanOut: 5 },
+    { id: 'api', name: 'api.py', group: 1, val: 12, fanIn: 3, fanOut: 4 },
+    { id: 'models', name: 'models.py', group: 2, val: 12, fanIn: 4, fanOut: 1 },
+    { id: 'auth', name: 'auth.py', group: 3, val: 10, fanIn: 2, fanOut: 2 },
+    { id: 'db', name: 'database.py', group: 3, val: 10, fanIn: 5, fanOut: 0 },
+    { id: 'config', name: 'config.py', group: 2, val: 8, fanIn: 2, fanOut: 0 },
+    { id: 'utils', name: 'utils.py', group: 2, val: 8, fanIn: 0, fanOut: 1 },
   ],
   edges: [
     { source: 'app', target: 'api' },
@@ -69,7 +81,31 @@ const sampleGraphData: GraphData = {
     { source: 'app', target: 'config' },
     { source: 'utils', target: 'config' },
   ],
+  cycles: [],
 };
+
+type AnalysisTabId = 'entry' | 'hotspot' | 'convention';
+
+interface StarterIssuesState {
+  isLoading: boolean;
+  hasLoaded: boolean;
+  error: string | null;
+  repository: string | null;
+  issues: StarterIssue[];
+}
+
+interface AnalysisTabConfig {
+  id: AnalysisTabId;
+  label: string;
+  caption: string;
+  icon: typeof Globe;
+  type: 'entry' | 'hotspot' | 'convention';
+  state: CardState;
+  title: string;
+  bodyMarkdown: string | null;
+  content: ReactNode;
+  isAvailable: boolean;
+}
 
 function findCard(events: Event[], cardType: string) {
   return events.find(
@@ -84,9 +120,13 @@ function graphDataFromCard(card: Event | undefined): GraphData {
           id?: string;
           label?: string;
           fan_in?: number;
+          fan_out?: number;
           is_hub?: boolean;
         }>;
         edges?: Array<{ source?: string; target?: string }>;
+        circular_dependencies?: Array<{
+          cycle?: string[] | string;
+        }>;
       }
     | undefined;
 
@@ -100,6 +140,8 @@ function graphDataFromCard(card: Event | undefined): GraphData {
       name: node.label || node.id || `node-${index}`,
       group: node.is_hub ? 1 : 2,
       val: Math.max(8, (node.fan_in || 0) * 4 + 8),
+      fanIn: node.fan_in || 0,
+      fanOut: node.fan_out || 0,
     })),
     edges: (data.edges || [])
       .filter((edge) => edge.source && edge.target)
@@ -107,6 +149,15 @@ function graphDataFromCard(card: Event | undefined): GraphData {
         source: edge.source as string,
         target: edge.target as string,
       })),
+    cycles: Array.isArray(data.circular_dependencies)
+      ? data.circular_dependencies
+          .map((item) => {
+            if (Array.isArray(item.cycle)) return item.cycle.join(' -> ');
+            if (typeof item.cycle === 'string') return item.cycle;
+            return '';
+          })
+          .filter((cycle) => cycle.trim().length > 0)
+      : [],
   };
 }
 
@@ -124,12 +175,195 @@ function entryPointsDataFromCard(card: Event | undefined): EntryPointsData | nul
   };
 }
 
+function toTrimmedString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function toFiniteNumber(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return fallback;
+}
+
+function normalizeHotspotAuthor(value: unknown) {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return toTrimmedString(record.author) || toTrimmedString(record.name);
+  }
+
+  return null;
+}
+
+function normalizeHotspotRecord(value: unknown): Hotspot | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const record = value as Record<string, unknown>;
+  const authors = Array.isArray(record.authors)
+    ? record.authors
+        .map(normalizeHotspotAuthor)
+        .filter((author): author is string => Boolean(author))
+    : [];
+  const lastPrReference = toTrimmedString(record.last_pr);
+  const lastPrUrl =
+    toTrimmedString(record.last_pr_url) ||
+    toTrimmedString(record.pr_url) ||
+    toTrimmedString(record.pull_request_url);
+
+  return {
+    path:
+      toTrimmedString(record.path) ||
+      toTrimmedString(record.file_path) ||
+      toTrimmedString(record.file) ||
+      'unknown',
+    commit_count: toFiniteNumber(
+      record.commit_count ?? record.changes ?? record.commit_total,
+      0
+    ),
+    distinct_authors: toFiniteNumber(
+      record.distinct_authors ?? (authors.length > 0 ? authors.length : 0),
+      0
+    ),
+    top_author:
+      toTrimmedString(record.top_author) ||
+      toTrimmedString(record.owner) ||
+      authors[0] ||
+      undefined,
+    last_pr_title:
+      toTrimmedString(record.last_pr_title) ||
+      (lastPrReference && lastPrReference.toLowerCase() !== 'unknown'
+        ? lastPrReference
+        : undefined),
+    last_pr_url: lastPrUrl || undefined,
+    rationale:
+      toTrimmedString(record.rationale) ||
+      'High change activity suggests this file is a frequent integration point.',
+    commit_frequency: Array.isArray(record.commit_frequency)
+      ? (record.commit_frequency as number[])
+      : undefined,
+  };
+}
+
+function parseConventionEvidence(
+  value: unknown,
+  fallbackFile = 'Representative file'
+): Convention['evidence'] {
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return {
+      file:
+        toTrimmedString(record.file) ||
+        toTrimmedString(record.path) ||
+        toTrimmedString(record.location) ||
+        fallbackFile,
+      example:
+        toTrimmedString(record.example) ||
+        toTrimmedString(record.snippet) ||
+        toTrimmedString(record.code) ||
+        undefined,
+      line_number: toFiniteNumber(
+        record.line_number ?? record.line ?? record.lineNumber,
+        0
+      ) || undefined,
+    };
+  }
+
+  const text = toTrimmedString(value);
+  if (!text) return { file: fallbackFile };
+
+  const lineMatch = text.match(/^(.*?):(\d+)\s*[:-]?\s*(.*)$/);
+  if (lineMatch) {
+    return {
+      file: lineMatch[1].trim() || fallbackFile,
+      line_number: Number.parseInt(lineMatch[2], 10) || undefined,
+      example: lineMatch[3].trim() || undefined,
+    };
+  }
+
+  const colonIndex = text.indexOf(':');
+  if (colonIndex > 0) {
+    const possibleFile = text.slice(0, colonIndex).trim();
+    const possibleExample = text.slice(colonIndex + 1).trim();
+    const looksLikeFile =
+      possibleFile.includes('/') ||
+      possibleFile.includes('\\') ||
+      possibleFile.includes('.');
+
+    if (looksLikeFile) {
+      return {
+        file: possibleFile || fallbackFile,
+        example: possibleExample || undefined,
+      };
+    }
+  }
+
+  return {
+    file: fallbackFile,
+    example: text,
+  };
+}
+
+function normalizeConventionRecord(value: unknown, index: number): Convention | null {
+  if (typeof value === 'string' && value.trim()) {
+    return {
+      name: `Convention ${index + 1}`,
+      pattern: value.trim(),
+      evidence: parseConventionEvidence(value),
+    };
+  }
+
+  if (!value || typeof value !== 'object') return null;
+
+  const record = value as Record<string, unknown>;
+  const pattern =
+    toTrimmedString(record.pattern) ||
+    toTrimmedString(record.rule) ||
+    toTrimmedString(record.description) ||
+    toTrimmedString(record.evidence) ||
+    'Follow the prevailing project style';
+  const consistency = toTrimmedString(record.consistency);
+
+  return {
+    name:
+      toTrimmedString(record.name) ||
+      toTrimmedString(record.category) ||
+      toTrimmedString(record.title) ||
+      `Convention ${index + 1}`,
+    pattern,
+    evidence: parseConventionEvidence(
+      record.evidence ?? {
+        file: record.file,
+        example: record.example ?? record.snippet,
+        line_number: record.line_number ?? record.line,
+      }
+    ),
+    consistency:
+      consistency === 'consistent' || consistency === 'mixed'
+        ? consistency
+        : undefined,
+  };
+}
+
 function hotspotsDataFromCard(card: Event | undefined): HotspotsData | null {
   if (!card?.data.data) return null;
 
   const data = card.data.data as Record<string, unknown>;
   return {
-    files: Array.isArray(data.files) ? (data.files as Hotspot[]) : [],
+    files: (
+      Array.isArray(data.files)
+        ? data.files
+        : Array.isArray(data.hotspots)
+          ? data.hotspots
+          : Array.isArray(data.items)
+            ? data.items
+            : []
+    )
+      .map(normalizeHotspotRecord)
+      .filter((hotspot): hotspot is Hotspot => Boolean(hotspot)),
   };
 }
 
@@ -138,9 +372,17 @@ function conventionsDataFromCard(card: Event | undefined): ConventionsData | nul
 
   const data = card.data.data as Record<string, unknown>;
   return {
-    conventions: Array.isArray(data.conventions)
-      ? (data.conventions as Convention[])
-      : [],
+    conventions: (
+      Array.isArray(data.conventions)
+        ? data.conventions
+        : Array.isArray(data.patterns)
+          ? data.patterns
+          : Array.isArray(data.items)
+            ? data.items
+            : []
+    )
+      .map(normalizeConventionRecord)
+      .filter((convention): convention is Convention => Boolean(convention)),
   };
 }
 
@@ -215,6 +457,81 @@ function conventionExampleText(convention: Convention) {
   return example
     ? `${convention.pattern} (example: ${example})`
     : convention.pattern;
+}
+
+function countEntryPoints(data: EntryPointsData | null) {
+  if (!data) return 0;
+
+  return (
+    (data.routes?.length || 0) +
+    (data.cli?.length || 0) +
+    (data.jobs?.length || 0) +
+    (data.consumers?.length || 0)
+  );
+}
+
+async function fetchStarterIssueCandidates(baseUrl: string) {
+  const response = await fetch(`${baseUrl}/mcp/invoke`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      tool_name: 'starter_issue_candidates',
+      arguments: {
+        limit: 3,
+      },
+    }),
+  });
+
+  const payload = (await response.json()) as {
+    result?: {
+      repository?: string;
+      issues?: Array<{
+        issue_number?: number;
+        title?: string;
+        url?: string;
+        labels?: string[];
+        state?: string;
+        updated_at?: string;
+        body_excerpt?: string | null;
+      }>;
+    };
+    error?: string | null;
+  };
+
+  if (!response.ok || payload.error) {
+    throw new Error(
+      payload.error ||
+        'Could not load starter issues from the local onboarding backend.'
+    );
+  }
+
+  return {
+    repository: payload.result?.repository || null,
+    issues: (payload.result?.issues || [])
+      .filter(
+        (issue): issue is NonNullable<
+          NonNullable<typeof payload.result>['issues']
+        >[number] =>
+          typeof issue.issue_number === 'number' &&
+          typeof issue.title === 'string' &&
+          typeof issue.url === 'string'
+      )
+      .map((issue) => ({
+        issueNumber: issue.issue_number as number,
+        title: issue.title as string,
+        url: issue.url as string,
+        labels: Array.isArray(issue.labels) ? issue.labels : [],
+        state: typeof issue.state === 'string' ? issue.state : 'open',
+        updatedAt:
+          typeof issue.updated_at === 'string'
+            ? issue.updated_at
+            : new Date().toISOString(),
+        bodyExcerpt:
+          typeof issue.body_excerpt === 'string' ? issue.body_excerpt : null,
+      })),
+  };
 }
 
 function deriveFallbackCertificationOptions({
@@ -531,7 +848,7 @@ function ConnectionBanner({
 
   return (
     <div className="border-b border-ibm-orange-40/30 bg-ibm-orange-40/10 px-6 py-3 text-sm text-ibm-gray-100">
-      <div className="mx-auto flex max-w-[1440px] items-center gap-3">
+      <div className="mx-auto flex max-w-[1680px] items-center gap-3">
         <WifiOff className="h-4 w-4 text-ibm-orange-40" />
         <span>{copy}</span>
       </div>
@@ -541,6 +858,9 @@ function ConnectionBanner({
 
 function Dashboard() {
   const [showEventStream, setShowEventStream] = useState(true);
+  const [activeAnalysisTab, setActiveAnalysisTab] =
+    useState<AnalysisTabId>('entry');
+  const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
   const [certificationAnswers, setCertificationAnswers] = useState<{
     sessionId: string | null;
     answers: Record<string, string>;
@@ -549,6 +869,13 @@ function Dashboard() {
     sessionId: string | null;
     questions: Record<string, CertificationSubmissionState>;
   }>({ sessionId: null, questions: {} });
+  const [starterIssuesState, setStarterIssuesState] = useState<StarterIssuesState>({
+    isLoading: false,
+    hasLoaded: false,
+    error: null,
+    repository: null,
+    issues: [],
+  });
   const lastRecoveryEventId = useRef<string | null>(null);
   const { isConnected } = useEvents();
   useEventHandlers();
@@ -560,12 +887,24 @@ function Dashboard() {
   const { currentEvent, showRecovery, dismissRecovery } = useAutoRecovery();
 
   const isIdle = !session.isActive && events.length === 0;
-  const currentSessionId =
-    (events.find((event) => event.type === 'session_start')?.data.session_id as
-      | string
-      | undefined) ||
-    events.find((event) => event.type === 'session_start')?.id ||
-    null;
+  const currentSessionId = useMemo(() => {
+    const sessionStartEvent = events.find((event) => event.type === 'session_start');
+    const sessionStartId = sessionStartEvent?.data.session_id;
+
+    if (typeof sessionStartId === 'string' && sessionStartId.trim()) {
+      return sessionStartId;
+    }
+
+    const eventWithSessionId = events.find((event) => {
+      const eventSessionId = event.data.session_id;
+      return typeof eventSessionId === 'string' && eventSessionId.trim().length > 0;
+    });
+
+    const fallbackSessionId = eventWithSessionId?.data.session_id;
+    return typeof fallbackSessionId === 'string' && fallbackSessionId.trim()
+      ? fallbackSessionId
+      : null;
+  }, [events]);
   const dependencyCard = findCard(events, 'dependency_graph');
   const entryCard = findCard(events, 'entry_points');
   const hotspotCard = findCard(events, 'hotspots');
@@ -860,18 +1199,147 @@ function Dashboard() {
       displayCartographySteps.filter((step) => step.status === 'complete').length,
     [displayCartographySteps]
   );
+  const entryPointCount = countEntryPoints(entryPointsData);
+  const hotspotCount = hotspotsData?.files.length || 0;
+  const conventionCount = conventionsData?.conventions.length || 0;
   const passCount = certificationQuestions.filter(
     (question) => question.grade === 'pass'
   ).length;
   const latestPrUrl = events.find((event) => event.type === 'session_end')?.data
     .pr_url as string | undefined;
+  const analysisTabs = useMemo<AnalysisTabConfig[]>(
+    () => [
+      {
+        id: 'entry',
+        label: 'Entry Points',
+        caption: `${entryPointCount} surfaces`,
+        icon: Globe,
+        type: 'entry',
+        state: entryCard ? 'complete' : 'pending',
+        title: String(entryCard?.data.title || 'Entry Points'),
+        bodyMarkdown:
+          typeof entryCard?.data.body_markdown === 'string'
+            ? entryCard.data.body_markdown
+            : null,
+        content: entryPointsData ? (
+          <EntryPointsCard data={entryPointsData} />
+        ) : (
+          <div className="py-4 text-center text-sm text-ibm-gray-70">
+            Waiting to analyze entry points...
+          </div>
+        ),
+        isAvailable: Boolean(entryCard || entryPointsData),
+      },
+      {
+        id: 'hotspot',
+        label: 'Change Hotspots',
+        caption: `${hotspotCount} files`,
+        icon: Flame,
+        type: 'hotspot',
+        state: hotspotCard ? 'complete' : 'pending',
+        title: String(hotspotCard?.data.title || 'Change Hotspots'),
+        bodyMarkdown:
+          typeof hotspotCard?.data.body_markdown === 'string'
+            ? hotspotCard.data.body_markdown
+            : null,
+        content: hotspotsData ? (
+          <HotspotsCard data={hotspotsData} />
+        ) : (
+          <div className="py-4 text-center text-sm text-ibm-gray-70">
+            Waiting to analyze hotspots...
+          </div>
+        ),
+        isAvailable: Boolean(hotspotCard || hotspotsData),
+      },
+      {
+        id: 'convention',
+        label: 'Project Conventions',
+        caption: `${conventionCount} patterns`,
+        icon: BookOpen,
+        type: 'convention',
+        state: conventionCard ? 'complete' : 'pending',
+        title: String(conventionCard?.data.title || 'Project Conventions'),
+        bodyMarkdown:
+          typeof conventionCard?.data.body_markdown === 'string'
+            ? conventionCard.data.body_markdown
+            : null,
+        content: conventionsData ? (
+          <ConventionsCard data={conventionsData} />
+        ) : (
+          <div className="py-4 text-center text-sm text-ibm-gray-70">
+            Waiting to analyze conventions...
+          </div>
+        ),
+        isAvailable: Boolean(conventionCard || conventionsData),
+      },
+    ],
+    [
+      conventionCard,
+      conventionCount,
+      conventionsData,
+      entryCard,
+      entryPointCount,
+      entryPointsData,
+      hotspotCard,
+      hotspotCount,
+      hotspotsData,
+    ]
+  );
+  const activeAnalysisConfig =
+    analysisTabs.find((tab) => tab.id === activeAnalysisTab) || analysisTabs[0];
+  const availableAnalysisCount = analysisTabs.filter((tab) => tab.isAvailable).length;
+
+  useEffect(() => {
+    if (activeAnalysisConfig?.isAvailable) return;
+
+    const nextAvailableTab = analysisTabs.find((tab) => tab.isAvailable);
+    if (nextAvailableTab && nextAvailableTab.id !== activeAnalysisTab) {
+      setActiveAnalysisTab(nextAvailableTab.id);
+    }
+  }, [activeAnalysisConfig, activeAnalysisTab, analysisTabs]);
+
+  const loadStarterIssues = useCallback(async (force = false) => {
+    if (!force && starterIssuesState.isLoading) return;
+
+    setStarterIssuesState((prev) => ({
+      ...prev,
+      isLoading: true,
+      error: null,
+    }));
+
+    try {
+      const result = await fetchStarterIssueCandidates(MCP_HTTP_URL);
+      setStarterIssuesState({
+        isLoading: false,
+        hasLoaded: true,
+        error: null,
+        repository: result.repository,
+        issues: result.issues,
+      });
+    } catch (error) {
+      setStarterIssuesState((prev) => ({
+        ...prev,
+        isLoading: false,
+        hasLoaded: true,
+        error:
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : 'Could not load starter issues from the local onboarding backend.',
+      }));
+    }
+  }, [starterIssuesState.isLoading]);
+
+  useEffect(() => {
+    if (connectionState !== 'connected' || starterIssuesState.hasLoaded) return;
+    void loadStarterIssues();
+  }, [connectionState, starterIssuesState.hasLoaded, loadStarterIssues]);
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <AutoRecoveryBanner event={currentEvent} onDismiss={dismissRecovery} />
 
       <header className="border-b border-ibm-gray-20 bg-white px-6 py-4">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-6">
+        <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-6">
           <div className="min-w-0">
             <div className="text-2xl font-semibold text-ibm-blue-60">
               OnboardOps
@@ -908,7 +1376,7 @@ function Dashboard() {
 
       <ConnectionBanner connectionState={connectionState} />
 
-      <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-5 px-6 py-5">
+      <main className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col gap-5 px-6 py-5">
         <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <MetricTile
             icon={TimerReset}
@@ -940,103 +1408,160 @@ function Dashboard() {
           <CartographyStepper steps={displayCartographySteps} />
         </section>
 
-        <div className="grid flex-1 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="min-w-0 space-y-5">
-            {isIdle ? (
-              <div className="border border-ibm-gray-20 bg-white">
-                <IdleState />
-              </div>
-            ) : (
-              <>
-                <CartographyCard
-                  type="graph"
-                  title={String(dependencyCard?.data.title || 'Dependency Graph')}
-                  state={
-                    dependencyCard
-                      ? 'complete'
-                      : session.isActive
-                        ? 'in-progress'
-                        : 'pending'
-                  }
-                >
-                  <div className="space-y-4">
-                    {typeof dependencyCard?.data.body_markdown === 'string' && (
-                      <p className="text-sm text-ibm-gray-70">
-                        {dependencyCard.data.body_markdown}
-                      </p>
-                    )}
-                    <DependencyGraph data={graphData} height={380} />
-                  </div>
-                </CartographyCard>
-
-                <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3">
-                  <CartographyCard
-                    type="entry"
-                    title={String(entryCard?.data.title || 'Entry Points')}
-                    state={entryCard ? 'complete' : 'pending'}
-                  >
-                    {typeof entryCard?.data.body_markdown === 'string' && (
-                      <p className="mb-4 text-sm text-ibm-gray-70">
-                        {entryCard.data.body_markdown}
-                      </p>
-                    )}
-                    {entryPointsData ? (
-                      <EntryPointsCard data={entryPointsData} />
-                    ) : (
-                      <div className="py-4 text-center text-sm text-ibm-gray-70">
-                        Waiting to analyze entry points...
-                      </div>
-                    )}
-                  </CartographyCard>
-
-                  <CartographyCard
-                    type="hotspot"
-                    title={String(hotspotCard?.data.title || 'Change Hotspots')}
-                    state={hotspotCard ? 'complete' : 'pending'}
-                  >
-                    {typeof hotspotCard?.data.body_markdown === 'string' && (
-                      <p className="mb-4 text-sm text-ibm-gray-70">
-                        {hotspotCard.data.body_markdown}
-                      </p>
-                    )}
-                    {hotspotsData ? (
-                      <HotspotsCard data={hotspotsData} />
-                    ) : (
-                      <div className="py-4 text-center text-sm text-ibm-gray-70">
-                        Waiting to analyze hotspots...
-                      </div>
-                    )}
-                  </CartographyCard>
-
-                  <CartographyCard
-                    type="convention"
-                    title={String(
-                      conventionCard?.data.title || 'Project Conventions'
-                    )}
-                    state={conventionCard ? 'complete' : 'pending'}
-                  >
-                    {typeof conventionCard?.data.body_markdown === 'string' && (
-                      <p className="mb-4 text-sm text-ibm-gray-70">
-                        {conventionCard.data.body_markdown}
-                      </p>
-                    )}
-                    {conventionsData ? (
-                      <ConventionsCard data={conventionsData} />
-                    ) : (
-                      <div className="py-4 text-center text-sm text-ibm-gray-70">
-                        Waiting to analyze conventions...
-                      </div>
-                    )}
-                  </CartographyCard>
+        {isIdle ? (
+          <div className="border border-ibm-gray-20 bg-white">
+            <IdleState />
+          </div>
+        ) : (
+          <>
+            <section className="min-w-0">
+              <CartographyCard
+                type="graph"
+                title={String(dependencyCard?.data.title || 'Dependency Graph')}
+                state={
+                  dependencyCard
+                    ? 'complete'
+                    : session.isActive
+                      ? 'in-progress'
+                      : 'pending'
+                }
+              >
+                <div className="space-y-4">
+                  {typeof dependencyCard?.data.body_markdown === 'string' && (
+                    <p className="text-sm text-ibm-gray-70">
+                      {dependencyCard.data.body_markdown}
+                    </p>
+                  )}
+                  <DependencyGraph data={graphData} height={560} />
                 </div>
-              </>
-            )}
-          </section>
+              </CartographyCard>
+            </section>
 
-          <aside className="min-w-0 space-y-4">
-            <TranscriptPanel maxHeight={260} />
+            <section className="grid gap-5 2xl:grid-cols-[minmax(0,1.18fr)_420px]">
+              <div className="min-w-0">
+                <div className="overflow-hidden rounded-[24px] border border-ibm-gray-20 bg-white shadow-[0_18px_40px_rgba(22,22,22,0.04)]">
+                  <button
+                    type="button"
+                    onClick={() => setIsAnalysisExpanded((value) => !value)}
+                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-ibm-gray-10/30"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-ibm-gray-100">
+                        Repository Reading Lenses
+                      </div>
+                      <p className="mt-1 text-sm text-ibm-gray-70">
+                        Entry points, change hotspots, and conventions grouped into one review section.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-full bg-ibm-gray-10 px-3 py-1 text-xs font-semibold text-ibm-gray-70">
+                        {availableAnalysisCount} of {analysisTabs.length} ready
+                      </div>
+                      {isAnalysisExpanded ? (
+                        <ChevronUp className="h-4 w-4 text-ibm-gray-70" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-ibm-gray-70" />
+                      )}
+                    </div>
+                  </button>
 
-            <div className="overflow-hidden border border-ibm-gray-20 bg-white">
+                  {isAnalysisExpanded ? (
+                    <div className="space-y-4 border-t border-ibm-gray-10 px-4 py-4">
+                      <div className="rounded-[24px] border border-ibm-gray-20 bg-[linear-gradient(135deg,rgba(15,98,254,0.06),rgba(255,131,43,0.04),rgba(36,161,72,0.04))] p-2 shadow-[0_12px_28px_rgba(22,22,22,0.04)]">
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                          {analysisTabs.map((tab) => {
+                            const Icon = tab.icon;
+                            const isActive = tab.id === activeAnalysisTab;
+
+                            return (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setActiveAnalysisTab(tab.id)}
+                                className={`rounded-[18px] border px-4 py-4 text-left transition ${
+                                  isActive
+                                    ? 'border-ibm-blue-60 bg-white shadow-[0_12px_24px_rgba(15,98,254,0.12)]'
+                                    : 'border-transparent bg-white/55 hover:border-ibm-gray-20 hover:bg-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={`rounded-2xl p-2 ${
+                                      isActive ? 'bg-ibm-blue-60/10' : 'bg-white'
+                                    }`}
+                                  >
+                                    <Icon className="h-4 w-4 text-ibm-blue-60" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-ibm-gray-100">
+                                      {tab.label}
+                                    </div>
+                                    <div className="text-xs text-ibm-gray-70">
+                                      {tab.caption}
+                                    </div>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <CartographyCard
+                        type={activeAnalysisConfig.type}
+                        title={activeAnalysisConfig.title}
+                        state={activeAnalysisConfig.state}
+                      >
+                        {activeAnalysisConfig.bodyMarkdown && (
+                          <p className="mb-4 text-sm text-ibm-gray-70">
+                            {activeAnalysisConfig.bodyMarkdown}
+                          </p>
+                        )}
+                        {activeAnalysisConfig.content}
+                      </CartographyCard>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 border-t border-ibm-gray-10 px-4 py-4">
+                      {analysisTabs.map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveAnalysisTab(tab.id);
+                            setIsAnalysisExpanded(true);
+                          }}
+                          className={`rounded-full border px-3 py-2 text-left text-xs font-semibold transition ${
+                            tab.isAvailable
+                              ? 'border-ibm-gray-20 bg-white text-ibm-gray-100 hover:border-ibm-blue-60 hover:text-ibm-blue-60'
+                              : 'border-ibm-gray-10 bg-ibm-gray-10/60 text-ibm-gray-50'
+                          }`}
+                        >
+                          {tab.label} · {tab.caption}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <aside className="min-w-0 space-y-4">
+                <StarterIssuePanel
+                  repository={starterIssuesState.repository}
+                  issues={starterIssuesState.issues}
+                  isLoading={starterIssuesState.isLoading}
+                  error={starterIssuesState.error}
+                  isUnlocked={passCount >= 2}
+                  prUrl={latestPrUrl}
+                  onRetry={() => {
+                    void loadStarterIssues(true);
+                  }}
+                />
+
+                <TranscriptPanel maxHeight={360} />
+              </aside>
+            </section>
+
+            <section className="overflow-hidden rounded-[24px] border border-ibm-gray-20 bg-white shadow-[0_18px_40px_rgba(22,22,22,0.04)]">
               <CertificationPanel
                 key={currentSessionId || 'no-session'}
                 questions={certificationQuestions}
@@ -1057,47 +1582,13 @@ function Dashboard() {
                     : {}
                 }
               />
-            </div>
-
-            <div className="border border-ibm-gray-20 bg-white p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-ibm-gray-100">
-                <GitPullRequest className="h-4 w-4 text-ibm-blue-60" />
-                Starter PR
-              </div>
-              {latestPrUrl ? (
-                <a
-                  href={latestPrUrl}
-                  className="mt-2 block truncate text-sm text-ibm-blue-60 underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {latestPrUrl}
-                </a>
-              ) : passCount >= 2 ? (
-                <div className="mt-2 text-sm text-ibm-green-50">
-                  Certification passed. Bob can now prefer open GitHub issues for the first PR.
-                </div>
-              ) : (
-                <div className="mt-2 text-sm text-ibm-gray-70">
-                  Unlocks after certification passes. The workflow now prefers{' '}
-                  <code className="rounded bg-ibm-gray-10 px-1 py-0.5 text-xs">
-                    good first issue
-                  </code>{' '}
-                  ,{' '}
-                  <code className="rounded bg-ibm-gray-10 px-1 py-0.5 text-xs">
-                    help wanted
-                  </code>{' '}
-                  , and documentation issues before falling back to starter
-                  templates.
-                </div>
-              )}
-            </div>
-          </aside>
-        </div>
+            </section>
+          </>
+        )}
       </main>
 
       <footer className="border-t border-ibm-gray-20 bg-white px-6 py-3">
-        <div className="mx-auto max-w-[1440px]">
+        <div className="mx-auto max-w-[1680px]">
           <button
             onClick={() => setShowEventStream((value) => !value)}
             className="flex w-full items-center justify-between text-left text-sm font-semibold text-ibm-gray-100"
