@@ -131,10 +131,13 @@ Use these concise templates for chat narration:
   "files": [
     {
       "path": "src/auth.py",
-      "changes": 47,
-      "authors": ["alice", "bob"],
+      "commit_count": 47,
+      "distinct_authors": 2,
+      "top_author": "Full Name From recent_authors",
+      "authors": ["Full Name From recent_authors"],
       "last_pr": "#123",
-      "rationale": "Authentication module with frequent security patches"
+      "rationale": "Authentication module with frequent security patches",
+      "commit_frequency": [1, 2, 4, 3, 5, 6, 4, 7, 8, 6, 5, 9]
     }
   ]
 }

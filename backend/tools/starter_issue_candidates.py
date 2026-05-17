@@ -25,41 +25,66 @@ GITHUB_TOKEN = os.getenv("ONBOARDOPS_GITHUB_TOKEN")
 GITHUB_API_BASE = "https://api.github.com"
 
 
-def extract_repo_info() -> tuple[str, str]:
-    candidates = [
-        os.getenv("ONBOARDOPS_DEMO_REPO"),
-        os.getenv("NEXT_PUBLIC_REPOSITORY_URL"),
-    ]
+def _git_remote_for_path(repo_path: str | None) -> str | None:
+    if not repo_path:
+        return None
 
     try:
-        remote_url = subprocess.check_output(
+        return subprocess.check_output(
             ["git", "config", "--get", "remote.origin.url"],
-            cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+            cwd=repo_path,
             text=True,
             timeout=2,
         ).strip()
-        candidates.append(remote_url)
     except Exception:
-        pass
+        return None
 
-    candidates.append("rohan879/OnboardOps")
+
+def _repo_from_candidate(candidate: str | None) -> tuple[str, str] | None:
+    if not candidate:
+        return None
+
+    candidate = candidate.strip()
+    if not candidate:
+        return None
+
+    if os.path.exists(candidate):
+        return _repo_from_candidate(_git_remote_for_path(candidate))
+
+    match = re.search(
+        r"github\.com[:/](?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?/?$",
+        candidate,
+    )
+    if match:
+        return match.group("owner"), match.group("repo")
+
+    parts = candidate.removesuffix(".git").split("/")
+    if len(parts) == 2 and all(parts):
+        return parts[0], parts[1]
+
+    return None
+
+
+def extract_repo_info(repository: str | None = None) -> tuple[str, str]:
+    candidates = [
+        repository,
+        os.getenv("ONBOARDOPS_DEMO_REPO"),
+        os.getenv("NEXT_PUBLIC_REPOSITORY_URL"),
+        _git_remote_for_path(os.getenv("ONBOARDOPS_DEMO_REPO_PATH")),
+    ]
+
+    candidates.append(
+        _git_remote_for_path(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        )
+    )
 
     for candidate in candidates:
-        if not candidate:
-            continue
+        repo_info = _repo_from_candidate(candidate)
+        if repo_info:
+            return repo_info
 
-        match = re.search(
-            r"github\.com[:/](?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?/?$",
-            candidate,
-        )
-        if match:
-            return match.group("owner"), match.group("repo")
-
-        parts = candidate.strip().removesuffix(".git").split("/")
-        if len(parts) == 2 and all(parts):
-            return parts[0], parts[1]
-
-    return "rohan879", "OnboardOps"
+    return "unknown", "repository"
 
 
 @with_retry(
@@ -98,7 +123,9 @@ def starter_issue_candidates(
     Issues labeled `good first issue`, `help wanted`, or `documentation` are
     ranked first, then recency breaks ties.
     """
-    owner, repo = extract_repo_info()
+    owner, repo = extract_repo_info(
+        input_data.repository or input_data.repository_url
+    )
     repository = f"{owner}/{repo}"
     preferred_labels = [label.strip().lower() for label in input_data.labels if label]
 

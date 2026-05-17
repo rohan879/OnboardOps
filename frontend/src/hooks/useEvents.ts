@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { useEventsStore } from '@/store/events';
 
-const WS_URL =
+const BASE_WS_URL =
   process.env.NEXT_PUBLIC_MCP_WS_URL || 'ws://127.0.0.1:8765/events';
 const HEALTH_URL = (() => {
   try {
-    const parsed = new URL(WS_URL);
+    const parsed = new URL(BASE_WS_URL);
     parsed.protocol = parsed.protocol === 'wss:' ? 'https:' : 'http:';
     parsed.pathname = '/health';
     parsed.search = '';
@@ -19,11 +19,28 @@ const HEALTH_URL = (() => {
   }
 })();
 
-export function useEvents() {
+function scopedWebSocketUrl(sessionId: string | null) {
+  if (!sessionId) return BASE_WS_URL;
+
+  try {
+    const parsed = new URL(BASE_WS_URL);
+    parsed.searchParams.set('session_id', sessionId);
+    return parsed.toString();
+  } catch {
+    const separator = BASE_WS_URL.includes('?') ? '&' : '?';
+    return `${BASE_WS_URL}${separator}session_id=${encodeURIComponent(sessionId)}`;
+  }
+}
+
+export function useEvents(activeSessionId: string | null = null) {
   const { addEvent, setConnectionState } = useEventsStore();
   const reconnectAttempt = useRef(0);
   const hasLoggedSocketFailure = useRef(false);
   const [isBridgeReachable, setIsBridgeReachable] = useState(false);
+  const wsUrl = useMemo(
+    () => scopedWebSocketUrl(activeSessionId),
+    [activeSessionId]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +73,7 @@ export function useEvents() {
     };
   }, []);
 
-  const { lastMessage, readyState } = useWebSocket(WS_URL, {
+  const { lastMessage, readyState } = useWebSocket(wsUrl, {
     shouldReconnect: () => isBridgeReachable,
     reconnectAttempts: 10,
     reconnectInterval: (attemptNumber) => {
@@ -77,7 +94,7 @@ export function useEvents() {
 
       hasLoggedSocketFailure.current = true;
       console.warn(
-        `WebSocket bridge at ${WS_URL} could not be opened. The dashboard will retry automatically.`
+        `WebSocket bridge at ${wsUrl} could not be opened. The dashboard will retry automatically.`
       );
     },
   }, isBridgeReachable);
@@ -115,6 +132,18 @@ export function useEvents() {
           envelope.event && typeof envelope.event === 'object'
             ? (envelope.event as Record<string, unknown>)
             : envelope;
+        const eventSessionId =
+          typeof event.session_id === 'string' && event.session_id.trim()
+            ? event.session_id.trim()
+            : null;
+
+        if (
+          activeSessionId &&
+          eventSessionId &&
+          eventSessionId !== activeSessionId
+        ) {
+          return;
+        }
 
         addEvent({
           id: (event.event_id as string) || (event.id as string) || crypto.randomUUID(),
@@ -128,7 +157,7 @@ export function useEvents() {
         console.error('Failed to parse WebSocket message:', error);
       }
     }
-  }, [lastMessage, addEvent]);
+  }, [activeSessionId, lastMessage, addEvent]);
 
   return {
     connectionState: readyState,

@@ -9,7 +9,7 @@ Plan mode is for designing, strategizing, and breaking down complex problems bef
 ## Non-Obvious Architectural Constraints
 
 ### Hidden Coupling
-- **Session IDs propagate everywhere**: [`emit_event`](../../backend/tools/emit_event.py:66-77) auto-creates sessions - all downstream code assumes this
+- **Session IDs propagate everywhere**: [`emit_event`](../../backend/tools/emit_event.py:66-92) creates the `session_start` session; all downstream dashboard events should carry that same ID
 - **Cache is session-scoped**: [`cache_manager.py`](../../backend/cache_manager.py:46-48) keys on `(session_id, tool_name, input_hash)` - not global
 - **WebSocket broadcasts are session-filtered**: Events only go to clients subscribed to that `session_id` - no cross-session leakage
 - **Lazy imports break circular deps**: [`session_manager.py`](../../backend/session_manager.py:20-26) imports observability lazily - pattern required for cross-module dependencies

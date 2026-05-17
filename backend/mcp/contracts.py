@@ -55,6 +55,14 @@ class CommitFrequencyInput(BaseModel):
 
     file_path: Optional[str] = Field(None, description="Specific file path (optional)")
     days: int = Field(180, description="Number of days to look back")
+    repo_path: Optional[str] = Field(
+        None,
+        description="Absolute path to the repository; defaults to ONBOARDOPS_DEMO_REPO_PATH",
+    )
+    repository: Optional[str] = Field(
+        None,
+        description="Repository URL or owner/name hint for diagnostics",
+    )
 
 
 class FileCommitFrequency(BaseModel):
@@ -63,8 +71,18 @@ class FileCommitFrequency(BaseModel):
     file_path: str
     commit_count: int
     distinct_authors: int
+    top_author: Optional[str] = Field(
+        None, description="Most active human author for ownership context"
+    )
+    authors: List[str] = Field(
+        default_factory=list, description="Recent human authors ranked by commits"
+    )
     first_commit: datetime
     last_commit: datetime
+    commit_frequency: List[int] = Field(
+        default_factory=list,
+        description="Chronological commit-count buckets for sparklines",
+    )
 
 
 class CommitFrequencyOutput(BaseModel):
@@ -237,6 +255,14 @@ class StarterIssueCandidatesInput(BaseModel):
     """Input for starter_issue_candidates tool"""
 
     limit: int = Field(3, description="Maximum number of issues to return")
+    repository: Optional[str] = Field(
+        None,
+        description="GitHub repository URL, owner/name, or local repo path",
+    )
+    repository_url: Optional[str] = Field(
+        None,
+        description="GitHub repository URL or local repo path",
+    )
     labels: List[str] = Field(
         default_factory=lambda: ["good first issue", "help wanted", "documentation"],
         description="Preferred GitHub labels to prioritize",

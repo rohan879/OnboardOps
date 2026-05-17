@@ -5,6 +5,7 @@ Manages WebSocket connections and broadcasts events to connected clients
 
 import asyncio
 import json
+import time
 from typing import Dict, Set, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 from ws.events import EventType, EventEnvelope
@@ -24,6 +25,8 @@ class ConnectionManager:
     def __init__(self):
         # Active connections: session_id -> Set[WebSocket]
         self.active_connections: Dict[str, Set[WebSocket]] = {}
+        # Last observed activity per session-scoped WebSocket subscription.
+        self.session_last_seen: Dict[str, float] = {}
         # Global connections (receive all events)
         self.global_connections: Set[WebSocket] = set()
         # Lock for thread-safe operations
@@ -45,6 +48,7 @@ class ConnectionManager:
                 if session_id not in self.active_connections:
                     self.active_connections[session_id] = set()
                 self.active_connections[session_id].add(websocket)
+                self.session_last_seen[session_id] = time.monotonic()
                 print(f"[WS] Client connected to session: {session_id}")
             else:
                 self.global_connections.add(websocket)
@@ -64,6 +68,7 @@ class ConnectionManager:
                 if not self.active_connections[session_id]:
                     # Clean up empty session
                     del self.active_connections[session_id]
+                    self.session_last_seen.pop(session_id, None)
                 print(f"[WS] Client disconnected from session: {session_id}")
             else:
                 self.global_connections.discard(websocket)
@@ -83,6 +88,8 @@ class ConnectionManager:
 
         # Get connections for this session
         connections = self.active_connections.get(session_id, set()).copy()
+        if connections:
+            self.session_last_seen[session_id] = time.monotonic()
 
         # Also send to global connections
         connections.update(self.global_connections)
@@ -145,6 +152,22 @@ class ConnectionManager:
     def get_active_sessions(self) -> list[str]:
         """Get list of active session IDs"""
         return list(self.active_connections.keys())
+
+    async def get_latest_session_id(self) -> Optional[str]:
+        """Return the freshest session with an active WebSocket subscription."""
+        async with self._lock:
+            active_session_ids = [
+                session_id
+                for session_id, connections in self.active_connections.items()
+                if connections
+            ]
+            if not active_session_ids:
+                return None
+
+            return max(
+                active_session_ids,
+                key=lambda session_id: self.session_last_seen.get(session_id, 0.0),
+            )
 
 
 # Global connection manager instance

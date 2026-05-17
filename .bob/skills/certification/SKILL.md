@@ -6,10 +6,14 @@ auto_activate: false
 
 # Certification Skill
 
-This skill gates the end of the onboarding session. Bob selects three questions from a pool of twelve, calibrated against the cartography output, and grades the onboardee's free-text answers using machine-readable rubrics.
+This skill gates the end of the onboarding session. Bob selects three questions
+from a pool of twelve, calibrated against the cartography output, and grades the
+onboardee's multiple-choice answers using machine-readable rubrics.
 
 The certification panel on the website is the primary answer surface. The
 onboardee should be able to keep the cartography visible while answering.
+Every certification question must include `response_mode: "multiple_choice"`
+and exactly four answer `options`. Do not ask free-text certification questions.
 
 ## Grading System
 
@@ -254,13 +258,13 @@ vertical list.
 
 ## Grading Logic
 
-- Parse onboardee's free-text answer
+- Parse the onboardee's selected multiple-choice option
 - Check for presence of required elements from rubric
 - Use anti-sycophancy prompt: penalize plausible-but-shallow answers
 - Require evidence drawn from cartography output or MCP responses
 - Emit a `question_ask` event before each question.
-- For multiple-choice questions, include `response_mode: "multiple_choice"` and
-  an `options` array in the `question_ask` event payload.
+- Include `response_mode: "multiple_choice"` and exactly four concrete
+  `options` in every `question_ask` event payload.
 - After emitting `question_ask`, tell the onboardee to answer in the website's
   certification panel instead of the Bob chat.
 - Keep the `session_id` returned by the initial `session_start` / `emit_event`

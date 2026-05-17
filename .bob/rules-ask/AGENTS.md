@@ -26,7 +26,7 @@ Ask mode is for explanations, documentation, and answering questions without mak
 
 ### Important Context Not in README
 - **Bobcoin economy is real**: 200 Bobcoin budget is enforced by IBM - not a suggestion
-- **Session IDs auto-create**: [`emit_event`](../../backend/tools/emit_event.py:66-77) creates sessions automatically - Bob doesn't manage this
+- **Session IDs must propagate**: [`emit_event`](../../backend/tools/emit_event.py:66-92) creates a fresh `session_start`; Bob should reuse that returned ID for later dashboard events
 - **Cache is session-scoped**: [`cache_manager.py`](../../backend/cache_manager.py:46-48) uses `(session_id, tool_name, input_hash)` - not global
 - **Rules loaded once**: [`.bob/skills/repo-cartography.md`](../../.bob/skills/repo-cartography.md:13-18) loads 3 rule files once to save tokens
 

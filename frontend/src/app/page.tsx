@@ -11,80 +11,96 @@ import {
 } from 'react';
 import {
   Activity,
+  AlertTriangle,
   BookOpen,
+  Check,
+  CheckCircle2,
   ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   CircleDot,
+  Code2,
+  Download,
+  ExternalLink,
+  FileCode2,
+  Filter,
   Flame,
+  GitBranch,
   GitPullRequest,
-  Globe,
+  Globe2,
+  Layers3,
+  RefreshCw,
+  Search,
+  Send,
   ShieldCheck,
   TimerReset,
+  Wifi,
   WifiOff,
+  XCircle,
+  Zap,
+  type LucideIcon,
 } from 'lucide-react';
-import { Stopwatch } from '@/components/Stopwatch';
-import { EventStream } from '@/components/EventStream';
-import { CartographyCard, type CardState } from '@/components/CartographyCard';
-import { DependencyGraph, GraphData } from '@/components/DependencyGraph';
-import { CartographyStepper } from '@/components/CartographyStepper';
-import { TranscriptPanel } from '@/components/TranscriptPanel';
 import {
   AutoRecoveryBanner,
-  RecoveryPattern,
-  RecoveryStatus,
+  type RecoveryPattern,
+  type RecoveryStatus,
   useAutoRecovery,
 } from '@/components/AutoRecoveryBanner';
-import {
+import type {
   EntryPoint,
-  EntryPointsCard,
   EntryPointsData,
 } from '@/components/cards/EntryPointsCard';
-import {
-  Hotspot,
-  HotspotsCard,
-  HotspotsData,
-} from '@/components/cards/HotspotsCard';
-import {
+import type { Hotspot, HotspotsData } from '@/components/cards/HotspotsCard';
+import type {
   Convention,
-  ConventionsCard,
   ConventionsData,
 } from '@/components/cards/ConventionsCard';
-import CertificationPanel, {
+import type {
   CertificationQuestion,
   CertificationSubmissionState,
 } from '@/components/CertificationPanel';
-import { IdleState } from '@/components/IdleState';
-import { StarterIssue, StarterIssuePanel } from '@/components/StarterIssuePanel';
+import type { StarterIssue } from '@/components/StarterIssuePanel';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
-import { useEventsStore, Event } from '@/store/events';
+import { type Event, useEventsStore } from '@/store/events';
 
 const MCP_HTTP_URL =
   process.env.NEXT_PUBLIC_MCP_HTTP_URL || 'http://127.0.0.1:8765';
-
-const sampleGraphData: GraphData = {
-  nodes: [
-    { id: 'app', name: 'app.py', group: 1, val: 15, fanIn: 2, fanOut: 5 },
-    { id: 'api', name: 'api.py', group: 1, val: 12, fanIn: 3, fanOut: 4 },
-    { id: 'models', name: 'models.py', group: 2, val: 12, fanIn: 4, fanOut: 1 },
-    { id: 'auth', name: 'auth.py', group: 3, val: 10, fanIn: 2, fanOut: 2 },
-    { id: 'db', name: 'database.py', group: 3, val: 10, fanIn: 5, fanOut: 0 },
-    { id: 'config', name: 'config.py', group: 2, val: 8, fanIn: 2, fanOut: 0 },
-    { id: 'utils', name: 'utils.py', group: 2, val: 8, fanIn: 0, fanOut: 1 },
-  ],
-  edges: [
-    { source: 'app', target: 'api' },
-    { source: 'api', target: 'models' },
-    { source: 'api', target: 'auth' },
-    { source: 'auth', target: 'db' },
-    { source: 'models', target: 'db' },
-    { source: 'app', target: 'config' },
-    { source: 'utils', target: 'config' },
-  ],
-  cycles: [],
-};
+const REPOSITORY_URL = process.env.NEXT_PUBLIC_REPOSITORY_URL || '';
+const REPOSITORY_BRANCH = process.env.NEXT_PUBLIC_REPOSITORY_BRANCH || 'main';
+const TARGET_SECONDS = 10 * 60;
+const EMPTY_HOTSPOTS: Hotspot[] = [];
+const STARTER_ISSUE_CACHE_PREFIX = 'onboardops:starter-issues:';
 
 type AnalysisTabId = 'entry' | 'hotspot' | 'convention';
+type GraphRole = 'orchestrator' | 'bridge' | 'shared' | 'leaf';
+type GraphNode = {
+  id: string;
+  name: string;
+  group?: number;
+  val?: number;
+  fanIn?: number;
+  fanOut?: number;
+  role?: GraphRole;
+};
+type GraphEdge = {
+  source: string;
+  target: string;
+  value?: number;
+};
+type GraphData = {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  cycles?: string[];
+};
+type CarbonGraphNode = Required<Pick<GraphNode, 'id' | 'name'>> & {
+  fanIn: number;
+  fanOut: number;
+  role: GraphRole;
+  importance: number;
+  x: number;
+  y: number;
+};
 
 interface StarterIssuesState {
   isLoading: boolean;
@@ -94,21 +110,53 @@ interface StarterIssuesState {
   issues: StarterIssue[];
 }
 
+interface StarterSuggestion {
+  title: string;
+  description: string;
+  filePath?: string;
+  url?: string;
+  commitMessage?: string;
+  lineCount?: number;
+  filesTouched?: number;
+  safetyScore?: number;
+  safetyReasons: string[];
+}
+
 interface AnalysisTabConfig {
   id: AnalysisTabId;
   label: string;
   caption: string;
-  icon: typeof Globe;
-  type: 'entry' | 'hotspot' | 'convention';
-  state: CardState;
-  title: string;
-  bodyMarkdown: string | null;
-  content: ReactNode;
+  icon: LucideIcon;
   isAvailable: boolean;
 }
 
+interface JournalEntry {
+  id: string;
+  time: string;
+  kind: 'survey' | 'quiz' | 'pass' | 'ship' | 'event';
+  label: string;
+  body: string;
+  meta: string;
+}
+
+interface SessionMeta {
+  repositoryReference: string | null;
+  repositoryDisplay: string;
+  repositoryUrl: string | null;
+  repositoryOwner: string | null;
+  repositoryName: string;
+  branch: string;
+  commit: string | null;
+  onboardeeName: string | null;
+}
+
+type RepositoryToolContext = Pick<
+  SessionMeta,
+  'repositoryReference' | 'repositoryUrl' | 'repositoryDisplay'
+>;
+
 function findCard(events: Event[], cardType: string) {
-  return events.find(
+  return [...events].reverse().find(
     (event) => event.type === 'card_emit' && event.data.card_type === cardType
   );
 }
@@ -119,11 +167,12 @@ function graphDataFromCard(card: Event | undefined): GraphData {
         nodes?: Array<{
           id?: string;
           label?: string;
+          name?: string;
           fan_in?: number;
           fan_out?: number;
           is_hub?: boolean;
         }>;
-        edges?: Array<{ source?: string; target?: string }>;
+        edges?: Array<{ source?: string; target?: string; value?: number }>;
         circular_dependencies?: Array<{
           cycle?: string[] | string;
         }>;
@@ -131,13 +180,13 @@ function graphDataFromCard(card: Event | undefined): GraphData {
     | undefined;
 
   if (!data?.nodes?.length) {
-    return sampleGraphData;
+    return { nodes: [], edges: [], cycles: [] };
   }
 
   return {
     nodes: data.nodes.map((node, index) => ({
       id: node.id || `node-${index}`,
-      name: node.label || node.id || `node-${index}`,
+      name: node.label || node.name || node.id || `node-${index}`,
       group: node.is_hub ? 1 : 2,
       val: Math.max(8, (node.fan_in || 0) * 4 + 8),
       fanIn: node.fan_in || 0,
@@ -148,6 +197,7 @@ function graphDataFromCard(card: Event | undefined): GraphData {
       .map((edge) => ({
         source: edge.source as string,
         target: edge.target as string,
+        value: edge.value || 1,
       })),
     cycles: Array.isArray(data.circular_dependencies)
       ? data.circular_dependencies
@@ -213,6 +263,11 @@ function normalizeHotspotRecord(value: unknown): Hotspot | null {
     toTrimmedString(record.last_pr_url) ||
     toTrimmedString(record.pr_url) ||
     toTrimmedString(record.pull_request_url);
+  const commitFrequency =
+    record.commit_frequency ??
+    record.frequency ??
+    record.trend ??
+    record.sparkline;
 
   return {
     path:
@@ -242,9 +297,30 @@ function normalizeHotspotRecord(value: unknown): Hotspot | null {
     rationale:
       toTrimmedString(record.rationale) ||
       'High change activity suggests this file is a frequent integration point.',
-    commit_frequency: Array.isArray(record.commit_frequency)
-      ? (record.commit_frequency as number[])
+    commit_frequency: Array.isArray(commitFrequency)
+      ? commitFrequency
+          .map((item) => toFiniteNumber(item, Number.NaN))
+          .filter((item) => Number.isFinite(item))
       : undefined,
+  };
+}
+
+function hotspotsDataFromCard(card: Event | undefined): HotspotsData | null {
+  if (!card?.data.data) return null;
+
+  const data = card.data.data as Record<string, unknown>;
+  return {
+    files: (
+      Array.isArray(data.files)
+        ? data.files
+        : Array.isArray(data.hotspots)
+          ? data.hotspots
+          : Array.isArray(data.items)
+            ? data.items
+            : []
+    )
+      .map(normalizeHotspotRecord)
+      .filter((hotspot): hotspot is Hotspot => Boolean(hotspot)),
   };
 }
 
@@ -265,10 +341,9 @@ function parseConventionEvidence(
         toTrimmedString(record.snippet) ||
         toTrimmedString(record.code) ||
         undefined,
-      line_number: toFiniteNumber(
-        record.line_number ?? record.line ?? record.lineNumber,
-        0
-      ) || undefined,
+      line_number:
+        toFiniteNumber(record.line_number ?? record.line ?? record.lineNumber, 0) ||
+        undefined,
     };
   }
 
@@ -307,7 +382,10 @@ function parseConventionEvidence(
   };
 }
 
-function normalizeConventionRecord(value: unknown, index: number): Convention | null {
+function normalizeConventionRecord(
+  value: unknown,
+  index: number
+): Convention | null {
   if (typeof value === 'string' && value.trim()) {
     return {
       name: `Convention ${index + 1}`,
@@ -345,25 +423,6 @@ function normalizeConventionRecord(value: unknown, index: number): Convention | 
       consistency === 'consistent' || consistency === 'mixed'
         ? consistency
         : undefined,
-  };
-}
-
-function hotspotsDataFromCard(card: Event | undefined): HotspotsData | null {
-  if (!card?.data.data) return null;
-
-  const data = card.data.data as Record<string, unknown>;
-  return {
-    files: (
-      Array.isArray(data.files)
-        ? data.files
-        : Array.isArray(data.hotspots)
-          ? data.hotspots
-          : Array.isArray(data.items)
-            ? data.items
-            : []
-    )
-      .map(normalizeHotspotRecord)
-      .filter((hotspot): hotspot is Hotspot => Boolean(hotspot)),
   };
 }
 
@@ -439,13 +498,50 @@ function uniqueOptions(options: string[]) {
   return [...new Set(options.map((option) => option.trim()).filter(Boolean))];
 }
 
+function hashString(value: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function shuffleQuestionOptions(options: string[], seedKey: string) {
+  if (options.length <= 1) return options;
+
+  const shuffled = [...options];
+  let seed = hashString(seedKey);
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const swapIndex = seed % (index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+
+  if (shuffled[0] === options[0]) {
+    [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+  }
+
+  return shuffled;
+}
+
 function buildChoiceSet(correct: string, distractors: string[], seedKey: string) {
   const combined = uniqueOptions([correct, ...distractors]).slice(0, 4);
-  return combined.length >= 4 ? shuffleQuestionOptions(combined, seedKey) : undefined;
+  return combined.length >= 4
+    ? shuffleQuestionOptions(combined, seedKey)
+    : undefined;
 }
 
 function routeChoice(route: EntryPoint) {
-  return `${route.file}, function ${route.handler || route.entry_point || route.name}`;
+  return `${route.file}, function ${
+    route.handler || route.entry_point || route.name
+  }`;
 }
 
 function conventionExampleText(convention: Convention) {
@@ -470,7 +566,333 @@ function countEntryPoints(data: EntryPointsData | null) {
   );
 }
 
-async function fetchStarterIssueCandidates(baseUrl: string) {
+function deriveFallbackCertificationOptions({
+  question,
+  questionId,
+  dependencyCard,
+  entryPointsData,
+  hotspotsData,
+  conventionsData,
+}: {
+  question: CertificationQuestion;
+  questionId: string;
+  dependencyCard?: Event;
+  entryPointsData: EntryPointsData | null;
+  hotspotsData: HotspotsData | null;
+  conventionsData: ConventionsData | null;
+}) {
+  const text = question.questionText.toLowerCase();
+  const dependencyNodes = dependencyNodesFromCard(dependencyCard);
+  const routes = entryPointsData?.routes || [];
+  const cli = entryPointsData?.cli || [];
+  const hotspots = hotspotsData?.files || [];
+  const conventions = conventionsData?.conventions || [];
+
+  if (text.includes('highest fan-out') || text.includes('main orchestrator')) {
+    const ranked = [...dependencyNodes].sort(
+      (left, right) => right.fanOut - left.fanOut
+    );
+    if (ranked.length >= 4 && ranked[0].fanOut > 0) {
+      const correct = `${ranked[0].label} (highest fan-out of ${ranked[0].fanOut})`;
+      const distractors = ranked
+        .slice(1, 4)
+        .map((node) => `${node.label} (fan-out of ${node.fanOut})`);
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('circular dependenc')) {
+    const cycles = dependencyCyclesFromCard(dependencyCard);
+    const ranked = [...dependencyNodes].sort(
+      (left, right) => right.fanOut - left.fanOut
+    );
+
+    if (cycles.length > 0) {
+      const correct = `Yes: ${cycles[0]}`;
+      const distractors = [
+        'No circular dependencies were identified',
+        ...ranked.slice(0, 2).map((node, index) => {
+          const nextNode = ranked[(index + 1) % ranked.length];
+          return `Yes: ${node.label} -> ${nextNode.label}`;
+        }),
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+
+    const correct = 'No circular dependencies were identified';
+    const distractors = ranked.slice(0, 3).map((node, index) => {
+      const nextNode = ranked[(index + 1) % ranked.length];
+      return `Yes: ${node.label} -> ${nextNode.label}`;
+    });
+    return buildChoiceSet(correct, distractors, questionId);
+  }
+
+  if (text.includes('which file and function would you investigate first')) {
+    const routePathMatch = question.questionText.match(/(\/[A-Za-z0-9_/-]+)/);
+    const routePath = routePathMatch?.[1];
+    const matchingRoute =
+      routes.find((route) => routePath && route.path === routePath) ||
+      routes.find((route) => routePath && route.path?.includes(routePath)) ||
+      routes[0];
+
+    if (matchingRoute) {
+      const correct = routeChoice(matchingRoute);
+      const distractors = routes
+        .filter((route) => route !== matchingRoute)
+        .slice(0, 3)
+        .map(routeChoice);
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('cli and http entry points')) {
+    const routeExample = routes[0]?.path || '/health';
+    const cliExample = cli[0]?.name || 'scripts/bootstrap.sh';
+    const correct = `Use CLI for scripts like ${cliExample}, and HTTP for request/response routes like ${routeExample}.`;
+    const distractors = [
+      'Use HTTP for background jobs only, and CLI for all user-facing traffic.',
+      'Use CLI and HTTP interchangeably because both run through the same route table.',
+      'Use HTTP for local scripts and CLI for browser requests.',
+    ];
+    return buildChoiceSet(correct, distractors, questionId);
+  }
+
+  if (text.includes('which team member would you ask for a code review')) {
+    const authors = uniqueOptions(
+      hotspots
+        .map((hotspot) => hotspot.top_author)
+        .filter((value): value is string => Boolean(value))
+    );
+    if (authors.length > 0) {
+      const correct = `${authors[0]} because they have the strongest recent ownership signal on the hotspot file.`;
+      const distractors = authors.slice(1, 4).map(
+        (author) =>
+          `${author} because they might be available, even without hotspot ownership evidence.`
+      );
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('changes so frequently')) {
+    const hotspot = hotspots[0];
+    if (hotspot) {
+      const correct = hotspot.rationale;
+      const distractors = [
+        'Because the file is generated automatically on every test run.',
+        'Because it is a static archive that rarely changes but is force-committed often.',
+        'Because the file is unrelated to active features and only changes for formatting.',
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('naming convention')) {
+    if (conventions.length > 0) {
+      const correct = conventionExampleText(conventions[0]);
+      const distractors = [
+        'camelCase everywhere (example: handleRequestNow)',
+        'PascalCase for file names (example: HealthCheck.py)',
+        'kebab-case for Python functions (example: submit-dashboard-answer)',
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('handle errors')) {
+    const errorConvention = conventions.find(
+      (convention) =>
+        convention.name.toLowerCase().includes('error') ||
+        convention.pattern.toLowerCase().includes('exception') ||
+        convention.pattern.toLowerCase().includes('http')
+    );
+
+    if (errorConvention) {
+      const correct = errorConvention.pattern;
+      const distractors = [
+        'Return numeric error codes only, never raise exceptions.',
+        'Use a Result/Either type for every function in the codebase.',
+        'Print errors to stdout and continue without structured handling.',
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('where would you add a test')) {
+    const moduleMatch = question.questionText.match(
+      /for the ([A-Za-z0-9_./-]+) module/i
+    );
+    const rawModuleName = moduleMatch?.[1] || 'app';
+    const moduleBase =
+      rawModuleName.replace(/\.py$/i, '').split('/').pop() || rawModuleName;
+    const correct = `backend/tests/test_${moduleBase}.py`;
+    const distractors = [
+      `backend/${moduleBase}.test.py`,
+      `frontend/src/${moduleBase}.spec.ts`,
+      `tests/${moduleBase}/index.py`,
+    ];
+    return buildChoiceSet(correct, distractors, questionId);
+  }
+
+  if (text.includes('trace the flow of a request')) {
+    const route = routes[0];
+    const centralModule = dependencyNodes[0];
+    if (route && centralModule) {
+      const correct = `${route.file} -> ${
+        route.handler || route.name
+      } -> ${centralModule.label}`;
+      const distractors = [
+        `frontend/src/app/page.tsx -> CertificationPanel -> ${centralModule.label}`,
+        `${centralModule.label} -> ${route.file} -> ${
+          route.handler || route.name
+        }`,
+        `${route.file} -> README.md -> ${centralModule.label}`,
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  return undefined;
+}
+
+function ensureMultipleChoiceOptions({
+  question,
+  explicitOptions,
+  fallbackOptions,
+  seedKey,
+}: {
+  question: Pick<CertificationQuestion, 'id' | 'questionText' | 'topic'>;
+  explicitOptions: string[];
+  fallbackOptions?: string[];
+  seedKey: string;
+}) {
+  const sanitizedExplicitOptions = uniqueOptions(
+    explicitOptions.map((option) => option.trim()).filter(Boolean)
+  );
+
+  if (sanitizedExplicitOptions.length >= 2) {
+    return shuffleQuestionOptions(sanitizedExplicitOptions, seedKey);
+  }
+
+  if (fallbackOptions && fallbackOptions.length >= 2) {
+    return fallbackOptions;
+  }
+
+  const topic = question.topic || 'cartography';
+  return buildChoiceSet(
+    `Use the ${topic} dashboard evidence and choose the exact file, module, route, or convention shown there.`,
+    [
+      'Answer from memory without checking the live dashboard cards.',
+      'Choose the first file alphabetically even if it is unrelated.',
+      'Skip the question because sample questions are not part of onboarding.',
+    ],
+    question.id
+  ) as string[];
+}
+
+function toRecoveryPattern(value: unknown): RecoveryPattern {
+  const pattern = typeof value === 'string' ? value : '';
+  const allowed: RecoveryPattern[] = [
+    'port-in-use',
+    'node-version',
+    'missing-venv',
+    'missing-seed',
+    'db-not-running',
+  ];
+
+  return allowed.includes(pattern as RecoveryPattern)
+    ? (pattern as RecoveryPattern)
+    : 'missing-venv';
+}
+
+function toRecoveryStatus(value: unknown): RecoveryStatus {
+  if (value === 'success' || value === 'failed' || value === 'in-progress') {
+    return value;
+  }
+
+  if (value === 'error') return 'failed';
+  if (value === 'complete') return 'success';
+  return 'in-progress';
+}
+
+function isCertificationQuestionEvent(event: Event) {
+  if (event.type !== 'question_ask') return false;
+
+  const data = event.data as { question_id?: string; stage?: string };
+  const questionId = data.question_id || event.id;
+
+  return data.stage === 'certification' || questionId.startsWith('cert_');
+}
+
+function normalizeQuestionText(value: unknown) {
+  return typeof value === 'string'
+    ? value.toLowerCase().replace(/\s+/g, ' ').trim()
+    : '';
+}
+
+function starterIssueCacheKey(repository: string | null | undefined) {
+  return `${STARTER_ISSUE_CACHE_PREFIX}${normalizeRepositoryReference(repository) || 'default'}`;
+}
+
+function isStarterIssue(value: unknown): value is StarterIssue {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.issueNumber === 'number' &&
+    typeof record.title === 'string' &&
+    typeof record.url === 'string' &&
+    Array.isArray(record.labels) &&
+    typeof record.state === 'string' &&
+    typeof record.updatedAt === 'string'
+  );
+}
+
+function readCachedStarterIssues(repository: string | null | undefined) {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(starterIssueCacheKey(repository));
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter(isStarterIssue).slice(0, 5)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedStarterIssues(
+  repository: string | null | undefined,
+  issues: StarterIssue[]
+) {
+  if (typeof window === 'undefined' || issues.length === 0) return;
+
+  try {
+    window.localStorage.setItem(
+      starterIssueCacheKey(repository),
+      JSON.stringify(issues.slice(0, 5))
+    );
+  } catch {
+    // Ignore storage quota/private mode failures; the live fetch still works.
+  }
+}
+
+function isLocalRepositoryReference(value: string | null | undefined) {
+  if (!value) return false;
+
+  return (
+    /^[A-Za-z]:[\\/]/.test(value) ||
+    value.startsWith('/') ||
+    value.startsWith('~/')
+  );
+}
+
+async function fetchStarterIssueCandidates(
+  baseUrl: string,
+  repository?: string | null
+) {
   const response = await fetch(`${baseUrl}/mcp/invoke`, {
     method: 'POST',
     headers: {
@@ -480,6 +902,7 @@ async function fetchStarterIssueCandidates(baseUrl: string) {
       tool_name: 'starter_issue_candidates',
       arguments: {
         limit: 3,
+        ...(repository ? { repository } : {}),
       },
     }),
   });
@@ -534,303 +957,682 @@ async function fetchStarterIssueCandidates(baseUrl: string) {
   };
 }
 
-function deriveFallbackCertificationOptions({
-  question,
-  questionId,
-  dependencyCard,
-  entryPointsData,
-  hotspotsData,
-  conventionsData,
-}: {
-  question: CertificationQuestion;
-  questionId: string;
-  dependencyCard?: Event;
-  entryPointsData: EntryPointsData | null;
-  hotspotsData: HotspotsData | null;
-  conventionsData: ConventionsData | null;
-}) {
-  const text = question.questionText.toLowerCase();
-  const dependencyNodes = dependencyNodesFromCard(dependencyCard);
-  const routes = entryPointsData?.routes || [];
-  const cli = entryPointsData?.cli || [];
-  const hotspots = hotspotsData?.files || [];
-  const conventions = conventionsData?.conventions || [];
+function normalizeRepositoryReference(repository: string | null | undefined) {
+  const value = repository?.trim();
+  if (!value) return null;
 
-  if (text.includes('highest fan-out') || text.includes('main orchestrator')) {
-    const ranked = [...dependencyNodes].sort((left, right) => right.fanOut - left.fanOut);
-    if (ranked.length >= 4 && ranked[0].fanOut > 0) {
-      const correct = `${ranked[0].label} (highest fan-out of ${ranked[0].fanOut})`;
-      const distractors = ranked.slice(1, 4).map(
-        (node) => `${node.label} (fan-out of ${node.fanOut})`
-      );
-      return buildChoiceSet(correct, distractors, questionId);
-    }
-  }
-
-  if (text.includes('circular dependenc')) {
-    const cycles = dependencyCyclesFromCard(dependencyCard);
-    const ranked = [...dependencyNodes].sort((left, right) => right.fanOut - left.fanOut);
-
-    if (cycles.length > 0) {
-      const correct = `Yes: ${cycles[0]}`;
-      const distractors = [
-        `No circular dependencies were identified`,
-        ...ranked.slice(0, 2).map((node, index) => {
-          const nextNode = ranked[(index + 1) % ranked.length];
-          return `Yes: ${node.label} -> ${nextNode.label}`;
-        }),
-      ];
-      return buildChoiceSet(correct, distractors, questionId);
+  try {
+    const url = new URL(value);
+    if (url.hostname.includes('github.com')) {
+      const [owner, repo] = url.pathname
+        .replace(/^\/+/, '')
+        .replace(/\.git$/, '')
+        .split('/');
+      if (owner && repo) return `${owner}/${repo}`;
     }
 
-    const correct = 'No circular dependencies were identified';
-    const distractors = ranked.slice(0, 3).map((node, index) => {
-      const nextNode = ranked[(index + 1) % ranked.length];
-      return `Yes: ${node.label} -> ${nextNode.label}`;
-    });
-    return buildChoiceSet(correct, distractors, questionId);
-  }
-
-  if (text.includes('which file and function would you investigate first')) {
-    const routePathMatch = question.questionText.match(/(\/[A-Za-z0-9_/-]+)/);
-    const routePath = routePathMatch?.[1];
-    const matchingRoute =
-      routes.find((route) => routePath && route.path === routePath) ||
-      routes.find((route) => routePath && route.path?.includes(routePath)) ||
-      routes[0];
-
-    if (matchingRoute) {
-      const correct = routeChoice(matchingRoute);
-      const distractors = routes
-        .filter((route) => route !== matchingRoute)
-        .slice(0, 3)
-        .map(routeChoice);
-      return buildChoiceSet(correct, distractors, questionId);
+    return url.pathname.replace(/^\/+/, '').replace(/\.git$/, '') || value;
+  } catch {
+    const normalized = value.replace(/\\/g, '/').replace(/\.git$/, '');
+    if (normalized.includes('/')) {
+      const parts = normalized.split('/').filter(Boolean);
+      const repo = parts.at(-1);
+      const owner = parts.at(-2);
+      const looksLikeLocalPath =
+        normalized.match(/^[A-Za-z]:\//) ||
+        normalized.startsWith('/') ||
+        normalized.startsWith('~/');
+      if (owner && repo && !looksLikeLocalPath) {
+        return `${owner}/${repo}`;
+      }
+      return repo || normalized;
     }
+
+    return normalized;
   }
-
-  if (text.includes('which file would you modify') && text.includes('imports')) {
-    const moduleMatch = question.questionText.match(/uses the ([A-Za-z0-9_./-]+) module/i);
-    const referencedModule = moduleMatch?.[1] || dependencyNodes[0]?.label || 'target module';
-    const preferredRouteFile = routes[0]?.file || 'backend/app.py';
-    const correct = `Modify ${preferredRouteFile} and import ${referencedModule} in the route handler module.`;
-    const distractors = uniqueOptions([
-      routes[1]
-        ? `Modify ${routes[1].file} and avoid any new imports.`
-        : 'Modify frontend/src/app/page.tsx and add the endpoint there.',
-      'Modify backend/tests/test_app.py and import pytest fixtures only.',
-      cli[0]
-        ? `Modify ${cli[0].file} and import the CLI entry point instead of the HTTP module.`
-        : 'Modify README.md and add no imports because routes are generated automatically.',
-    ]);
-    return buildChoiceSet(correct, distractors, questionId);
-  }
-
-  if (text.includes('cli and http entry points')) {
-    const routeExample = routes[0]?.path || '/health';
-    const cliExample = cli[0]?.name || 'scripts/bootstrap.sh';
-    const correct = `Use CLI for scripts like ${cliExample}, and HTTP for request/response routes like ${routeExample}.`;
-    const distractors = [
-      'Use HTTP for background jobs only, and CLI for all user-facing traffic.',
-      'Use CLI and HTTP interchangeably because both run through the same route table.',
-      'Use HTTP for local scripts and CLI for browser requests.',
-    ];
-    return buildChoiceSet(correct, distractors, questionId);
-  }
-
-  if (text.includes('which team member would you ask for a code review')) {
-    const authors = uniqueOptions(
-      hotspots.map((hotspot) => hotspot.top_author).filter((value): value is string => Boolean(value))
-    );
-    if (authors.length > 0) {
-      const correct = `${authors[0]} because they have the strongest recent ownership signal on the hotspot file.`;
-      const distractors = authors.slice(1, 4).map(
-        (author) => `${author} because they might be available, even without hotspot ownership evidence.`
-      );
-      return buildChoiceSet(correct, distractors, questionId);
-    }
-  }
-
-  if (text.includes('changes so frequently')) {
-    const hotspot = hotspots[0];
-    if (hotspot) {
-      const correct = hotspot.rationale;
-      const distractors = [
-        'Because the file is generated automatically on every test run.',
-        'Because it is a static archive that rarely changes but is force-committed often.',
-        'Because the file is unrelated to active features and only changes for formatting.',
-      ];
-      return buildChoiceSet(correct, distractors, questionId);
-    }
-  }
-
-  if (text.includes('naming convention')) {
-    if (conventions.length > 0) {
-      const correct = conventionExampleText(conventions[0]);
-      const distractors = [
-        'camelCase everywhere (example: handleRequestNow)',
-        'PascalCase for file names (example: HealthCheck.py)',
-        'kebab-case for Python functions (example: submit-dashboard-answer)',
-      ];
-      return buildChoiceSet(correct, distractors, questionId);
-    }
-  }
-
-  if (text.includes('handle errors')) {
-    const errorConvention = conventions.find(
-      (convention) =>
-        convention.name.toLowerCase().includes('error') ||
-        convention.pattern.toLowerCase().includes('exception') ||
-        convention.pattern.toLowerCase().includes('http')
-    );
-
-    if (errorConvention) {
-      const correct = errorConvention.pattern;
-      const distractors = [
-        'Return numeric error codes only, never raise exceptions.',
-        'Use a Result/Either type for every function in the codebase.',
-        'Print errors to stdout and continue without structured handling.',
-      ];
-      return buildChoiceSet(correct, distractors, questionId);
-    }
-  }
-
-  if (text.includes('where would you add a test')) {
-    const moduleMatch = question.questionText.match(/for the ([A-Za-z0-9_./-]+) module/i);
-    const rawModuleName = moduleMatch?.[1] || 'app';
-    const moduleBase = rawModuleName.replace(/\.py$/i, '').split('/').pop() || rawModuleName;
-    const correct = `backend/tests/test_${moduleBase}.py`;
-    const distractors = [
-      `backend/${moduleBase}.test.py`,
-      `frontend/src/${moduleBase}.spec.ts`,
-      `tests/${moduleBase}/index.py`,
-    ];
-    return buildChoiceSet(correct, distractors, questionId);
-  }
-
-  if (text.includes('trace the flow of a request')) {
-    const route = routes[0];
-    const centralModule = dependencyNodes[0];
-    if (route && centralModule) {
-      const correct = `${route.file} -> ${route.handler || route.name} -> ${centralModule.label}`;
-      const distractors = [
-        `frontend/src/app/page.tsx -> CertificationPanel -> ${centralModule.label}`,
-        `${centralModule.label} -> ${route.file} -> ${route.handler || route.name}`,
-        `${route.file} -> README.md -> ${centralModule.label}`,
-      ];
-      return buildChoiceSet(correct, distractors, questionId);
-    }
-  }
-
-  if (text.includes('reduce its change frequency') && text.includes('splitting it into smaller modules')) {
-    const convention = conventions[0];
-    const correct = convention
-      ? `Split it following the existing ${convention.pattern} convention and keep modules aligned to one clear responsibility.`
-      : 'Split it into smaller modules that each keep one clear responsibility and follow the repo naming conventions.';
-    const distractors = [
-      'Keep adding unrelated helpers into the same file so future changes stay centralized.',
-      'Split it into randomly named files without following any established naming pattern.',
-      'Move the whole file into the frontend so fewer backend commits touch it.',
-    ];
-    return buildChoiceSet(correct, distractors, questionId);
-  }
-
-  return undefined;
 }
 
-function toRecoveryPattern(value: unknown): RecoveryPattern {
-  const pattern = typeof value === 'string' ? value : '';
-  const allowed: RecoveryPattern[] = [
-    'port-in-use',
-    'node-version',
-    'missing-venv',
-    'missing-seed',
-    'db-not-running',
+function getRepositoryName(repository: string | null) {
+  const normalized = normalizeRepositoryReference(repository);
+  if (normalized) return normalized;
+
+  try {
+    const url = new URL(REPOSITORY_URL);
+    return url.pathname.replace(/^\/|\.git$/g, '') || 'OnboardOps';
+  } catch {
+    return 'OnboardOps';
+  }
+}
+
+function repositoryIdentityKey(repository: string | null | undefined) {
+  return (normalizeRepositoryReference(repository) || '').toLowerCase();
+}
+
+function getStringField(
+  record: Record<string, unknown> | undefined,
+  keys: string[]
+) {
+  if (!record) return null;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+
+  return null;
+}
+
+function getEntryExplicitUrl(entry: EntryPoint) {
+  return entry.github_url || entry.file_url || entry.url || undefined;
+}
+
+function inferRepositoryFromEntryPoints(data: EntryPointsData | null) {
+  const entries = [
+    ...(data?.routes || []),
+    ...(data?.cli || []),
+    ...(data?.jobs || []),
+    ...(data?.consumers || []),
   ];
 
-  return allowed.includes(pattern as RecoveryPattern)
-    ? (pattern as RecoveryPattern)
-    : 'missing-venv';
-}
+  for (const entry of entries) {
+    const explicitUrl = getEntryExplicitUrl(entry);
+    if (!explicitUrl) continue;
 
-function toRecoveryStatus(value: unknown): RecoveryStatus {
-  if (value === 'success' || value === 'failed' || value === 'in-progress') {
-    return value;
+    try {
+      const url = new URL(explicitUrl);
+      if (!url.hostname.includes('github.com')) continue;
+      const blobIndex = url.pathname.split('/').findIndex((part) => part === 'blob');
+      const parts = url.pathname.replace(/^\/+/, '').split('/');
+      if (blobIndex >= 2 && parts[0] && parts[1]) {
+        return `https://github.com/${parts[0]}/${parts[1]}`;
+      }
+    } catch {
+      continue;
+    }
   }
 
-  if (value === 'error') return 'failed';
-  if (value === 'complete') return 'success';
-  return 'in-progress';
+  return null;
 }
 
-function isCertificationQuestionEvent(event: Event) {
-  if (event.type !== 'question_ask') return false;
-
-  const data = event.data as { question_id?: string; stage?: string };
-  const questionId = data.question_id || event.id;
-
-  return data.stage === 'certification' || questionId.startsWith('cert_');
-}
-
-function normalizeQuestionText(value: unknown) {
-  return typeof value === 'string'
-    ? value.toLowerCase().replace(/\s+/g, ' ').trim()
-    : '';
-}
-
-function hashString(value: string) {
-  let hash = 2166136261;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return hash >>> 0;
-}
-
-function shuffleQuestionOptions(options: string[], seedKey: string) {
-  if (options.length <= 1) return options;
-
-  const shuffled = [...options];
-  let seed = hashString(seedKey);
-
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    const swapIndex = seed % (index + 1);
-    [shuffled[index], shuffled[swapIndex]] = [
-      shuffled[swapIndex],
-      shuffled[index],
-    ];
-  }
-
-  if (shuffled[0] === options[0]) {
-    [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
-  }
-
-  return shuffled;
-}
-
-function MetricTile({
-  icon: Icon,
-  label,
-  value,
-  detail,
+function deriveSessionMeta({
+  events,
+  starterRepository,
+  entryPointsData,
 }: {
-  icon: typeof TimerReset;
-  label: string;
-  value: string;
-  detail: string;
+  events: Event[];
+  starterRepository: string | null;
+  entryPointsData: EntryPointsData | null;
+}): SessionMeta {
+  const sessionStart = events.find((event) => event.type === 'session_start');
+  const sources = [
+    sessionStart?.data,
+    ...events.map((event) => event.data),
+  ] as Array<Record<string, unknown> | undefined>;
+  const repositoryReference =
+    sources
+      .map((source) =>
+        getStringField(source, [
+          'repository_url',
+          'repo_url',
+          'repository',
+          'repo',
+          'repository_name',
+          'repo_name',
+          'repo_path',
+          'workspace_path',
+        ])
+      )
+      .find(Boolean) ||
+    inferRepositoryFromEntryPoints(entryPointsData) ||
+    starterRepository ||
+    REPOSITORY_URL;
+  const repositoryDisplaySource =
+    isLocalRepositoryReference(repositoryReference) && starterRepository
+      ? starterRepository
+      : repositoryReference;
+  const repositoryDisplay = getRepositoryName(repositoryDisplaySource);
+  const [repositoryOwner, repositoryNameFromDisplay] = repositoryDisplay.includes('/')
+    ? repositoryDisplay.split('/').slice(-2)
+    : [null, repositoryDisplay];
+  const repositoryLink = /^https?:\/\//i.test(repositoryReference)
+    ? repositoryReference
+    : repositoryOwner && repositoryNameFromDisplay
+      ? `https://github.com/${repositoryOwner}/${repositoryNameFromDisplay}`
+      : null;
+  const branch =
+    sources
+      .map((source) =>
+        getStringField(source, ['branch', 'git_branch', 'repository_branch'])
+      )
+      .find(Boolean) || REPOSITORY_BRANCH;
+  const commit =
+    sources
+      .map((source) =>
+        getStringField(source, [
+          'commit',
+          'commit_sha',
+          'sha',
+          'revision',
+          'repository_commit',
+        ])
+      )
+      .find(Boolean) || null;
+  const onboardeeName =
+    sources
+      .map((source) =>
+        getStringField(source, [
+          'onboardee_name',
+          'onboardee',
+          'user_name',
+          'name',
+        ])
+      )
+      .find(Boolean) || null;
+
+  return {
+    repositoryReference,
+    repositoryDisplay,
+    repositoryUrl: repositoryLink,
+    repositoryOwner,
+    repositoryName: repositoryNameFromDisplay || repositoryDisplay,
+    branch,
+    commit,
+    onboardeeName,
+  };
+}
+
+function getRepositoryFileUrl(
+  path: string,
+  lineNumber?: number,
+  repositoryUrl = REPOSITORY_URL,
+  branch = REPOSITORY_BRANCH
+) {
+  if (!path || path === 'unknown') return undefined;
+
+  const normalizedBase = repositoryUrl.replace(/\.git$/, '').replace(/\/$/, '');
+  if (!/^https?:\/\//i.test(normalizedBase)) return undefined;
+
+  const normalizedPath = path.replace(/\\/g, '/').replace(/^\/+/, '');
+  const lineSuffix = lineNumber ? `#L${lineNumber}` : '';
+
+  return `${normalizedBase}/blob/${branch}/${encodeURI(
+    normalizedPath
+  )}${lineSuffix}`;
+}
+
+function getRepositoryIssueSearchUrl(repository: string | null) {
+  const repositoryName = getRepositoryName(repository);
+  if (!repositoryName.includes('/')) return undefined;
+
+  const [owner, repo] = repositoryName.split('/').slice(-2);
+  if (!owner || !repo) return undefined;
+
+  const query = encodeURIComponent('is:issue is:open label:"good first issue"');
+  return `https://github.com/${owner}/${repo}/issues?q=${query}`;
+}
+
+function extractStarterTaskFilePath(value: string) {
+  const match = value.match(
+    /\b([A-Za-z0-9_.-]+(?:[/\\][A-Za-z0-9_.-]+)+\.[A-Za-z0-9_]+)\b/
+  );
+
+  return match?.[1]?.replace(/\\/g, '/') || null;
+}
+
+function getFirstString(value: unknown) {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (Array.isArray(value)) {
+    const first = value.find((item) => typeof item === 'string' && item.trim());
+    return typeof first === 'string' ? first.trim() : null;
+  }
+
+  return null;
+}
+
+function getStringList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(/\n|;/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function starterSuggestionFromRecord(
+  record: Record<string, unknown>
+): StarterSuggestion | null {
+  const nestedCandidate = Array.isArray(record.starter_task_candidates)
+    ? record.starter_task_candidates.find(
+        (candidate) => candidate && typeof candidate === 'object'
+      )
+    : null;
+  const data =
+    nestedCandidate && typeof nestedCandidate === 'object'
+      ? ({ ...record, ...(nestedCandidate as Record<string, unknown>) } as Record<
+          string,
+          unknown
+        >)
+      : record;
+  const title = getStringField(data, [
+    'starter_task_proposed',
+    'suggested_starter_task',
+    'starter_task_title',
+    'task_title',
+    'title',
+  ]);
+
+  if (!title) return null;
+
+  const filePath =
+    getStringField(data, [
+      'starter_task_file',
+      'starter_file',
+      'target_file',
+      'file_path',
+      'file',
+    ]) ||
+    getFirstString(data.starter_task_files) ||
+    getFirstString(data.files) ||
+    extractStarterTaskFilePath(title) ||
+    undefined;
+  const description =
+    getStringField(data, [
+      'starter_task_description',
+      'starter_task_rationale',
+      'starter_task_body',
+      'description',
+      'rationale',
+    ]) ||
+    'Suggested by Bob after certification because no small labeled GitHub issue was available.';
+
+  return {
+    title,
+    description,
+    filePath,
+    url:
+      getStringField(data, [
+        'starter_task_url',
+        'starter_issue_url',
+        'issue_url',
+        'url',
+      ]) || undefined,
+    commitMessage:
+      getStringField(data, [
+      'starter_task_commit_message',
+      'commit_message',
+    ]) || undefined,
+    lineCount: (() => {
+      const value = toFiniteNumber(
+        data.starter_task_line_count ?? data.line_count,
+        Number.NaN
+      );
+      return Number.isFinite(value) ? value : undefined;
+    })(),
+    filesTouched: (() => {
+      const value = toFiniteNumber(
+        data.starter_task_files_touched ?? data.files_touched,
+        Number.NaN
+      );
+      if (Number.isFinite(value)) return value;
+      if (filePath) return 1;
+      return undefined;
+    })(),
+    safetyScore: (() => {
+      const value = toFiniteNumber(
+        data.starter_task_safety_score ?? data.safety_score,
+        Number.NaN
+      );
+      return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : undefined;
+    })(),
+    safetyReasons: getStringList(
+      data.starter_task_safety_reasons ??
+        data.safety_reasons ??
+        data.safety_check
+    ),
+  };
+}
+
+function buildStarterSuggestion(events: Event[]) {
+  for (const event of [...events].reverse()) {
+    if (event.type !== 'session_end') continue;
+    const suggestion = starterSuggestionFromRecord(event.data);
+    if (suggestion) return suggestion;
+  }
+
+  return null;
+}
+
+function compactMetricDetail(text: string, maxLength = 86) {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function getStarterSuggestionUrl(
+  suggestion: StarterSuggestion | null,
+  repositoryUrl: string | null,
+  branch: string
+) {
+  if (!suggestion) return undefined;
+  if (suggestion.url && /^https?:\/\//i.test(suggestion.url)) {
+    return suggestion.url;
+  }
+
+  if (!suggestion.filePath) return undefined;
+
+  return getRepositoryFileUrl(
+    suggestion.filePath,
+    undefined,
+    repositoryUrl || undefined,
+    branch
+  );
+}
+
+function buildTeamKnowledge(hotspotsData: HotspotsData | null) {
+  const authors = new Map<
+    string,
+    {
+      author: string;
+      commits: number;
+      files: Set<string>;
+      topFile: string;
+      topCommits: number;
+    }
+  >();
+
+  (hotspotsData?.files || []).forEach((file) => {
+    if (!file.top_author || file.top_author === 'Unknown') return;
+
+    const current =
+      authors.get(file.top_author) ||
+      {
+        author: file.top_author,
+        commits: 0,
+        files: new Set<string>(),
+        topFile: file.path,
+        topCommits: 0,
+      };
+
+    current.commits += file.commit_count;
+    current.files.add(file.path);
+    if (file.commit_count > current.topCommits) {
+      current.topFile = file.path;
+      current.topCommits = file.commit_count;
+    }
+    authors.set(file.top_author, current);
+  });
+
+  return Array.from(authors.values())
+    .sort((left, right) => right.commits - left.commits)
+    .slice(0, 4)
+    .map((item) => ({
+      author: item.author,
+      commits: item.commits,
+      files: item.files.size,
+      topFile: item.topFile,
+    }));
+}
+
+function getCertificationRemediation(question: CertificationQuestion | undefined) {
+  if (!question?.grade || question.grade === 'pass') return null;
+
+  const text = `${question.topic || ''} ${question.questionText}`.toLowerCase();
+  if (text.includes('hotspot') || text.includes('change') || text.includes('author')) {
+    return {
+      source: 'Change hotspots',
+      action: 'Review the hotspot row, trend buckets, and top author before retrying.',
+    };
+  }
+
+  if (
+    text.includes('entry') ||
+    text.includes('route') ||
+    text.includes('cli') ||
+    text.includes('request')
+  ) {
+    return {
+      source: 'Entry points',
+      action: 'Open the matching route or command row and answer from its handler/file.',
+    };
+  }
+
+  if (
+    text.includes('convention') ||
+    text.includes('naming') ||
+    text.includes('test') ||
+    text.includes('error')
+  ) {
+    return {
+      source: 'Project conventions',
+      action: 'Use the evidence file and snippet attached to the relevant convention.',
+    };
+  }
+
+  return {
+    source: 'Architecture graph',
+    action: 'Start from the graph node and fan-in/fan-out evidence, then retry.',
+  };
+}
+
+function formatClockTime(value: Date | string | null | undefined) {
+  if (!value) return 'not started';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+
+  return date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function formatElapsed(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function stringifyPayload(value: unknown, maxLength = 160) {
+  try {
+    const text = JSON.stringify(value);
+    if (!text) return '';
+    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+  } catch {
+    return '[unserializable payload]';
+  }
+}
+
+function downloadJson(filename: string, payload: unknown) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function useElapsedSeconds(
+  startedAt: Date | null,
+  endedAt: Date | null,
+  isRunning: boolean
+) {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!isRunning) return undefined;
+
+    const id = window.setInterval(() => setNow(new Date()), 500);
+    return () => window.clearInterval(id);
+  }, [isRunning]);
+
+  return useMemo(() => {
+    if (!startedAt) return 0;
+
+    const comparison = isRunning ? now : endedAt || now;
+    return Math.max(
+      0,
+      Math.floor((comparison.getTime() - startedAt.getTime()) / 1000)
+    );
+  }, [endedAt, isRunning, now, startedAt]);
+}
+
+function buildJournalEntries(events: Event[]): JournalEntry[] {
+  return [...events]
+    .reverse()
+    .filter((event) =>
+      [
+        'card_emit',
+        'question_ask',
+        'certification_grade',
+        'session_start',
+        'session_end',
+        'tool_call',
+        'turn_end',
+      ].includes(event.type)
+    )
+    .slice(-16)
+    .map((event) => {
+      if (event.type === 'card_emit') {
+        const title =
+          toTrimmedString(event.data.title) ||
+          String(event.data.card_type || 'Cartography card');
+        return {
+          id: event.id,
+          time: formatClockTime(event.timestamp),
+          kind: 'survey',
+          label: 'Survey',
+          body: `Generated ${title}.`,
+          meta: `card.emit / ${event.data.card_type || 'unknown'}`,
+        };
+      }
+
+      if (event.type === 'question_ask') {
+        return {
+          id: event.id,
+          time: formatClockTime(event.timestamp),
+          kind: 'quiz',
+          label: 'Quiz',
+          body:
+            toTrimmedString(event.data.question) ||
+            'Bob asked a certification question.',
+          meta: `question.ask / ${event.data.question_id || event.id}`,
+        };
+      }
+
+      if (event.type === 'certification_grade') {
+        const grade = toTrimmedString(event.data.grade) || 'graded';
+        return {
+          id: event.id,
+          time: formatClockTime(event.timestamp),
+          kind: grade === 'pass' ? 'pass' : 'event',
+          label: grade === 'pass' ? 'Pass' : 'Grade',
+          body:
+            toTrimmedString(event.data.rationale) ||
+            `Certification answer graded: ${grade}.`,
+          meta: `certification.grade / ${event.data.question_id || event.id}`,
+        };
+      }
+
+      if (event.type === 'session_end') {
+        const starterSuggestion = starterSuggestionFromRecord(event.data);
+
+        return {
+          id: event.id,
+          time: formatClockTime(event.timestamp),
+          kind: event.data.pr_url ? 'ship' : 'event',
+          label: event.data.pr_url ? 'Ship' : 'End',
+          body: event.data.pr_url
+            ? 'Starter PR URL received from the onboarding session.'
+            : starterSuggestion
+              ? `Starter task suggested: ${starterSuggestion.title}.`
+            : 'Onboarding session ended.',
+          meta: `session.end / ${event.data.status || 'complete'}`,
+        };
+      }
+
+      if (event.type === 'session_start') {
+        return {
+          id: event.id,
+          time: formatClockTime(event.timestamp),
+          kind: 'event',
+          label: 'Start',
+          body: 'Onboarding session started.',
+          meta: `session.start / ${event.data.session_id || event.id}`,
+        };
+      }
+
+      return {
+        id: event.id,
+        time: formatClockTime(event.timestamp),
+        kind: 'event',
+        label: event.type.replace(/_/g, ' '),
+        body: stringifyPayload(event.data, 120),
+        meta: event.type,
+      };
+    });
+}
+
+function CarbonTag({
+  tone = 'neutral',
+  children,
+}: {
+  tone?: 'blue' | 'green' | 'cyan' | 'magenta' | 'purple' | 'yellow' | 'red' | 'neutral';
+  children: ReactNode;
+}) {
+  return <span className={`carbon-tag carbon-tag-${tone}`}>{children}</span>;
+}
+
+function ProvenancePill({ tool, detail }: { tool: string; detail: string }) {
+  return (
+    <div className="provenance-pill">
+      <span>Source</span>
+      <code>{tool}</code>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function ShellHeader({
+  sessionId,
+  onExport,
+}: {
+  sessionId: string | null;
+  onExport: () => void;
 }) {
   return (
-    <div className="border border-ibm-gray-20 bg-white p-4">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase text-ibm-gray-70">
-        <Icon className="h-4 w-4 text-ibm-blue-60" />
-        {label}
+    <header className="carbon-shell">
+      <div className="shell-trail">
+        <span className="shell-mark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </span>
+        <span className="t-h-01">OnboardOps</span>
+        <span className="shell-separator">/</span>
+        <span className="t-body-01">Sessions</span>
+        <span className="shell-separator">/</span>
+        <span className="t-code-01">{sessionId || 'waiting'}</span>
       </div>
-      <div className="mt-3 text-2xl font-semibold text-ibm-gray-100">{value}</div>
-      <div className="mt-1 text-xs text-ibm-gray-70">{detail}</div>
-    </div>
+      <div className="shell-right">
+        <button className="shell-primary" type="button" onClick={onExport}>
+          <Download size={16} />
+          Export
+        </button>
+      </div>
+    </header>
   );
 }
 
@@ -847,20 +1649,2246 @@ function ConnectionBanner({
       : 'Dashboard is offline. Events will resume when ws://127.0.0.1:8765/events is reachable.';
 
   return (
-    <div className="border-b border-ibm-orange-40/30 bg-ibm-orange-40/10 px-6 py-3 text-sm text-ibm-gray-100">
-      <div className="mx-auto flex max-w-[1680px] items-center gap-3">
-        <WifiOff className="h-4 w-4 text-ibm-orange-40" />
-        <span>{copy}</span>
+    <div className="carbon-offline-banner">
+      <WifiOff size={16} />
+      <span>{copy}</span>
+    </div>
+  );
+}
+
+function StopwatchHero({
+  elapsedSeconds,
+  startedAt,
+  isRunning,
+}: {
+  elapsedSeconds: number;
+  startedAt: Date | null;
+  isRunning: boolean;
+}) {
+  const remaining = Math.max(0, TARGET_SECONDS - elapsedSeconds);
+  const overTarget = elapsedSeconds > TARGET_SECONDS;
+
+  return (
+    <div className="stopwatch-hero">
+      <div>
+        <div className="t-label-01">STOPWATCH / SESSION IN FLIGHT</div>
+        <div className="stopwatch-display">
+          {formatElapsed(elapsedSeconds).slice(0, 2)}
+          <span>:</span>
+          {formatElapsed(elapsedSeconds).slice(3)}
+        </div>
+      </div>
+      <div className="stopwatch-meta">
+        <div className="t-label-01">Target</div>
+        <div className="t-h-04 mono">10:00</div>
+        <div className={`target-status ${overTarget ? 'danger' : 'success'}`}>
+          <span className="dot" />
+          {startedAt
+            ? overTarget
+              ? `${formatElapsed(elapsedSeconds - TARGET_SECONDS)} over target`
+              : `${formatElapsed(remaining)} left in target`
+            : 'waiting for session start'}
+        </div>
+        <div className="t-code-01 muted">
+          {isRunning ? 'running' : startedAt ? 'stopped' : 'idle'} / started{' '}
+          {formatClockTime(startedAt)}
+        </div>
       </div>
     </div>
   );
 }
 
+function ProgressLine({ elapsedSeconds }: { elapsedSeconds: number }) {
+  const pct = Math.min(1, elapsedSeconds / TARGET_SECONDS);
+  const segments = 10;
+
+  return (
+    <div className="progress-block">
+      <div className="row between">
+        <span className="t-label-01">PROGRESS</span>
+        <span className="t-code-01 muted">
+          {Math.round(pct * 100)}% of budget /{' '}
+          {formatElapsed(Math.max(0, TARGET_SECONDS - elapsedSeconds))} left
+        </span>
+      </div>
+      <div className="carbon-progress-segments">
+        {Array.from({ length: segments }).map((_, index) => {
+          const start = index / segments;
+          const end = (index + 1) / segments;
+          const filled = pct >= end ? 100 : pct > start ? (pct - start) * segments * 100 : 0;
+
+          return (
+            <span key={index}>
+              <i style={{ width: `${filled}%` }} />
+            </span>
+          );
+        })}
+      </div>
+      <div className="progress-axis">
+        {['0:00', '2:00', '4:00', '6:00', '8:00', '10:00'].map((item) => (
+          <span key={item}>{item}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CarbonMetricTile({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  status,
+  tone = 'blue',
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  detail: string;
+  status?: string;
+  tone?: 'blue' | 'green' | 'cyan' | 'magenta';
+}) {
+  return (
+    <div className={`metric-tile metric-tile-${tone}`}>
+      <div className="row between center">
+        <div className={`metric-label metric-${tone}`}>
+          <Icon size={16} />
+          <span>{label}</span>
+        </div>
+        {status && (
+          <div className={`metric-status metric-status-${tone}`}>
+            <span className="dot" />
+            {status}
+          </div>
+        )}
+      </div>
+      <div className="metric-value mono">{value}</div>
+      <p>{detail}</p>
+    </div>
+  );
+}
+
+function StageRail({
+  stages,
+}: {
+  stages: Array<{ id: string; label: string; status: string; kind: string }>;
+}) {
+  return (
+    <div className="stage-rail">
+      <div className="stage-line" />
+      {stages.map((stage, index) => {
+        const isDone = stage.status === 'complete';
+        const isActive = stage.status === 'in-progress';
+
+        return (
+          <div key={stage.id} className="stage-item">
+            <div
+              className={`stage-dot ${
+                isDone ? 'done' : isActive ? 'active' : 'pending'
+              }`}
+            >
+              {isDone ? <CheckCircle2 size={20} /> : <CircleDot size={20} />}
+            </div>
+            <div className="t-label-01">
+              STAGE {String(index + 1).padStart(2, '0')} / {stage.status}
+            </div>
+            <div className="t-h-02">{stage.label}</div>
+            <div className="t-helper">{stage.kind}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Section({
+  eyebrow,
+  title,
+  sub,
+  right,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  sub: string;
+  right?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="carbon-section">
+      <div className="section-head">
+        <div>
+          <div className="t-label-01">{eyebrow}</div>
+          <h2 className="t-h-05">{title}</h2>
+          <p className="t-body-02">{sub}</p>
+        </div>
+        {right && <div className="section-actions">{right}</div>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({
+  icon: Icon = AlertTriangle,
+  title,
+  body,
+}: {
+  icon?: LucideIcon;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="carbon-empty">
+      <Icon size={22} />
+      <div>
+        <div className="t-h-02">{title}</div>
+        <p>{body}</p>
+      </div>
+    </div>
+  );
+}
+
+function deriveGraphRole(fanIn: number, fanOut: number): GraphRole {
+  if (fanOut >= fanIn + 2 || fanOut >= 4) return 'orchestrator';
+  if (fanIn > 0 && fanOut > 0) return 'bridge';
+  if (fanIn >= 3) return 'shared';
+  return 'leaf';
+}
+
+function roleLabel(role: GraphRole) {
+  const labels: Record<GraphRole, string> = {
+    orchestrator: 'Orchestrator',
+    bridge: 'Bridge',
+    shared: 'Shared',
+    leaf: 'Leaf',
+  };
+  return labels[role];
+}
+
+function roleColor(role: GraphRole) {
+  const colors: Record<GraphRole, string> = {
+    orchestrator: 'var(--cyan)',
+    bridge: 'var(--magenta)',
+    shared: 'var(--teal)',
+    leaf: 'var(--text-3)',
+  };
+  return colors[role];
+}
+
+function prepareCarbonGraph(data: GraphData) {
+  const inbound = new Map<string, number>();
+  const outbound = new Map<string, number>();
+  const nodesById = new Map<string, GraphNode>();
+
+  data.nodes.forEach((node) => {
+    nodesById.set(node.id, node);
+    inbound.set(node.id, node.fanIn || 0);
+    outbound.set(node.id, node.fanOut || 0);
+  });
+
+  data.edges.forEach((edge) => {
+    if (!nodesById.has(edge.source)) {
+      nodesById.set(edge.source, { id: edge.source, name: edge.source });
+    }
+    if (!nodesById.has(edge.target)) {
+      nodesById.set(edge.target, { id: edge.target, name: edge.target });
+    }
+    outbound.set(edge.source, (outbound.get(edge.source) || 0) + 1);
+    inbound.set(edge.target, (inbound.get(edge.target) || 0) + 1);
+  });
+
+  const nodes = Array.from(nodesById.values()).map((node) => {
+    const fanIn = Math.max(node.fanIn || 0, inbound.get(node.id) || 0);
+    const fanOut = Math.max(node.fanOut || 0, outbound.get(node.id) || 0);
+    const role = node.role || deriveGraphRole(fanIn, fanOut);
+    return {
+      id: node.id,
+      name: node.name || node.id,
+      fanIn,
+      fanOut,
+      role,
+      importance: fanOut * 2 + fanIn,
+      x: 0,
+      y: 0,
+    };
+  });
+
+  const visible = [...nodes]
+    .sort((left, right) => right.importance - left.importance)
+    .slice(0, 12);
+  const visibleIds = new Set(visible.map((node) => node.id));
+  const roles: GraphRole[] = ['orchestrator', 'bridge', 'shared', 'leaf'];
+  const columnX: Record<GraphRole, number> = {
+    orchestrator: 120,
+    bridge: 360,
+    shared: 590,
+    leaf: 810,
+  };
+  const positioned: CarbonGraphNode[] = [];
+
+  roles.forEach((role) => {
+    const bucket = visible
+      .filter((node) => node.role === role)
+      .sort((left, right) => right.importance - left.importance);
+    const step = bucket.length <= 1 ? 0 : 300 / (bucket.length - 1);
+    bucket.forEach((node, index) => {
+      positioned.push({
+        ...node,
+        x: columnX[role],
+        y: bucket.length <= 1 ? 250 : 100 + step * index,
+      });
+    });
+  });
+
+  const edges = data.edges.filter(
+    (edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)
+  );
+
+  return {
+    nodes: positioned,
+    edges,
+    hiddenCount: Math.max(0, nodes.length - visible.length),
+  };
+}
+
+function edgePath(source: CarbonGraphNode, target: CarbonGraphNode) {
+  const nodeWidth = 180;
+  const ax = source.x + nodeWidth / 2;
+  const ay = source.y;
+  const bx = target.x - nodeWidth / 2;
+  const by = target.y;
+  const dx = bx - ax;
+  const c1x = ax + dx * 0.5;
+  const c2x = bx - dx * 0.5;
+  return `M ${ax} ${ay} C ${c1x} ${ay}, ${c2x} ${by}, ${bx} ${by}`;
+}
+
+function ArchitectureCartograph({
+  data,
+}: {
+  data: GraphData;
+}) {
+  const graph = useMemo(() => prepareCarbonGraph(data), [data]);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const nodeMap = useMemo(
+    () => new Map(graph.nodes.map((node) => [node.id, node])),
+    [graph.nodes]
+  );
+  const focused =
+    (focusId ? nodeMap.get(focusId) : null) || graph.nodes[0] || null;
+  const outgoing = focused
+    ? graph.edges.filter((edge) => edge.source === focused.id)
+    : [];
+  const incoming = focused
+    ? graph.edges.filter((edge) => edge.target === focused.id)
+    : [];
+
+  if (data.nodes.length === 0) {
+    return (
+      <div className="carbon-panel">
+        <EmptyState
+          icon={Layers3}
+          title="Waiting for the dependency graph"
+          body="Start Bob's cartography run and this plate will render live modules and edges from the backend card_emit event."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="carbon-graph carbon-panel">
+      <div className="panel-toolbar">
+        <div>
+          <div className="t-label-01">PLATE I / ARCHITECTURE CARTOGRAPH</div>
+          <div className="t-h-04">
+            Dependency graph{' '}
+            <span className="t-code-01 muted">{graph.nodes.length} modules shown</span>
+          </div>
+        </div>
+        <div className="toolbar-cluster">
+          <ProvenancePill
+            tool="card_emit.dependency_graph"
+            detail="module edges from Bob cartography"
+          />
+          <span className="mini-chip">noise / hidden {graph.hiddenCount}</span>
+          <span className="mini-chip">fan &gt;= live</span>
+        </div>
+      </div>
+
+      <div className="graph-body">
+        <div className="graph-canvas">
+          <div className="graph-columns">
+            {[
+              ['orchestrator', 'Orchestrators'],
+              ['bridge', 'Bridges'],
+              ['shared', 'Shared services'],
+              ['leaf', 'Leaves'],
+            ].map(([role, label]) => (
+              <div key={role}>
+                <span style={{ background: roleColor(role as GraphRole) }} />
+                <div>
+                  <div className="t-label-01">{label}</div>
+                  <div className="t-helper">
+                    {graph.nodes.filter((node) => node.role === role).length} modules
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <svg viewBox="0 0 920 520" className="graph-svg" role="img">
+            <defs>
+              <pattern id="carbon-grid-dot" width="20" height="20" patternUnits="userSpaceOnUse">
+                <circle cx="10" cy="10" r="0.7" fill="var(--text-4)" opacity="0.48" />
+              </pattern>
+            </defs>
+            <rect width="920" height="520" fill="url(#carbon-grid-dot)" />
+            {graph.edges.map((edge) => {
+              const source = nodeMap.get(edge.source);
+              const target = nodeMap.get(edge.target);
+              if (!source || !target) return null;
+              const active = focused
+                ? edge.source === focused.id || edge.target === focused.id
+                : false;
+              return (
+                <path
+                  key={`${edge.source}-${edge.target}`}
+                  d={edgePath(source, target)}
+                  fill="none"
+                  stroke={active ? 'var(--primary)' : 'var(--border-2)'}
+                  strokeWidth={active ? 1.8 : 1}
+                  opacity={active ? 1 : 0.42}
+                />
+              );
+            })}
+            {graph.nodes.map((node) => {
+              const isFocused = focused?.id === node.id;
+              const x = node.x - 90;
+              const y = node.y - 28;
+              return (
+                <g
+                  key={node.id}
+                  onClick={() => setFocusId(node.id)}
+                  className="graph-node"
+                  role="button"
+                  tabIndex={0}
+                >
+                  <rect
+                    x={x}
+                    y={y}
+                    width="180"
+                    height="56"
+                    fill="var(--bg-1)"
+                    stroke={isFocused ? 'var(--primary)' : 'var(--border)'}
+                    strokeWidth={isFocused ? 2 : 1}
+                  />
+                  <rect x={x} y={y} width="3" height="56" fill={roleColor(node.role)} />
+                  <text x={x + 14} y={y + 22} className="graph-node-title">
+                    {node.name}
+                  </text>
+                  <text x={x + 14} y={y + 41} className="graph-node-meta">
+                    {roleLabel(node.role).toUpperCase()} / fan {node.fanOut} up /{' '}
+                    {node.fanIn} down
+                  </text>
+                  {isFocused && <rect x={x + 158} y={y + 10} width="12" height="12" fill="var(--primary)" />}
+                </g>
+              );
+            })}
+          </svg>
+          <div className="graph-hint">
+            <span>Click a module to focus relationships.</span>
+            <span className="t-code-01">plate_01_dependency_graph.svg</span>
+          </div>
+        </div>
+
+        <aside className="graph-inspector">
+          {focused ? (
+            <>
+              <div>
+                <div className="t-label-01">FOCUSED MODULE</div>
+                <div className="inspector-title mono">{focused.name}</div>
+                <div className="tag-row">
+                  <CarbonTag tone="cyan">{roleLabel(focused.role)}</CarbonTag>
+                  <CarbonTag>{focused.id}</CarbonTag>
+                </div>
+              </div>
+              <div className="inspector-note">
+                {focused.role === 'orchestrator' &&
+                  'Commissions work downstream. Start here when modelling request flow.'}
+                {focused.role === 'bridge' &&
+                  'Routes traffic between active areas. Useful for understanding boundaries.'}
+                {focused.role === 'shared' &&
+                  'Many modules call this. Treat it as a cross-cutting dependency.'}
+                {focused.role === 'leaf' &&
+                  'Terminal logic. Read after the orchestrator path is clear.'}
+              </div>
+              <div className="inspector-stats">
+                <div>
+                  <div className="t-label-01">FAN-OUT</div>
+                  <div className="mono">{focused.fanOut}</div>
+                  <span>downstream</span>
+                </div>
+                <div>
+                  <div className="t-label-01">FAN-IN</div>
+                  <div className="mono">{focused.fanIn}</div>
+                  <span>upstream</span>
+                </div>
+              </div>
+              <GraphEdgeList
+                title={`OUTGOING (${outgoing.length})`}
+                edges={outgoing}
+                side="target"
+                nodeMap={nodeMap}
+                onFocus={setFocusId}
+              />
+              <GraphEdgeList
+                title={`INCOMING (${incoming.length})`}
+                edges={incoming}
+                side="source"
+                nodeMap={nodeMap}
+                onFocus={setFocusId}
+              />
+            </>
+          ) : (
+            <EmptyState
+              title="No module selected"
+              body="Choose a node in the graph to inspect its live relationships."
+            />
+          )}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function GraphEdgeList({
+  title,
+  edges,
+  side,
+  nodeMap,
+  onFocus,
+}: {
+  title: string;
+  edges: GraphEdge[];
+  side: 'source' | 'target';
+  nodeMap: Map<string, CarbonGraphNode>;
+  onFocus: (id: string) => void;
+}) {
+  return (
+    <div className="edge-list">
+      <div className="t-label-01">{title}</div>
+      {edges.length === 0 ? (
+        <div className="t-helper">No edges in this direction.</div>
+      ) : (
+        edges.slice(0, 5).map((edge) => {
+          const targetId = edge[side];
+          const node = nodeMap.get(targetId);
+          return (
+            <button
+              key={`${edge.source}-${edge.target}-${side}`}
+              type="button"
+              onClick={() => onFocus(targetId)}
+              style={{ borderLeftColor: node ? roleColor(node.role) : 'var(--text-3)' }}
+            >
+              <span>{side === 'target' ? '->' : '<-'}</span> {node?.name || targetId}
+            </button>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function BobJournal({
+  entries,
+  isConnected,
+}: {
+  entries: JournalEntry[];
+  isConnected: boolean;
+}) {
+  const meta: Record<JournalEntry['kind'], { icon: LucideIcon; color: string }> = {
+    survey: { icon: Globe2, color: 'var(--cyan)' },
+    quiz: { icon: Code2, color: 'var(--magenta)' },
+    pass: { icon: Check, color: 'var(--success)' },
+    ship: { icon: GitBranch, color: 'var(--primary)' },
+    event: { icon: CircleDot, color: 'var(--text-3)' },
+  };
+
+  return (
+    <div className="carbon-journal carbon-panel">
+      <div className="panel-toolbar">
+        <div>
+          <div className="t-label-01">LIVE TRANSCRIPT</div>
+          <div className="t-h-04">Bob, narrating.</div>
+        </div>
+        <div className={`bridge-pill ${isConnected ? 'online' : 'offline'}`}>
+          <span className="dot" />
+          {isConnected ? 'BRIDGE ONLINE' : 'BRIDGE OFFLINE'}
+        </div>
+      </div>
+      <div className="journal-list">
+        {entries.length === 0 ? (
+          <EmptyState
+            icon={CircleDot}
+            title="Waiting for live events"
+            body="Card emissions, questions, grades, tool calls, and session checkpoints will populate this timeline."
+          />
+        ) : (
+          entries.map((entry) => {
+            const EntryIcon = meta[entry.kind].icon;
+            return (
+              <div
+                key={entry.id}
+                className="journal-row"
+                style={{ borderLeftColor: meta[entry.kind].color }}
+              >
+                <EntryIcon size={16} style={{ color: meta[entry.kind].color }} />
+                <div>
+                  <div className="journal-row-head">
+                    <span style={{ color: meta[entry.kind].color }}>{entry.label}</span>
+                    <span className="t-code-01">{entry.time}</span>
+                  </div>
+                  <p>{entry.body}</p>
+                  <div className="t-code-01 muted">{entry.meta}</div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReadingLenses({
+  tabs,
+  activeTab,
+  onTabChange,
+  entryPointsData,
+  hotspotsData,
+  conventionsData,
+  sessionMeta,
+}: {
+  tabs: AnalysisTabConfig[];
+  activeTab: AnalysisTabId;
+  onTabChange: (tab: AnalysisTabId) => void;
+  entryPointsData: EntryPointsData | null;
+  hotspotsData: HotspotsData | null;
+  conventionsData: ConventionsData | null;
+  sessionMeta: SessionMeta;
+}) {
+  return (
+    <div className="carbon-panel reading-lenses">
+      <div className="carbon-tabs">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = tab.id === activeTab;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onTabChange(tab.id)}
+              className={isActive ? 'active' : ''}
+            >
+              <Icon size={16} />
+              <span>{tab.label}</span>
+              <i>{tab.caption}</i>
+            </button>
+          );
+        })}
+      </div>
+      <div className="lens-body">
+        {activeTab === 'entry' && (
+          <EntryPointsLens data={entryPointsData} sessionMeta={sessionMeta} />
+        )}
+        {activeTab === 'hotspot' && (
+          <HotspotsLens data={hotspotsData} sessionMeta={sessionMeta} />
+        )}
+        {activeTab === 'convention' && (
+          <ConventionsLens data={conventionsData} sessionMeta={sessionMeta} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EntryPointsLens({
+  data,
+  sessionMeta,
+}: {
+  data: EntryPointsData | null;
+  sessionMeta: SessionMeta;
+}) {
+  const rows = useMemo(() => {
+    const routes = data?.routes || [];
+    const cli = data?.cli || [];
+    const jobs = data?.jobs || [];
+    const consumers = data?.consumers || [];
+    return [
+      ...routes.map((item) => ({ ...item, surface: 'HTTP' })),
+      ...cli.map((item) => ({ ...item, surface: 'CLI' })),
+      ...jobs.map((item) => ({ ...item, surface: 'JOB' })),
+      ...consumers.map((item) => ({ ...item, surface: 'CONSUMER' })),
+    ];
+  }, [data]);
+
+  if (!data || rows.length === 0) {
+    return (
+      <EmptyState
+        icon={Globe2}
+        title="Waiting for entry points"
+        body="The entry point table will render routes, CLIs, jobs, and consumers from the cartography card."
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div className="lens-summary">
+        <div>
+          <div className="t-h-04">
+            {(data.routes || []).length} HTTP routes{' '}
+            <span className="t-body-02 muted">
+              / {(data.cli || []).length} CLI scripts / {(data.jobs || []).length}{' '}
+              jobs / {(data.consumers || []).length} consumers
+            </span>
+          </div>
+          <p>
+            Entry points are the doors of the codebase. Every listed row is sourced
+            from the live cartography payload for{' '}
+            <span className="mono">{sessionMeta.repositoryDisplay}</span>.
+          </p>
+        </div>
+        <ProvenancePill
+          tool="card_emit.entry_points"
+          detail="Bob cartography payload"
+        />
+      </div>
+      <div className="carbon-table entry-table">
+        <div className="table-head">
+          <span>Verb</span>
+          <span>Path</span>
+          <span>Handler</span>
+          <span>File</span>
+          <span />
+        </div>
+        {rows.map((row, index) => {
+          const method = row.method || (row.surface === 'CLI' ? 'CLI' : row.surface);
+          const href =
+            getEntryExplicitUrl(row) ||
+            getRepositoryFileUrl(
+              row.file,
+              row.line_number,
+              sessionMeta.repositoryUrl || REPOSITORY_URL,
+              sessionMeta.branch
+            );
+          return (
+            <div key={`${row.file}-${row.name}-${index}`} className="table-row">
+              <span>
+                <CarbonTag tone={method === 'POST' ? 'blue' : method === 'CLI' ? 'purple' : 'green'}>
+                  {method === 'WEBSOCKET' ? 'WS' : method}
+                </CarbonTag>
+              </span>
+              <code>{row.path || row.name || row.topic || row.schedule || row.surface}</code>
+              <code>{row.handler || row.entry_point || row.name || 'n/a'}</code>
+              <code>{row.file}</code>
+              <span className="row-action">
+                {href && (
+                  <a href={href} target="_blank" rel="noreferrer" aria-label={`Open ${row.file}`}>
+                    <ExternalLink size={15} />
+                  </a>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function normalizeSparklineData(value: unknown) {
+  if (Array.isArray(value)) {
+    const numericValues = value
+      .map((item) => toFiniteNumber(item, Number.NaN))
+      .filter((item) => Number.isFinite(item));
+
+    if (
+      numericValues.length >= 2 &&
+      Math.max(...numericValues) !== Math.min(...numericValues)
+    ) {
+      return numericValues;
+    }
+  }
+
+  return null;
+}
+
+function hasUsableTrend(value: unknown): value is number[] {
+  return Boolean(normalizeSparklineData(value));
+}
+
+function buildRepositoryToolArguments(repositoryContext: RepositoryToolContext) {
+  const repository =
+    repositoryContext.repositoryReference ||
+    repositoryContext.repositoryUrl ||
+    repositoryContext.repositoryDisplay;
+
+  return {
+    repository,
+    ...(isLocalRepositoryReference(repositoryContext.repositoryReference)
+      ? { repo_path: repositoryContext.repositoryReference }
+      : {}),
+  };
+}
+
+async function fetchCommitFrequencyBuckets(
+  filePath: string,
+  repositoryContext: RepositoryToolContext
+) {
+  try {
+    const response = await fetch(`${MCP_HTTP_URL}/mcp/invoke`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tool_name: 'commit_frequency',
+        arguments: {
+          ...buildRepositoryToolArguments(repositoryContext),
+          file_path: filePath,
+          days: 180,
+        },
+      }),
+    });
+
+    const payload = (await response.json()) as {
+      result?: {
+        files?: Array<{
+          commit_frequency?: unknown;
+        }>;
+      };
+      error?: string | null;
+    };
+
+    if (!response.ok || payload.error) return null;
+
+    const trend = payload.result?.files?.[0]?.commit_frequency;
+    return normalizeSparklineData(trend);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchRepositoryHotspots(repositoryContext: RepositoryToolContext) {
+  const response = await fetch(`${MCP_HTTP_URL}/mcp/invoke`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      tool_name: 'commit_frequency',
+      arguments: {
+        ...buildRepositoryToolArguments(repositoryContext),
+        days: 180,
+      },
+    }),
+  });
+
+  const payload = (await response.json()) as {
+    result?: {
+      files?: unknown[];
+    };
+    error?: string | null;
+  };
+
+  if (!response.ok || payload.error) {
+    throw new Error(
+      payload.error ||
+        'The backend could not read git history for this repository.'
+    );
+  }
+
+  return {
+    files: (payload.result?.files || [])
+      .map(normalizeHotspotRecord)
+      .filter((hotspot): hotspot is Hotspot => Boolean(hotspot)),
+  };
+}
+
+function Sparkline({ values, color = 'var(--primary)' }: { values: number[]; color?: string }) {
+  const width = 120;
+  const height = 28;
+  const max = Math.max(...values, 1);
+  const step = width / Math.max(1, values.length - 1);
+  const points = values
+    .map((value, index) => `${index * step},${height - (value / max) * height}`)
+    .join(' ');
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden="true">
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+      {values.map((value, index) => (
+        <circle
+          key={`${value}-${index}`}
+          cx={index * step}
+          cy={height - (value / max) * height}
+          r="1.5"
+          fill={color}
+        />
+      ))}
+    </svg>
+  );
+}
+
+function HotspotsLens({
+  data,
+  sessionMeta,
+}: {
+  data: HotspotsData | null;
+  sessionMeta: SessionMeta;
+}) {
+  const [fallbackData, setFallbackData] = useState<HotspotsData | null>(null);
+  const [fallbackError, setFallbackError] = useState<string | null>(null);
+  const [isLoadingFallback, setIsLoadingFallback] = useState(false);
+  const repositoryContext = useMemo<RepositoryToolContext>(
+    () => ({
+      repositoryReference: sessionMeta.repositoryReference,
+      repositoryUrl: sessionMeta.repositoryUrl,
+      repositoryDisplay: sessionMeta.repositoryDisplay,
+    }),
+    [
+      sessionMeta.repositoryDisplay,
+      sessionMeta.repositoryReference,
+      sessionMeta.repositoryUrl,
+    ]
+  );
+  const files = data?.files?.length
+    ? data.files
+    : fallbackData?.files ?? EMPTY_HOTSPOTS;
+  const teamKnowledge = useMemo(
+    () => buildTeamKnowledge({ files }),
+    [files]
+  );
+  const maxCommits = Math.max(...files.map((file) => file.commit_count), 1);
+  const [trendOverrides, setTrendOverrides] = useState<Record<string, number[]>>({});
+  const missingTrendKey = useMemo(
+    () =>
+      files
+        .filter(
+          (file) =>
+            !hasUsableTrend(file.commit_frequency) && !trendOverrides[file.path]
+        )
+        .slice(0, 8)
+        .map((file) => file.path)
+        .join('\u0000'),
+    [files, trendOverrides]
+  );
+
+  useEffect(() => {
+    if (data?.files?.length) return undefined;
+
+    let cancelled = false;
+
+    void Promise.resolve()
+      .then(() => {
+        if (cancelled) return null;
+        setFallbackData(null);
+        setIsLoadingFallback(true);
+        setFallbackError(null);
+        return fetchRepositoryHotspots(repositoryContext);
+      })
+      .then((hotspots) => {
+        if (!cancelled && hotspots) setFallbackData(hotspots);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setFallbackData(null);
+          setFallbackError(
+            error instanceof Error && error.message.trim()
+              ? error.message
+              : 'The backend could not read git history for this repository.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingFallback(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    data?.files?.length,
+    repositoryContext,
+  ]);
+
+  useEffect(() => {
+    if (!missingTrendKey) return undefined;
+
+    const paths = missingTrendKey.split('\u0000');
+    let cancelled = false;
+
+    void Promise.all(
+      paths.map(
+        async (path) =>
+          [path, await fetchCommitFrequencyBuckets(path, repositoryContext)] as const
+      )
+    ).then((results) => {
+      if (cancelled) return;
+
+      const updates: Record<string, number[]> = {};
+      results.forEach(([path, trend]) => {
+        if (trend) updates[path] = trend;
+      });
+
+      if (Object.keys(updates).length > 0) {
+        setTrendOverrides((previous) => ({ ...previous, ...updates }));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [missingTrendKey, repositoryContext]);
+
+  if (files.length === 0) {
+    return (
+      <EmptyState
+        icon={Flame}
+        title={
+          isLoadingFallback
+            ? 'Loading hotspots'
+            : fallbackError
+              ? 'Hotspots unavailable'
+              : 'Waiting for hotspots'
+        }
+        body={
+          isLoadingFallback
+            ? 'Reading git history through the MCP backend for this onboarding repository.'
+            : fallbackError ||
+              'Change frequency rows will appear after the hotspots cartography card is emitted.'
+        }
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div className="lens-summary">
+        <div>
+          <div className="t-h-04">
+            {files.length} hotspots{' '}
+            <span className="t-body-02 muted">
+              / {files.reduce((sum, file) => sum + file.commit_count, 0)} commits
+            </span>
+          </div>
+          <p>Hotspots show where recent changes concentrate and who has ownership context.</p>
+        </div>
+        <ProvenancePill
+          tool={data?.files?.length ? 'card_emit.hotspots' : 'commit_frequency'}
+          detail={
+            data?.files?.length
+              ? 'Bob cartography payload'
+              : 'live git history fallback'
+          }
+        />
+      </div>
+      {teamKnowledge.length > 0 && (
+        <div className="team-knowledge-map">
+          <div className="t-label-01">Who To Ask</div>
+          <div className="team-knowledge-grid">
+            {teamKnowledge.map((member) => (
+              <div key={member.author}>
+                <strong>{member.author}</strong>
+                <span>
+                  {member.commits} commits / {member.files} files
+                </span>
+                <code>{member.topFile}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="carbon-table hotspot-table">
+        <div className="table-head">
+          <span>Rank</span>
+          <span>File</span>
+          <span>Commits</span>
+          <span>Author</span>
+          <span>Trend</span>
+          <span />
+        </div>
+        {files.map((file, index) => {
+          const href = getRepositoryFileUrl(
+            file.path,
+            undefined,
+            sessionMeta.repositoryUrl || REPOSITORY_URL,
+            sessionMeta.branch
+          );
+          const sparkline = normalizeSparklineData(
+            trendOverrides[file.path] ?? file.commit_frequency
+          );
+          return (
+            <div key={file.path} className="table-row">
+              <span className="rank mono">{String(index + 1).padStart(2, '0')}</span>
+              <code>{file.path}</code>
+              <span className="commit-bar">
+                <i style={{ width: `${(file.commit_count / maxCommits) * 100}%` }} />
+                <b>{file.commit_count}</b>
+              </span>
+              <span>{file.top_author || 'Unknown'}</span>
+              <span>
+                {sparkline ? (
+                  <Sparkline
+                    values={sparkline}
+                    color={index === 0 ? 'var(--magenta)' : 'var(--cyan)'}
+                  />
+                ) : (
+                  <span className="t-helper">No buckets</span>
+                )}
+              </span>
+              <span className="row-action">
+                {href && (
+                  <a href={href} target="_blank" rel="noreferrer" aria-label={`Open ${file.path}`}>
+                    <ExternalLink size={15} />
+                  </a>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ConventionsLens({
+  data,
+  sessionMeta,
+}: {
+  data: ConventionsData | null;
+  sessionMeta: SessionMeta;
+}) {
+  const conventions = data?.conventions || [];
+
+  if (!data || conventions.length === 0) {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        title="Waiting for conventions"
+        body="Naming, formatting, test layout, and evidence snippets will appear from the conventions card."
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div className="lens-summary">
+        <div>
+          <div className="t-h-04">
+            {conventions.length} conventions{' '}
+            <span className="t-body-02 muted">/ inferred from representative files</span>
+          </div>
+          <p>Each convention is backed by a file or code example from Bob&apos;s survey.</p>
+        </div>
+        <ProvenancePill
+          tool="card_emit.conventions"
+          detail="file-backed evidence snippets"
+        />
+      </div>
+      <div className="convention-grid">
+        {conventions.map((convention, index) => {
+          const href = getRepositoryFileUrl(
+            convention.evidence.file,
+            convention.evidence.line_number,
+            sessionMeta.repositoryUrl || REPOSITORY_URL,
+            sessionMeta.branch
+          );
+          return (
+            <article key={`${convention.name}-${index}`} className="convention-tile">
+              <div className="row between baseline">
+                <div>
+                  <div className="t-label-01">NO. {String(index + 1).padStart(2, '0')}</div>
+                  <div className="t-h-03">{convention.name}</div>
+                </div>
+                <CarbonTag tone={convention.consistency === 'mixed' ? 'yellow' : 'green'}>
+                  {convention.consistency || 'observed'}
+                </CarbonTag>
+              </div>
+              <p>{convention.pattern}</p>
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                className="file-link mono"
+              >
+                <FileCode2 size={14} />
+                {convention.evidence.file}
+              </a>
+              {convention.evidence.example && (
+                <pre>{convention.evidence.example.trim()}</pre>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Kept temporarily for replay compatibility while the live dashboard uses QuestionFlowCarbon.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function CertificationCarbon({
+  questions,
+  currentSessionId,
+  onAnswerChange,
+  onAnswerSubmit,
+  submissionState,
+}: {
+  questions: CertificationQuestion[];
+  currentSessionId: string | null;
+  onAnswerChange: (questionId: string, answer: string) => void;
+  onAnswerSubmit: (questionId: string) => Promise<void> | void;
+  submissionState: Record<string, CertificationSubmissionState>;
+}) {
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
+  const passCount = questions.filter((question) => question.grade === 'pass').length;
+  const activeQuestion =
+    questions.find((question) => question.id === activeQuestionId) ||
+    questions.find((question) => !question.grade) ||
+    questions[questions.length - 1];
+  const remediation = getCertificationRemediation(activeQuestion);
+  const activeIndex = activeQuestion
+    ? questions.findIndex((question) => question.id === activeQuestion.id)
+    : -1;
+  const activeSubmitState = activeQuestion
+    ? submissionState[activeQuestion.id] || {}
+    : {};
+  const activeAnswer = activeQuestion
+    ? activeQuestion.answer || localAnswers[activeQuestion.id] || ''
+    : '';
+  const isLocked =
+    Boolean(activeQuestion?.grade) ||
+    Boolean(activeSubmitState.pending) ||
+    Boolean(activeSubmitState.submitted);
+
+  const setAnswer = (questionId: string, answer: string) => {
+    setLocalAnswers((prev) => ({ ...prev, [questionId]: answer }));
+    onAnswerChange(questionId, answer);
+  };
+
+  if (questions.length === 0 || !activeQuestion) {
+    return (
+      <div className="carbon-panel">
+        <EmptyState
+          icon={ShieldCheck}
+          title="Waiting for certification questions"
+          body="After cartography, Bob emits question_ask events. This panel submits answers back to the dashboard grading endpoint."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="carbon-panel certification-panel">
+      <div className="cert-head">
+        <div>
+          <div className="t-label-01">CERTIFICATION QUIZ / GRADED BY BOB</div>
+          <div className="t-h-04">
+            Three architecture questions, scored against the cartograph.
+          </div>
+          <div className="cert-steps">
+            {questions.map((question, index) => {
+              const active = question.id === activeQuestion.id;
+              return (
+                <button
+                  key={question.id}
+                  type="button"
+                  onClick={() => setActiveQuestionId(question.id)}
+                  className={active ? 'active' : ''}
+                >
+                  <div className="row between center">
+                    <span className="t-label-01">Q.{index + 1} OF 3</span>
+                    {question.grade === 'pass' && <CheckCircle2 size={18} />}
+                    {question.grade === 'fail' && <XCircle size={18} />}
+                  </div>
+                  <div className="t-h-02">{question.topic || 'Architecture'}</div>
+                  <div className="t-helper">
+                    {question.grade ? `graded / ${question.grade}` : 'open'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <aside>
+          <div className="t-label-01">Result</div>
+          <div className="cert-score mono">
+            {passCount}
+            <span>/3</span>
+          </div>
+          <CarbonTag tone={passCount >= 2 ? 'green' : 'yellow'}>
+            {passCount >= 2 ? 'Certified / ready to ship' : 'Two passes required'}
+          </CarbonTag>
+          <p>
+            {passCount >= 2
+              ? 'Starter issue review is unlocked for this session.'
+              : 'Answer questions here while Bob waits for dashboard submissions.'}
+          </p>
+          <ProvenancePill
+            tool="question_ask + certification_grade"
+            detail="session-scoped Bob events"
+          />
+        </aside>
+      </div>
+
+      <div className="cert-question">
+        <div className="cert-number mono">{String(activeIndex + 1).padStart(2, '0')}</div>
+        <div>
+          <div className="t-label-01">
+            QUESTION {activeIndex + 1} OF 3 / {activeQuestion.topic || 'Architecture'}
+          </div>
+          <h3>{activeQuestion.questionText}</h3>
+
+          <div className="answer-grid">
+            {activeQuestion.options?.map((option, index) => {
+              const selected = activeAnswer === option;
+              return (
+                <button
+                  key={`${activeQuestion.id}-${option}`}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => setAnswer(activeQuestion.id, option)}
+                  className={selected ? 'selected' : ''}
+                >
+                  <span className="mono">{String.fromCharCode(65 + index)}</span>
+                  <p>{option}</p>
+                  {selected && <CheckCircle2 size={18} />}
+                </button>
+              );
+            })}
+          </div>
+
+          {!activeQuestion.grade && (
+            <div className="answer-submit">
+              <p>
+                {activeSubmitState.pending
+                  ? 'Answer submitted. Bob is grading it now.'
+                  : activeSubmitState.submitted
+                    ? 'Waiting for Bob to return a grade.'
+                    : currentSessionId
+                      ? 'Submit this answer to the local grading bridge.'
+                      : 'Start a live onboarding session before submitting answers.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => onAnswerSubmit(activeQuestion.id)}
+                disabled={
+                  !currentSessionId ||
+                  !activeAnswer.trim() ||
+                  activeSubmitState.pending ||
+                  activeSubmitState.submitted
+                }
+                className="carbon-btn"
+              >
+                <Send size={16} />
+                {activeSubmitState.pending ? 'Submitting' : 'Submit answer'}
+              </button>
+            </div>
+          )}
+
+          {activeSubmitState.error && !activeQuestion.grade && (
+            <div className="answer-error">{activeSubmitState.error}</div>
+          )}
+
+          {activeQuestion.rationale && (
+            <div className={`verdict ${activeQuestion.grade || 'partial'}`}>
+              <div className="row between">
+                <div className="t-label-01">BOB&apos;S VERDICT / {activeQuestion.grade}</div>
+              </div>
+              <p>{activeQuestion.rationale}</p>
+            </div>
+          )}
+
+          {remediation && (
+            <div className="remediation-card">
+              <div className="t-label-01">Adaptive remediation / {remediation.source}</div>
+              <p>{remediation.action}</p>
+            </div>
+          )}
+
+          <div className="cert-nav">
+            <button
+              type="button"
+              onClick={() =>
+                activeIndex > 0 && setActiveQuestionId(questions[activeIndex - 1].id)
+              }
+              disabled={activeIndex <= 0}
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </button>
+            <span className="t-label-01">Review previous answers anytime</span>
+            <button
+              type="button"
+              onClick={() =>
+                activeIndex < questions.length - 1 &&
+                setActiveQuestionId(questions[activeIndex + 1].id)
+              }
+              disabled={activeIndex >= questions.length - 1}
+            >
+              Next
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Kept temporarily for replay compatibility while the live dashboard uses QuestionFlowCarbon.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function PracticeQuizCarbon({
+  questions,
+  currentSessionId,
+  onAnswerChange,
+  onAnswerSubmit,
+  submissionState,
+}: {
+  questions: CertificationQuestion[];
+  currentSessionId: string | null;
+  onAnswerChange: (questionId: string, answer: string) => void;
+  onAnswerSubmit: (questionId: string) => Promise<void> | void;
+  submissionState: Record<string, CertificationSubmissionState>;
+}) {
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
+  const activeQuestion =
+    questions.find((question) => question.id === activeQuestionId) ||
+    questions.find((question) => {
+      const state = submissionState[question.id];
+      return !state?.submitted;
+    }) ||
+    questions[questions.length - 1];
+  const activeIndex = activeQuestion
+    ? questions.findIndex((question) => question.id === activeQuestion.id)
+    : -1;
+  const activeSubmitState = activeQuestion
+    ? submissionState[activeQuestion.id] || {}
+    : {};
+  const activeAnswer = activeQuestion
+    ? activeQuestion.answer || localAnswers[activeQuestion.id] || ''
+    : '';
+  const isLocked =
+    Boolean(activeSubmitState.pending) || Boolean(activeSubmitState.submitted);
+  const submittedCount = questions.filter(
+    (question) => submissionState[question.id]?.submitted
+  ).length;
+
+  const setAnswer = (questionId: string, answer: string) => {
+    setLocalAnswers((prev) => ({ ...prev, [questionId]: answer }));
+    onAnswerChange(questionId, answer);
+  };
+
+  if (questions.length === 0 || !activeQuestion) {
+    return (
+      <div className="carbon-panel">
+        <EmptyState
+          icon={CircleDot}
+          title="Waiting for sample questions"
+          body="After each cartography plate, Bob emits a practice question here before certification starts."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="carbon-panel certification-panel">
+      <div className="cert-head">
+        <div>
+          <div className="t-label-01">PRACTICE QUIZ / SAMPLE QUESTIONS</div>
+          <div className="t-h-04">
+            Sample questions before the graded certification.
+          </div>
+          <div className="cert-steps">
+            {questions.map((question, index) => {
+              const active = question.id === activeQuestion.id;
+              const state = submissionState[question.id] || {};
+              return (
+                <button
+                  key={question.id}
+                  type="button"
+                  onClick={() => setActiveQuestionId(question.id)}
+                  className={active ? 'active' : ''}
+                >
+                  <div className="row between center">
+                    <span className="t-label-01">
+                      SAMPLE {index + 1} OF {questions.length}
+                    </span>
+                    {state.submitted && <CheckCircle2 size={18} />}
+                  </div>
+                  <div className="t-h-02">{question.topic || 'Practice'}</div>
+                  <div className="t-helper">
+                    {state.submitted
+                      ? 'submitted to Bob'
+                      : active
+                        ? 'attempting sample'
+                        : 'open sample'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <aside>
+          <div className="t-label-01">Practice status</div>
+          <div className="cert-score mono">
+            {submittedCount}
+            <span>/{questions.length}</span>
+          </div>
+          <CarbonTag tone={submittedCount === questions.length ? 'green' : 'blue'}>
+            {submittedCount === questions.length
+              ? 'Practice complete'
+              : 'Attempting sample question'}
+          </CarbonTag>
+          <p>
+            Not graded. Bob waits for these dashboard submissions before
+            continuing the cartography flow.
+          </p>
+          <ProvenancePill
+            tool="question_ask + wait_for_dashboard_answer"
+            detail="sample practice question"
+          />
+        </aside>
+      </div>
+
+      <div className="cert-question">
+        <div className="cert-number mono">
+          {String(activeIndex + 1).padStart(2, '0')}
+        </div>
+        <div>
+          <div className="row between center wrap">
+            <div className="t-label-01">
+              SAMPLE QUESTION {activeIndex + 1} OF {questions.length} /{' '}
+              {activeQuestion.topic || 'Cartography'}
+            </div>
+            <div className="row center">
+              <CarbonTag tone="blue">Attempting sample question</CarbonTag>
+              <CarbonTag tone="purple">Not graded</CarbonTag>
+            </div>
+          </div>
+          <h3>{activeQuestion.questionText}</h3>
+
+          <div className="answer-grid">
+            {activeQuestion.options?.map((option, index) => {
+              const selected = activeAnswer === option;
+              return (
+                <button
+                  key={`${activeQuestion.id}-${option}`}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => setAnswer(activeQuestion.id, option)}
+                  className={selected ? 'selected' : ''}
+                >
+                  <span className="mono">{String.fromCharCode(65 + index)}</span>
+                  <p>{option}</p>
+                  {selected && <CheckCircle2 size={18} />}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="answer-submit">
+            <p>
+              {activeSubmitState.pending
+                ? 'Sample answer submitted. Bob is reading it now.'
+                : activeSubmitState.submitted
+                  ? 'Submitted to Bob. The onboarding flow can continue.'
+                  : currentSessionId
+                    ? 'Submit this multiple-choice sample answer to Bob.'
+                    : 'Start a live onboarding session before submitting answers.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void onAnswerSubmit(activeQuestion.id)}
+              disabled={!currentSessionId || isLocked || !activeAnswer.trim()}
+              className="carbon-btn"
+            >
+              <Send size={16} />
+              {activeSubmitState.pending
+                ? 'Submitting'
+                : activeSubmitState.submitted
+                  ? 'Submitted to Bob'
+                  : 'Submit sample answer'}
+            </button>
+          </div>
+
+          {activeSubmitState.error && (
+            <div className="answer-error">{activeSubmitState.error}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuestionFlowCarbon({
+  practiceQuestions,
+  certificationQuestions,
+  currentSessionId,
+  onAnswerChange,
+  onAnswerSubmit,
+  submissionState,
+}: {
+  practiceQuestions: CertificationQuestion[];
+  certificationQuestions: CertificationQuestion[];
+  currentSessionId: string | null;
+  onAnswerChange: (questionId: string, answer: string) => void;
+  onAnswerSubmit: (questionId: string) => Promise<void> | void;
+  submissionState: Record<string, CertificationSubmissionState>;
+}) {
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
+  const allQuestions = [...practiceQuestions, ...certificationQuestions];
+  const passCount = certificationQuestions.filter(
+    (question) => question.grade === 'pass'
+  ).length;
+  const submittedPracticeCount = practiceQuestions.filter(
+    (question) => submissionState[question.id]?.submitted
+  ).length;
+  const hasOpenPractice = practiceQuestions.some(
+    (question) => !submissionState[question.id]?.submitted
+  );
+  const showingPractice =
+    practiceQuestions.length > 0 &&
+    (hasOpenPractice || certificationQuestions.length === 0);
+  const activeQuestions = showingPractice ? practiceQuestions : certificationQuestions;
+  const requestedQuestion = activeQuestions.find(
+    (question) => question.id === activeQuestionId
+  );
+  const activeQuestion =
+    (requestedQuestion &&
+    (!showingPractice || !submissionState[requestedQuestion.id]?.submitted)
+      ? requestedQuestion
+      : undefined) ||
+    (showingPractice
+      ? practiceQuestions.find((question) => !submissionState[question.id]?.submitted)
+      : certificationQuestions.find((question) => !question.grade)) ||
+    activeQuestions[activeQuestions.length - 1];
+  const activeIndexInMode = activeQuestion
+    ? activeQuestions.findIndex((question) => question.id === activeQuestion.id)
+    : -1;
+  const activeGlobalIndex = activeQuestion
+    ? allQuestions.findIndex((question) => question.id === activeQuestion.id)
+    : -1;
+  const activeSubmitState = activeQuestion
+    ? submissionState[activeQuestion.id] || {}
+    : {};
+  const activeAnswer = activeQuestion
+    ? activeQuestion.answer || localAnswers[activeQuestion.id] || ''
+    : '';
+  const isLocked =
+    Boolean(!showingPractice && activeQuestion?.grade) ||
+    Boolean(activeSubmitState.pending) ||
+    Boolean(activeSubmitState.submitted);
+  const remediation = showingPractice
+    ? undefined
+    : getCertificationRemediation(activeQuestion);
+
+  const setAnswer = (questionId: string, answer: string) => {
+    setLocalAnswers((prev) => ({ ...prev, [questionId]: answer }));
+    onAnswerChange(questionId, answer);
+  };
+
+  if (allQuestions.length === 0 || !activeQuestion) {
+    return (
+      <div className="carbon-panel">
+        <EmptyState
+          icon={CircleDot}
+          title="Waiting for dashboard questions"
+          body="Practice questions appear here first. After they are answered, Bob's graded certification questions use the same panel."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="carbon-panel certification-panel">
+      <div className="cert-head">
+        <div>
+          <div className="t-label-01">QUESTION FLOW / PRACTICE THEN CERTIFICATION</div>
+          <div className="t-h-04">
+            {showingPractice
+              ? 'Answer sample questions before certification starts.'
+              : 'Certification questions are now active and graded by Bob.'}
+          </div>
+          <div className="cert-steps">
+            {allQuestions.map((question, index) => {
+              const active = question.id === activeQuestion.id;
+              const isPractice = index < practiceQuestions.length;
+              const state = submissionState[question.id] || {};
+              const certNumber = index + 1 - practiceQuestions.length;
+              const disabledByPractice =
+                !isPractice && hasOpenPractice && !question.grade;
+              return (
+                <button
+                  key={question.id}
+                  type="button"
+                  disabled={disabledByPractice}
+                  onClick={() => setActiveQuestionId(question.id)}
+                  className={active ? 'active' : ''}
+                >
+                  <div className="row between center">
+                    <span className="t-label-01">
+                      {isPractice
+                        ? `PRACTICE ${index + 1}`
+                        : `CERT ${certNumber} OF 3`}
+                    </span>
+                    {isPractice && state.submitted && <CheckCircle2 size={18} />}
+                    {!isPractice && question.grade === 'pass' && (
+                      <CheckCircle2 size={18} />
+                    )}
+                    {!isPractice && question.grade === 'fail' && <XCircle size={18} />}
+                  </div>
+                  <div className="t-h-02">
+                    {question.topic || (isPractice ? 'Practice' : 'Architecture')}
+                  </div>
+                  <div className="t-helper">
+                    {isPractice
+                      ? state.submitted
+                        ? 'practice submitted'
+                        : active
+                          ? 'attempting sample'
+                          : 'practice first'
+                      : disabledByPractice
+                        ? 'locked until practice is done'
+                        : question.grade
+                          ? `graded / ${question.grade}`
+                          : 'certification open'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <aside>
+          <div className="t-label-01">
+            {showingPractice ? 'Practice status' : 'Certification result'}
+          </div>
+          <div className="cert-score mono">
+            {showingPractice ? submittedPracticeCount : passCount}
+            <span>/{showingPractice ? practiceQuestions.length : 3}</span>
+          </div>
+          <CarbonTag
+            tone={
+              showingPractice
+                ? 'blue'
+                : passCount >= 2
+                  ? 'green'
+                  : 'yellow'
+            }
+          >
+            {showingPractice
+              ? 'Attempting sample question'
+              : passCount >= 2
+                ? 'Certified / ready to ship'
+                : 'Two passes required'}
+          </CarbonTag>
+          <p>
+            {showingPractice
+              ? 'Not graded. Bob waits for these sample answers before moving forward.'
+              : passCount >= 2
+                ? 'Starter issue review is unlocked for this session.'
+                : 'Answer the active certification question while Bob waits here.'}
+          </p>
+          <ProvenancePill
+            tool={
+              showingPractice
+                ? 'question_ask + wait_for_dashboard_answer'
+                : 'question_ask + certification_grade'
+            }
+            detail={showingPractice ? 'sample practice question' : 'graded Bob event'}
+          />
+        </aside>
+      </div>
+
+      <div className="cert-question">
+        <div className="cert-number mono">
+          {String(activeGlobalIndex + 1).padStart(2, '0')}
+        </div>
+        <div>
+          <div className="row between center wrap">
+            <div className="t-label-01">
+              {showingPractice
+                ? `SAMPLE QUESTION ${activeIndexInMode + 1} OF ${
+                    practiceQuestions.length
+                  }`
+                : `CERTIFICATION QUESTION ${activeIndexInMode + 1} OF 3`}{' '}
+              / {activeQuestion.topic || 'Architecture'}
+            </div>
+            <div className="row center">
+              {showingPractice ? (
+                <>
+                  <CarbonTag tone="blue">Attempting sample question</CarbonTag>
+                  <CarbonTag tone="purple">Not graded</CarbonTag>
+                </>
+              ) : (
+                <CarbonTag tone="yellow">Graded by Bob</CarbonTag>
+              )}
+            </div>
+          </div>
+          <h3>{activeQuestion.questionText}</h3>
+
+          <div className="answer-grid">
+            {activeQuestion.options?.map((option, index) => {
+              const selected = activeAnswer === option;
+              return (
+                <button
+                  key={`${activeQuestion.id}-${option}`}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => setAnswer(activeQuestion.id, option)}
+                  className={selected ? 'selected' : ''}
+                >
+                  <span className="mono">{String.fromCharCode(65 + index)}</span>
+                  <p>{option}</p>
+                  {selected && <CheckCircle2 size={18} />}
+                </button>
+              );
+            })}
+          </div>
+
+          {(showingPractice || !activeQuestion.grade) && (
+            <div className="answer-submit">
+              <p>
+                {showingPractice
+                  ? activeSubmitState.pending
+                    ? 'Sample answer submitted. Bob is reading it now.'
+                    : activeSubmitState.submitted
+                      ? 'Submitted to Bob. The next question will appear in this same panel.'
+                      : currentSessionId
+                        ? 'Submit this sample answer before certification questions become active.'
+                        : 'Start a live onboarding session before submitting answers.'
+                  : activeSubmitState.pending
+                    ? 'Answer submitted. Bob is grading it now.'
+                    : activeSubmitState.submitted
+                      ? 'Waiting for Bob to return a grade.'
+                      : currentSessionId
+                        ? 'Submit this certification answer to the local grading bridge.'
+                        : 'Start a live onboarding session before submitting answers.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => onAnswerSubmit(activeQuestion.id)}
+                disabled={
+                  !currentSessionId ||
+                  !activeAnswer.trim() ||
+                  activeSubmitState.pending ||
+                  activeSubmitState.submitted
+                }
+                className="carbon-btn"
+              >
+                <Send size={16} />
+                {activeSubmitState.pending
+                  ? 'Submitting'
+                  : activeSubmitState.submitted
+                    ? 'Submitted to Bob'
+                    : showingPractice
+                      ? 'Submit sample answer'
+                      : 'Submit answer'}
+              </button>
+            </div>
+          )}
+
+          {activeSubmitState.error && (showingPractice || !activeQuestion.grade) && (
+            <div className="answer-error">{activeSubmitState.error}</div>
+          )}
+
+          {!showingPractice && activeQuestion.rationale && (
+            <div className={`verdict ${activeQuestion.grade || 'partial'}`}>
+              <div className="row between">
+                <div className="t-label-01">BOB&apos;S VERDICT / {activeQuestion.grade}</div>
+              </div>
+              <p>{activeQuestion.rationale}</p>
+            </div>
+          )}
+
+          {remediation && (
+            <div className="remediation-card">
+              <div className="t-label-01">Adaptive remediation / {remediation.source}</div>
+              <p>{remediation.action}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StarterPRCarbon({
+  repository,
+  repositoryUrl,
+  branch,
+  issues,
+  starterSuggestion,
+  isLoading,
+  error,
+  isUnlocked,
+  prUrl,
+  onRetry,
+}: {
+  repository: string | null;
+  repositoryUrl: string | null;
+  branch: string;
+  issues: StarterIssue[];
+  starterSuggestion: StarterSuggestion | null;
+  isLoading: boolean;
+  error: string | null;
+  isUnlocked: boolean;
+  prUrl?: string;
+  onRetry: () => void;
+}) {
+  const repositoryDisplay = getRepositoryName(repository);
+  const issueSearchUrl = getRepositoryIssueSearchUrl(repository);
+  const starterTargetUrl = getStarterSuggestionUrl(
+    starterSuggestion,
+    repositoryUrl,
+    branch
+  );
+  const issueStatus = error
+    ? error.toLowerCase().includes('rate_limit') ||
+      error.toLowerCase().includes('rate limit')
+      ? 'API rate-limited'
+      : 'lookup failed'
+    : isLoading && issues.length === 0
+      ? 'loading'
+      : starterSuggestion
+        ? `${issues.length} issues / 1 fallback task`
+        : `${issues.length} issues`;
+
+  return (
+    <div className="carbon-panel starter-panel">
+      <div className="starter-cta">
+        <div>
+          <CarbonTag tone={isUnlocked ? 'green' : 'yellow'}>
+            <GitPullRequest size={14} />
+            {isUnlocked ? 'Certification holds' : 'Certification pending'}
+          </CarbonTag>
+          <div className="t-h-06">Ship your first pull request.</div>
+          <p>
+            This dashboard surfaces real starter issue candidates or Bob&apos;s
+            selected fallback task from the MCP backend, then links to the PR URL
+            emitted at session end.
+          </p>
+          <div className="starter-actions">
+            {prUrl ? (
+              <a href={prUrl} target="_blank" rel="noreferrer" className="carbon-btn">
+                Open starter PR
+                <ExternalLink size={16} />
+              </a>
+            ) : starterTargetUrl ? (
+              <a
+                href={starterTargetUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="carbon-btn"
+              >
+                Open suggested task
+                <ExternalLink size={16} />
+              </a>
+            ) : issues[0] ? (
+              <a
+                href={issues[0].url}
+                target="_blank"
+                rel="noreferrer"
+                className="carbon-btn"
+              >
+                Open top issue
+                <ExternalLink size={16} />
+              </a>
+            ) : issueSearchUrl ? (
+              <a
+                href={issueSearchUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="carbon-btn"
+              >
+                Browse issues
+                <ExternalLink size={16} />
+              </a>
+            ) : (
+              <button type="button" onClick={onRetry} className="carbon-btn">
+                Load issues
+                <RefreshCw size={16} />
+              </button>
+            )}
+            <button type="button" onClick={onRetry} className="carbon-btn secondary">
+              Refresh candidates
+              <RefreshCw size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <aside className="starter-meta">
+        <div>
+          <div className="t-label-01">Repository</div>
+          <div className="mono">{repositoryDisplay}</div>
+        </div>
+        <div>
+          <div className="t-label-01">Starter candidates</div>
+          <div className="mono">{issueStatus}</div>
+        </div>
+        <div>
+          <div className="t-label-01">Pull request</div>
+          <div className="mono">
+            {prUrl
+              ? 'opened'
+              : starterSuggestion
+                ? 'suggested task ready'
+                : isUnlocked
+                  ? 'manual path ready'
+                  : 'waiting for certification'}
+          </div>
+        </div>
+        {error && (
+          <div className="starter-error">
+            <AlertTriangle size={16} />
+            <span>
+              {error}
+              {issueSearchUrl
+                ? ' You can still browse the live GitHub issue search.'
+                : ''}
+            </span>
+          </div>
+        )}
+        {!error && !isLoading && issues.length === 0 && !starterSuggestion && (
+          <div className="starter-error neutral">
+            No starter issues returned yet. Use the GitHub issue search or
+            refresh when API budget is available.
+          </div>
+        )}
+        {!error && !isLoading && issues.length === 0 && starterSuggestion && (
+          <div className="starter-error neutral">
+            No open starter issues were returned for this session repository, so
+            Bob selected a bounded fallback task.
+          </div>
+        )}
+        {starterSuggestion && (
+          <section className="starter-suggestion">
+            <div className="t-label-01">Suggested starter task</div>
+            <strong>{starterSuggestion.title}</strong>
+            <p>{starterSuggestion.description}</p>
+            {starterSuggestion.filePath && (
+              <code>{starterSuggestion.filePath}</code>
+            )}
+            {starterSuggestion.commitMessage && (
+              <small>
+                Commit <span>{starterSuggestion.commitMessage}</span>
+              </small>
+            )}
+            <div className="starter-safety">
+              <div>
+                <span>Safety</span>
+                <strong>
+                  {typeof starterSuggestion.safetyScore === 'number'
+                    ? `${starterSuggestion.safetyScore}%`
+                    : 'pending'}
+                </strong>
+              </div>
+              <div>
+                <span>Scope</span>
+                <strong>
+                  {starterSuggestion.filesTouched
+                    ? `${starterSuggestion.filesTouched} file${
+                        starterSuggestion.filesTouched === 1 ? '' : 's'
+                      }`
+                    : 'unknown'}
+                </strong>
+              </div>
+              <div>
+                <span>Size</span>
+                <strong>
+                  {starterSuggestion.lineCount
+                    ? `${starterSuggestion.lineCount} lines`
+                    : 'not emitted'}
+                </strong>
+              </div>
+            </div>
+            {starterSuggestion.safetyReasons.length > 0 && (
+              <ul className="starter-safety-reasons">
+                {starterSuggestion.safetyReasons.slice(0, 3).map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            )}
+            {starterTargetUrl && (
+              <a href={starterTargetUrl} target="_blank" rel="noreferrer">
+                <ExternalLink size={15} />
+                Open target
+              </a>
+            )}
+          </section>
+        )}
+        {issueSearchUrl && (
+          <a
+            href={issueSearchUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="starter-meta-link"
+          >
+            <ExternalLink size={15} />
+            Browse good first issues
+          </a>
+        )}
+        <div className="issue-list">
+          {issues.map((issue) => (
+            <a key={issue.issueNumber} href={issue.url} target="_blank" rel="noreferrer">
+              <span className="mono">#{issue.issueNumber}</span>
+              <strong>{issue.title}</strong>
+              <small>{issue.labels.slice(0, 3).join(' / ') || issue.state}</small>
+            </a>
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function EventLog({ events }: { events: Event[] }) {
+  const [query, setQuery] = useState('');
+  const [eventType, setEventType] = useState('all');
+  const eventTypes = useMemo(
+    () => ['all', ...Array.from(new Set(events.map((event) => event.type))).sort()],
+    [events]
+  );
+  const visibleEvents = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return events.filter((event) => {
+      const matchesType = eventType === 'all' || event.type === eventType;
+      const payload = stringifyPayload(event.data, 2000).toLowerCase();
+      const matchesQuery =
+        !normalizedQuery ||
+        event.type.toLowerCase().includes(normalizedQuery) ||
+        payload.includes(normalizedQuery);
+      return matchesType && matchesQuery;
+    });
+  }, [eventType, events, query]);
+
+  return (
+    <div className="carbon-panel event-log">
+      <div className="event-toolbar">
+        <div className="row center gap-3">
+          <Zap size={17} />
+          <span className="t-h-02">Event log</span>
+          <CarbonTag>{events.length} events</CarbonTag>
+        </div>
+        <div className="event-controls">
+          <label>
+            <Search size={15} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search events..."
+              type="search"
+            />
+          </label>
+          <label>
+            <Filter size={15} />
+            <select
+              value={eventType}
+              onChange={(event) => setEventType(event.target.value)}
+              aria-label="Filter event type"
+            >
+              {eventTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type === 'all' ? 'All types' : type.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+      <div className="event-table">
+        <div className="table-head">
+          <span>Time</span>
+          <span>Sev</span>
+          <span>Event</span>
+          <span>Payload</span>
+          <span>Event ID</span>
+        </div>
+        {visibleEvents.length === 0 ? (
+          <EmptyState
+            icon={CircleDot}
+            title={events.length === 0 ? 'No events yet' : 'No matching events'}
+            body={
+              events.length === 0
+                ? 'The WebSocket bridge is connected to live events when the backend is running.'
+                : 'Adjust the event search or filter to widen the table.'
+            }
+          />
+        ) : (
+          visibleEvents.map((event) => (
+            <div key={event.id} className="table-row">
+              <code>{formatClockTime(event.timestamp)}</code>
+              <span className={`event-sev ${event.type}`} />
+              <code>{event.type.toUpperCase()}</code>
+              <code>{stringifyPayload(event.data)}</code>
+              <code>{event.id}</code>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Footer({
+  sessionId,
+  bobcoinBudget,
+  startedAt,
+}: {
+  sessionId: string | null;
+  bobcoinBudget: { total: number; spent: number; projected: number };
+  startedAt: Date | null;
+}) {
+  return (
+    <footer className="carbon-footer">
+      <div>
+        <div className="t-label-01">PRODUCT</div>
+        <div className="t-h-04">OnboardOps</div>
+        <p>The 10-minute repo whisperer.</p>
+      </div>
+      <div>
+        <div className="t-label-01">RUNTIME</div>
+        <code>IBM Bob IDE</code>
+        <code>MCP / 127.0.0.1:8765</code>
+        <code>Dashboard / localhost:3000</code>
+      </div>
+      <div>
+        <div className="t-label-01">SESSION</div>
+        <code>id / {sessionId || 'waiting'}</code>
+        <code>started / {formatClockTime(startedAt)}</code>
+        <code>
+          bobcoins / {bobcoinBudget.spent} spent / {bobcoinBudget.total} total
+        </code>
+      </div>
+      <div>
+        <div className="t-label-01">FOR THE RECORD</div>
+        <div className="t-h-04">IBM Bob Hackathon</div>
+        <p>Live dashboard wired to session events, grading, and starter issues.</p>
+      </div>
+    </footer>
+  );
+}
+
 function Dashboard() {
-  const [showEventStream, setShowEventStream] = useState(true);
   const [activeAnalysisTab, setActiveAnalysisTab] =
     useState<AnalysisTabId>('entry');
-  const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
   const [certificationAnswers, setCertificationAnswers] = useState<{
     sessionId: string | null;
     answers: Record<string, string>;
@@ -877,18 +3905,17 @@ function Dashboard() {
     issues: [],
   });
   const lastRecoveryEventId = useRef<string | null>(null);
-  const { isConnected } = useEvents();
-  useEventHandlers();
 
   const connectionState = useEventsStore((state) => state.connectionState);
   const events = useEventsStore((state) => state.events);
   const cartographySteps = useEventsStore((state) => state.cartographySteps);
   const session = useEventsStore((state) => state.session);
+  const bobcoinBudget = useEventsStore((state) => state.bobcoinBudget);
   const { currentEvent, showRecovery, dismissRecovery } = useAutoRecovery();
 
-  const isIdle = !session.isActive && events.length === 0;
+  const sessionStartEvent = events.find((event) => event.type === 'session_start');
+  const sessionEndEvent = events.find((event) => event.type === 'session_end');
   const currentSessionId = useMemo(() => {
-    const sessionStartEvent = events.find((event) => event.type === 'session_start');
     const sessionStartId = sessionStartEvent?.data.session_id;
 
     if (typeof sessionStartId === 'string' && sessionStartId.trim()) {
@@ -904,7 +3931,9 @@ function Dashboard() {
     return typeof fallbackSessionId === 'string' && fallbackSessionId.trim()
       ? fallbackSessionId
       : null;
-  }, [events]);
+  }, [events, sessionStartEvent?.data.session_id]);
+  const { isConnected } = useEvents(currentSessionId);
+  useEventHandlers();
   const dependencyCard = findCard(events, 'dependency_graph');
   const entryCard = findCard(events, 'entry_points');
   const hotspotCard = findCard(events, 'hotspots');
@@ -913,6 +3942,103 @@ function Dashboard() {
   const entryPointsData = entryPointsDataFromCard(entryCard);
   const hotspotsData = hotspotsDataFromCard(hotspotCard);
   const conventionsData = conventionsDataFromCard(conventionCard);
+  const sessionMeta = useMemo(
+    () =>
+      deriveSessionMeta({
+        events,
+        starterRepository: starterIssuesState.repository,
+        entryPointsData,
+      }),
+    [entryPointsData, events, starterIssuesState.repository]
+  );
+  const starterSuggestion = useMemo(
+    () => buildStarterSuggestion(events),
+    [events]
+  );
+  const starterSuggestionUrl = getStarterSuggestionUrl(
+    starterSuggestion,
+    sessionMeta.repositoryUrl,
+    sessionMeta.branch
+  );
+  const heroPrefix = sessionMeta.onboardeeName || sessionMeta.repositoryOwner;
+
+  const practiceQuestions = useMemo<CertificationQuestion[]>(() => {
+    const questions = new Map<string, CertificationQuestion>();
+
+    [...events].reverse().forEach((event) => {
+      if (event.type !== 'question_ask' || isCertificationQuestionEvent(event)) {
+        return;
+      }
+
+      const data = event.data as {
+        id?: string;
+        question_id?: string;
+        topic?: string;
+        stage?: string;
+        question?: string;
+        response_mode?: 'multiple_choice';
+        options?: string[];
+      };
+      const id = data.question_id || data.id || event.id;
+      const questionText = data.question;
+      if (!questionText) return;
+
+      const options = Array.isArray(data.options)
+        ? data.options.filter(
+            (option): option is string =>
+              typeof option === 'string' && option.trim().length > 0
+          )
+        : [];
+      const existing = questions.get(id);
+      const questionDraft = {
+        id,
+        topic: existing?.topic || data.topic || data.stage || 'Practice',
+        questionText,
+      };
+      const fallbackOptions = deriveFallbackCertificationOptions({
+        question: questionDraft,
+        questionId: id,
+        dependencyCard,
+        entryPointsData,
+        hotspotsData,
+        conventionsData,
+      });
+      const resolvedOptions =
+        existing?.options ||
+        ensureMultipleChoiceOptions({
+          question: questionDraft,
+          explicitOptions: options,
+          fallbackOptions,
+          seedKey: `${currentSessionId || 'session'}:${id}`,
+        });
+
+      questions.set(id, {
+        id,
+        topic: questionDraft.topic,
+        questionText: existing?.questionText || questionText,
+        responseMode: 'multiple_choice',
+        options: resolvedOptions,
+        answer: existing?.answer,
+      });
+    });
+
+    return Array.from(questions.values()).map((question) => ({
+      ...question,
+      answer:
+        question.answer ??
+        (certificationAnswers.sessionId === currentSessionId
+          ? certificationAnswers.answers[question.id]
+          : undefined),
+    }));
+  }, [
+    certificationAnswers,
+    conventionsData,
+    currentSessionId,
+    dependencyCard,
+    entryPointsData,
+    events,
+    hotspotsData,
+  ]);
 
   const certificationQuestions = useMemo<CertificationQuestion[]>(() => {
     const questions = new Map<string, CertificationQuestion>();
@@ -928,7 +4054,7 @@ function Dashboard() {
           topic?: string;
           stage?: string;
           question?: string;
-          response_mode?: 'free_text' | 'multiple_choice';
+          response_mode?: 'multiple_choice';
           options?: string[];
         };
         const id = data.question_id || data.id || event.id;
@@ -943,41 +4069,33 @@ function Dashboard() {
         if (questionText) {
           const existing = questions.get(id);
           questionTextToId.set(normalizeQuestionText(questionText), id);
-          const fallbackOptions =
-            options.length > 0
-              ? undefined
-              : deriveFallbackCertificationOptions({
-                  question: {
-                    id,
-                    topic: existing?.topic || data.topic || data.stage || 'Architecture',
-                    questionText,
-                  },
-                  questionId: id,
-                  dependencyCard,
-                  entryPointsData,
-                  hotspotsData,
-                  conventionsData,
-                });
+          const questionDraft = {
+            id,
+            topic: existing?.topic || data.topic || data.stage || 'Architecture',
+            questionText,
+          };
+          const fallbackOptions = deriveFallbackCertificationOptions({
+            question: questionDraft,
+            questionId: id,
+            dependencyCard,
+            entryPointsData,
+            hotspotsData,
+            conventionsData,
+          });
           const resolvedOptions =
             existing?.options ||
-            (options.length > 0
-              ? shuffleQuestionOptions(
-                  options,
-                  `${currentSessionId || 'session'}:${id}`
-                )
-              : fallbackOptions);
-          const resolvedResponseMode =
-            existing?.responseMode === 'multiple_choice' ||
-            data.response_mode === 'multiple_choice' ||
-            Boolean(resolvedOptions?.length)
-              ? 'multiple_choice'
-              : 'free_text';
+            ensureMultipleChoiceOptions({
+              question: questionDraft,
+              explicitOptions: options,
+              fallbackOptions,
+              seedKey: `${currentSessionId || 'session'}:${id}`,
+            });
 
           questions.set(id, {
             id,
-            topic: existing?.topic || data.topic || data.stage || 'Architecture',
+            topic: questionDraft.topic,
             questionText: existing?.questionText || questionText,
-            responseMode: resolvedResponseMode,
+            responseMode: 'multiple_choice',
             options: resolvedOptions,
             answer: existing?.answer,
             grade: existing?.grade,
@@ -1012,8 +4130,21 @@ function Dashboard() {
               existing?.questionText ||
               eventQuestionText ||
               'Certification question',
-            responseMode: existing?.responseMode || 'free_text',
-            options: existing?.options,
+            responseMode: 'multiple_choice',
+            options:
+              existing?.options ||
+              ensureMultipleChoiceOptions({
+                question: {
+                  id,
+                  topic: existing?.topic || data.topic || 'Certification',
+                  questionText:
+                    existing?.questionText ||
+                    eventQuestionText ||
+                    'Certification question',
+                },
+                explicitOptions: [],
+                seedKey: `${currentSessionId || 'session'}:${id}`,
+              }),
             answer: data.user_answer || data.answer || existing?.answer,
             grade: data.grade,
             rationale: data.rationale,
@@ -1088,7 +4219,9 @@ function Dashboard() {
       certificationAnswers.sessionId === currentSessionId
         ? certificationAnswers.answers[questionId]
         : undefined;
-    const question = certificationQuestions.find((item) => item.id === questionId);
+    const question =
+      certificationQuestions.find((item) => item.id === questionId) ||
+      practiceQuestions.find((item) => item.id === questionId);
 
     if (!answer?.trim()) {
       setAnswerSubmissionState((prev) => ({
@@ -1181,6 +4314,97 @@ function Dashboard() {
     }
   }
 
+  const loadStarterIssues = useCallback(
+    async (force = false) => {
+      if (!force && starterIssuesState.isLoading) return;
+      const requestedRepository =
+        sessionMeta.repositoryReference ||
+        sessionMeta.repositoryUrl ||
+        sessionMeta.repositoryDisplay;
+
+      setStarterIssuesState((prev) => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+        issues:
+          prev.issues.length > 0
+            ? prev.issues
+            : readCachedStarterIssues(requestedRepository),
+      }));
+
+      try {
+        const result = await fetchStarterIssueCandidates(
+          MCP_HTTP_URL,
+          requestedRepository
+        );
+        if (result.issues.length > 0) {
+          writeCachedStarterIssues(
+            result.repository || requestedRepository,
+            result.issues
+          );
+        }
+        setStarterIssuesState((prev) => ({
+          isLoading: false,
+          hasLoaded: true,
+          error: null,
+          repository: result.repository || requestedRepository,
+          issues:
+            result.issues.length > 0 || force
+              ? result.issues
+              : prev.issues,
+        }));
+      } catch (error) {
+        setStarterIssuesState((prev) => ({
+          ...prev,
+          isLoading: false,
+          hasLoaded: true,
+          issues:
+            prev.issues.length > 0
+              ? prev.issues
+              : readCachedStarterIssues(requestedRepository),
+          error:
+            error instanceof Error && error.message.trim()
+              ? error.message
+              : 'Could not load starter issues from the local onboarding backend.',
+        }));
+      }
+    },
+    [
+      sessionMeta.repositoryDisplay,
+      sessionMeta.repositoryReference,
+      sessionMeta.repositoryUrl,
+      starterIssuesState.isLoading,
+    ]
+  );
+
+  const loadedStarterRepository = starterIssuesState.repository
+    ? repositoryIdentityKey(starterIssuesState.repository)
+    : null;
+  const requestedStarterRepositoryKey = repositoryIdentityKey(
+    sessionMeta.repositoryReference ||
+      sessionMeta.repositoryUrl ||
+      sessionMeta.repositoryDisplay
+  );
+
+  useEffect(() => {
+    if (connectionState !== 'connected' || starterIssuesState.isLoading) return;
+    if (
+      starterIssuesState.hasLoaded &&
+      loadedStarterRepository === requestedStarterRepositoryKey
+    ) {
+      return;
+    }
+
+    void loadStarterIssues();
+  }, [
+    connectionState,
+    loadedStarterRepository,
+    loadStarterIssues,
+    requestedStarterRepositoryKey,
+    starterIssuesState.hasLoaded,
+    starterIssuesState.isLoading,
+  ]);
+
   const displayCartographySteps = useMemo(() => {
     const completedByCard: Record<string, boolean> = {
       graph: Boolean(dependencyCard),
@@ -1193,83 +4417,100 @@ function Dashboard() {
       completedByCard[step.id] ? { ...step, status: 'complete' as const } : step
     );
   }, [cartographySteps, conventionCard, dependencyCard, entryCard, hotspotCard]);
-
-  const completedSteps = useMemo(
-    () =>
-      displayCartographySteps.filter((step) => step.status === 'complete').length,
-    [displayCartographySteps]
-  );
+  const completedSteps = displayCartographySteps.filter(
+    (step) => step.status === 'complete'
+  ).length;
   const entryPointCount = countEntryPoints(entryPointsData);
   const hotspotCount = hotspotsData?.files.length || 0;
   const conventionCount = conventionsData?.conventions.length || 0;
+  const teamKnowledgeForExport = useMemo(
+    () => buildTeamKnowledge(hotspotsData),
+    [hotspotsData]
+  );
   const passCount = certificationQuestions.filter(
     (question) => question.grade === 'pass'
   ).length;
-  const latestPrUrl = events.find((event) => event.type === 'session_end')?.data
-    .pr_url as string | undefined;
+  const latestPrUrl =
+    typeof sessionEndEvent?.data.pr_url === 'string'
+      ? (sessionEndEvent.data.pr_url as string)
+      : undefined;
+  const starterProgressCopy = latestPrUrl
+    ? 'a starter PR is open'
+    : starterSuggestion
+      ? `${starterIssuesState.issues.length} real issue candidates and 1 Bob fallback task are ready`
+      : starterIssuesState.issues.length > 0
+        ? `${starterIssuesState.issues.length} starter issue candidates are loaded`
+        : '0 starter issue candidates are loaded';
+  const topStarterIssue = starterIssuesState.issues[0];
+  const starterMetric = (() => {
+    if (topStarterIssue) {
+      return {
+        value: `Issue #${topStarterIssue.issueNumber}`,
+        detail: latestPrUrl
+          ? compactMetricDetail(`PR drafted from real issue: ${topStarterIssue.title}`)
+          : 'Backed by a real open issue in the repository - not a synthetic exercise.',
+        status: latestPrUrl ? 'Drafted' : 'Ready',
+      };
+    }
+
+    if (latestPrUrl) {
+      return {
+        value: 'Drafted',
+        detail: 'Starter pull request URL was emitted at session end.',
+        status: 'Ready',
+      };
+    }
+
+    if (starterSuggestion) {
+      const score = starterSuggestion.safetyScore;
+      return {
+        value: typeof score === 'number' ? `${score}% safe` : 'Task ready',
+        detail: compactMetricDetail(`Bob fallback task: ${starterSuggestion.title}`),
+        status: 'Fallback',
+      };
+    }
+
+    return {
+      value: 'Pending',
+      detail: 'Waiting for issue candidates or a Bob suggested task.',
+      status: 'Waiting',
+    };
+  })();
+  const startedAt =
+    session.startTime ||
+    (sessionStartEvent ? new Date(sessionStartEvent.timestamp) : null);
+  const endedAt = sessionEndEvent ? new Date(sessionEndEvent.timestamp) : session.endTime;
+  const sessionRunning =
+    session.isActive || Boolean(currentSessionId && !sessionEndEvent);
+  const elapsedSeconds = useElapsedSeconds(startedAt, endedAt, sessionRunning);
+  const journalEntries = useMemo(() => buildJournalEntries(events), [events]);
+  const isIdle = !sessionRunning && events.length === 0;
+  const availableAnalysisCount = [
+    entryPointsData,
+    hotspotsData,
+    conventionsData,
+  ].filter(Boolean).length;
   const analysisTabs = useMemo<AnalysisTabConfig[]>(
     () => [
       {
         id: 'entry',
-        label: 'Entry Points',
+        label: 'Entry points',
         caption: `${entryPointCount} surfaces`,
-        icon: Globe,
-        type: 'entry',
-        state: entryCard ? 'complete' : 'pending',
-        title: String(entryCard?.data.title || 'Entry Points'),
-        bodyMarkdown:
-          typeof entryCard?.data.body_markdown === 'string'
-            ? entryCard.data.body_markdown
-            : null,
-        content: entryPointsData ? (
-          <EntryPointsCard data={entryPointsData} />
-        ) : (
-          <div className="py-4 text-center text-sm text-ibm-gray-70">
-            Waiting to analyze entry points...
-          </div>
-        ),
+        icon: Globe2,
         isAvailable: Boolean(entryCard || entryPointsData),
       },
       {
         id: 'hotspot',
-        label: 'Change Hotspots',
+        label: 'Change hotspots',
         caption: `${hotspotCount} files`,
         icon: Flame,
-        type: 'hotspot',
-        state: hotspotCard ? 'complete' : 'pending',
-        title: String(hotspotCard?.data.title || 'Change Hotspots'),
-        bodyMarkdown:
-          typeof hotspotCard?.data.body_markdown === 'string'
-            ? hotspotCard.data.body_markdown
-            : null,
-        content: hotspotsData ? (
-          <HotspotsCard data={hotspotsData} />
-        ) : (
-          <div className="py-4 text-center text-sm text-ibm-gray-70">
-            Waiting to analyze hotspots...
-          </div>
-        ),
         isAvailable: Boolean(hotspotCard || hotspotsData),
       },
       {
         id: 'convention',
-        label: 'Project Conventions',
+        label: 'Project conventions',
         caption: `${conventionCount} patterns`,
         icon: BookOpen,
-        type: 'convention',
-        state: conventionCard ? 'complete' : 'pending',
-        title: String(conventionCard?.data.title || 'Project Conventions'),
-        bodyMarkdown:
-          typeof conventionCard?.data.body_markdown === 'string'
-            ? conventionCard.data.body_markdown
-            : null,
-        content: conventionsData ? (
-          <ConventionsCard data={conventionsData} />
-        ) : (
-          <div className="py-4 text-center text-sm text-ibm-gray-70">
-            Waiting to analyze conventions...
-          </div>
-        ),
         isAvailable: Boolean(conventionCard || conventionsData),
       },
     ],
@@ -1285,332 +4526,346 @@ function Dashboard() {
       hotspotsData,
     ]
   );
-  const activeAnalysisConfig =
-    analysisTabs.find((tab) => tab.id === activeAnalysisTab) || analysisTabs[0];
-  const availableAnalysisCount = analysisTabs.filter((tab) => tab.isAvailable).length;
 
   useEffect(() => {
-    if (activeAnalysisConfig?.isAvailable) return;
+    const activeTab = analysisTabs.find((tab) => tab.id === activeAnalysisTab);
+    if (activeTab?.isAvailable || availableAnalysisCount === 0) return;
 
-    const nextAvailableTab = analysisTabs.find((tab) => tab.isAvailable);
-    if (nextAvailableTab && nextAvailableTab.id !== activeAnalysisTab) {
-      setActiveAnalysisTab(nextAvailableTab.id);
-    }
-  }, [activeAnalysisConfig, activeAnalysisTab, analysisTabs]);
+    const nextAvailable = analysisTabs.find((tab) => tab.isAvailable);
+    if (nextAvailable) setActiveAnalysisTab(nextAvailable.id);
+  }, [activeAnalysisTab, analysisTabs, availableAnalysisCount]);
 
-  const loadStarterIssues = useCallback(async (force = false) => {
-    if (!force && starterIssuesState.isLoading) return;
-
-    setStarterIssuesState((prev) => ({
-      ...prev,
-      isLoading: true,
-      error: null,
-    }));
-
-    try {
-      const result = await fetchStarterIssueCandidates(MCP_HTTP_URL);
-      setStarterIssuesState({
-        isLoading: false,
-        hasLoaded: true,
-        error: null,
-        repository: result.repository,
-        issues: result.issues,
-      });
-    } catch (error) {
-      setStarterIssuesState((prev) => ({
-        ...prev,
-        isLoading: false,
-        hasLoaded: true,
-        error:
-          error instanceof Error && error.message.trim()
-            ? error.message
-            : 'Could not load starter issues from the local onboarding backend.',
-      }));
-    }
-  }, [starterIssuesState.isLoading]);
-
-  useEffect(() => {
-    if (connectionState !== 'connected' || starterIssuesState.hasLoaded) return;
-    void loadStarterIssues();
-  }, [connectionState, starterIssuesState.hasLoaded, loadStarterIssues]);
+  const handleExportSession = useCallback(() => {
+    downloadJson(`onboardops-session-${currentSessionId || 'latest'}.json`, {
+      exported_at: new Date().toISOString(),
+      session_id: currentSessionId,
+      onboardee_name: sessionMeta.onboardeeName,
+      repository: sessionMeta.repositoryDisplay,
+      repository_reference: sessionMeta.repositoryReference,
+      repository_url: sessionMeta.repositoryUrl,
+      repository_branch: sessionMeta.branch,
+      repository_commit: sessionMeta.commit,
+      onboarding_report: {
+        certification: {
+          passed_answers: passCount,
+          total_questions: certificationQuestions.length,
+        },
+        starter_task: starterSuggestion,
+        top_hotspots: (hotspotsData?.files || []).slice(0, 5).map((file) => ({
+          path: file.path,
+          commits: file.commit_count,
+          owner: file.top_author || 'Unknown',
+        })),
+        who_to_ask: teamKnowledgeForExport,
+        provenance: [
+          'dependency_graph: card_emit.dependency_graph',
+          'entry_points: card_emit.entry_points',
+          `hotspots: ${hotspotCard ? 'card_emit.hotspots' : 'commit_frequency fallback'}`,
+          'conventions: card_emit.conventions',
+          'certification: question_ask + certification_grade',
+          'starter_task: session_end starter_task_* fields',
+        ],
+      },
+      bobcoin_budget: bobcoinBudget,
+      cartography_steps: displayCartographySteps,
+      certification_questions: certificationQuestions,
+      starter_issues: starterIssuesState.issues,
+      starter_suggestion: starterSuggestion,
+      events: [...events].reverse(),
+    });
+  }, [
+    bobcoinBudget,
+    certificationQuestions,
+    currentSessionId,
+    displayCartographySteps,
+    events,
+    sessionMeta,
+    starterIssuesState.issues,
+    starterSuggestion,
+    passCount,
+    hotspotsData,
+    teamKnowledgeForExport,
+    hotspotCard,
+  ]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-white">
+    <div className="carbon-root theme-g100">
       <AutoRecoveryBanner event={currentEvent} onDismiss={dismissRecovery} />
-
-      <header className="border-b border-ibm-gray-20 bg-white px-6 py-4">
-        <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-6">
-          <div className="min-w-0">
-            <div className="text-2xl font-semibold text-ibm-blue-60">
-              OnboardOps
-            </div>
-            <div className="text-sm text-ibm-gray-70">
-              The 10-Minute Repo Whisperer
-            </div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <div className="text-xs font-semibold uppercase text-ibm-gray-70">
-                Stopwatch
-              </div>
-              <Stopwatch
-                startedAt={session.startTime}
-                endedAt={session.endTime}
-                isRunning={session.isActive}
-                className="text-ibm-gray-100"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 text-sm text-ibm-gray-70">
-              <span
-                className={`h-2.5 w-2.5 rounded-full ${
-                  isConnected ? 'bg-ibm-green-50' : 'bg-ibm-orange-40'
-                }`}
-              />
-              {isConnected ? 'Bridge online' : 'Bridge reconnecting'}
-            </div>
-          </div>
-        </div>
-      </header>
-
+      <ShellHeader sessionId={currentSessionId} onExport={handleExportSession} />
       <ConnectionBanner connectionState={connectionState} />
 
-      <main className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col gap-5 px-6 py-5">
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <MetricTile
-            icon={TimerReset}
-            label="Time Target"
-            value={session.isActive ? 'Running' : 'Ready'}
-            detail="Goal: first PR in under 10 minutes"
-          />
-          <MetricTile
-            icon={Activity}
-            label="Cartography"
-            value={`${completedSteps}/4`}
-            detail="Graph, entry points, hotspots, conventions"
-          />
-          <MetricTile
-            icon={ShieldCheck}
-            label="Certification"
-            value={`${passCount}/3`}
-            detail="Two passes required to unlock starter PR"
-          />
-          <MetricTile
-            icon={GitPullRequest}
-            label="Starter PR"
-            value={latestPrUrl ? 'Opened' : passCount >= 2 ? 'Issue-backed' : 'Pending'}
-            detail="Prefers open GitHub issues before fallback tasks"
-          />
-        </section>
-
-        <section className="border border-ibm-gray-20 bg-ibm-gray-10/30 px-5 py-4">
-          <CartographyStepper steps={displayCartographySteps} />
-        </section>
-
-        {isIdle ? (
-          <div className="border border-ibm-gray-20 bg-white">
-            <IdleState />
+      <main className="carbon-page">
+        <section className="hero-section">
+          <div className="hero-top">
+            <div>
+              <div className="t-label-01">ONBOARDING SESSION / LIVE</div>
+              <h1 className="t-h-07">
+                {heroPrefix ? <span>{heroPrefix} /</span> : null}{' '}
+                {sessionMeta.repositoryName}
+              </h1>
+              <p className="t-body-02">
+                The 10-minute repo whisperer.{' '}
+                <span className="mono">
+                  {sessionMeta.branch} / {events.length} live events /{' '}
+                  {sessionMeta.commit?.slice(0, 12) ||
+                    currentSessionId ||
+                    'waiting for session'}
+                </span>
+              </p>
+            </div>
+            <div className="hero-status">
+              <div className={`bridge-pill ${isConnected ? 'online' : 'offline'}`}>
+                {isConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+                {isConnected ? 'BRIDGE ONLINE' : 'BRIDGE OFFLINE'}
+              </div>
+              <div className="t-label-01">
+                Onboardee / <span>{sessionMeta.onboardeeName || 'waiting'}</span>
+              </div>
+              <div className="t-label-01">
+                Repository / <span>{sessionMeta.repositoryDisplay}</span>
+              </div>
+              <div className="t-label-01">
+                Session / <span>{isIdle ? 'idle' : sessionRunning ? 'running' : 'complete'}</span>
+              </div>
+              <div className="t-code-01 muted">
+                started {formatClockTime(startedAt)} / ws://127.0.0.1:8765
+              </div>
+            </div>
           </div>
-        ) : (
-          <>
-            <section className="min-w-0">
-              <CartographyCard
-                type="graph"
-                title={String(dependencyCard?.data.title || 'Dependency Graph')}
-                state={
-                  dependencyCard
-                    ? 'complete'
-                    : session.isActive
-                      ? 'in-progress'
-                      : 'pending'
-                }
-              >
-                <div className="space-y-4">
-                  {typeof dependencyCard?.data.body_markdown === 'string' && (
-                    <p className="text-sm text-ibm-gray-70">
-                      {dependencyCard.data.body_markdown}
-                    </p>
-                  )}
-                  <DependencyGraph data={graphData} height={560} />
-                </div>
-              </CartographyCard>
-            </section>
 
-            <section className="grid gap-5 2xl:grid-cols-[minmax(0,1.18fr)_420px]">
-              <div className="min-w-0">
-                <div className="overflow-hidden rounded-[24px] border border-ibm-gray-20 bg-white shadow-[0_18px_40px_rgba(22,22,22,0.04)]">
+          <div className="hero-panel">
+            <div className="hero-clock">
+              <StopwatchHero
+                elapsedSeconds={elapsedSeconds}
+                startedAt={startedAt}
+                isRunning={sessionRunning}
+              />
+              <ProgressLine elapsedSeconds={elapsedSeconds} />
+            </div>
+            <div className="hero-brief">
+              <div>
+                <div className="t-label-01">EXPEDITION STATUS</div>
+                <div className="tag-row">
+                  <CarbonTag tone={passCount >= 2 ? 'green' : 'yellow'}>
+                    <ShieldCheck size={14} />
+                    {passCount >= 2 ? 'Certified' : `${passCount}/3 passed`}
+                  </CarbonTag>
+                  <CarbonTag tone="cyan">
+                    <Zap size={14} />
+                    {completedSteps} of 4 plates
+                  </CarbonTag>
+                  <CarbonTag tone={latestPrUrl ? 'blue' : 'neutral'}>
+                    <GitBranch size={14} />
+                    {latestPrUrl ? 'PR opened' : 'PR pending'}
+                  </CarbonTag>
+                </div>
+                <p>
+                  {isIdle
+                    ? 'Start a Bob onboarding session to populate cartography, questions, starter issues, and telemetry.'
+                    : `${completedSteps} cartography plates are complete, ${passCount} certification answers have passed, and ${starterProgressCopy}.`}
+                </p>
+              </div>
+              <div className="hero-actions">
+                {latestPrUrl ? (
+                  <a href={latestPrUrl} target="_blank" rel="noreferrer" className="carbon-btn">
+                    Open starter PR
+                    <ExternalLink size={16} />
+                  </a>
+                ) : starterSuggestionUrl ? (
+                  <a
+                    href={starterSuggestionUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="carbon-btn"
+                  >
+                    Open suggested task
+                    <ExternalLink size={16} />
+                  </a>
+                ) : starterIssuesState.issues[0] ? (
+                  <a
+                    href={starterIssuesState.issues[0].url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="carbon-btn"
+                  >
+                    Open top issue
+                    <ExternalLink size={16} />
+                  </a>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setIsAnalysisExpanded((value) => !value)}
-                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-ibm-gray-10/30"
+                    className="carbon-btn"
+                    onClick={() => void loadStarterIssues(true)}
                   >
-                    <div>
-                      <div className="text-sm font-semibold text-ibm-gray-100">
-                        Repository Reading Lenses
-                      </div>
-                      <p className="mt-1 text-sm text-ibm-gray-70">
-                        Entry points, change hotspots, and conventions grouped into one review section.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-full bg-ibm-gray-10 px-3 py-1 text-xs font-semibold text-ibm-gray-70">
-                        {availableAnalysisCount} of {analysisTabs.length} ready
-                      </div>
-                      {isAnalysisExpanded ? (
-                        <ChevronUp className="h-4 w-4 text-ibm-gray-70" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-ibm-gray-70" />
-                      )}
-                    </div>
+                    Load issues
+                    <RefreshCw size={16} />
                   </button>
-
-                  {isAnalysisExpanded ? (
-                    <div className="space-y-4 border-t border-ibm-gray-10 px-4 py-4">
-                      <div className="rounded-[24px] border border-ibm-gray-20 bg-[linear-gradient(135deg,rgba(15,98,254,0.06),rgba(255,131,43,0.04),rgba(36,161,72,0.04))] p-2 shadow-[0_12px_28px_rgba(22,22,22,0.04)]">
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                          {analysisTabs.map((tab) => {
-                            const Icon = tab.icon;
-                            const isActive = tab.id === activeAnalysisTab;
-
-                            return (
-                              <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => setActiveAnalysisTab(tab.id)}
-                                className={`rounded-[18px] border px-4 py-4 text-left transition ${
-                                  isActive
-                                    ? 'border-ibm-blue-60 bg-white shadow-[0_12px_24px_rgba(15,98,254,0.12)]'
-                                    : 'border-transparent bg-white/55 hover:border-ibm-gray-20 hover:bg-white'
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className={`rounded-2xl p-2 ${
-                                      isActive ? 'bg-ibm-blue-60/10' : 'bg-white'
-                                    }`}
-                                  >
-                                    <Icon className="h-4 w-4 text-ibm-blue-60" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-ibm-gray-100">
-                                      {tab.label}
-                                    </div>
-                                    <div className="text-xs text-ibm-gray-70">
-                                      {tab.caption}
-                                    </div>
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <CartographyCard
-                        type={activeAnalysisConfig.type}
-                        title={activeAnalysisConfig.title}
-                        state={activeAnalysisConfig.state}
-                      >
-                        {activeAnalysisConfig.bodyMarkdown && (
-                          <p className="mb-4 text-sm text-ibm-gray-70">
-                            {activeAnalysisConfig.bodyMarkdown}
-                          </p>
-                        )}
-                        {activeAnalysisConfig.content}
-                      </CartographyCard>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2 border-t border-ibm-gray-10 px-4 py-4">
-                      {analysisTabs.map((tab) => (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => {
-                            setActiveAnalysisTab(tab.id);
-                            setIsAnalysisExpanded(true);
-                          }}
-                          className={`rounded-full border px-3 py-2 text-left text-xs font-semibold transition ${
-                            tab.isAvailable
-                              ? 'border-ibm-gray-20 bg-white text-ibm-gray-100 hover:border-ibm-blue-60 hover:text-ibm-blue-60'
-                              : 'border-ibm-gray-10 bg-ibm-gray-10/60 text-ibm-gray-50'
-                          }`}
-                        >
-                          {tab.label} · {tab.caption}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                )}
+                <button type="button" onClick={handleExportSession} className="carbon-btn secondary">
+                  Export session
+                  <ChevronDown size={16} />
+                </button>
               </div>
-
-              <aside className="min-w-0 space-y-4">
-                <StarterIssuePanel
-                  repository={starterIssuesState.repository}
-                  issues={starterIssuesState.issues}
-                  isLoading={starterIssuesState.isLoading}
-                  error={starterIssuesState.error}
-                  isUnlocked={passCount >= 2}
-                  prUrl={latestPrUrl}
-                  onRetry={() => {
-                    void loadStarterIssues(true);
-                  }}
-                />
-
-                <TranscriptPanel maxHeight={360} />
-              </aside>
-            </section>
-
-            <section className="overflow-hidden rounded-[24px] border border-ibm-gray-20 bg-white shadow-[0_18px_40px_rgba(22,22,22,0.04)]">
-              <CertificationPanel
-                key={currentSessionId || 'no-session'}
-                questions={certificationQuestions}
-                canSubmitAnswers={Boolean(currentSessionId)}
-                onAnswerChange={(questionId, answer) => {
-                  setCertificationAnswers((prev) => ({
-                    sessionId: currentSessionId,
-                    answers: {
-                      ...(prev.sessionId === currentSessionId ? prev.answers : {}),
-                      [questionId]: answer,
-                    },
-                  }));
-                }}
-                onAnswerSubmit={submitCertificationAnswer}
-                submissionState={
-                  answerSubmissionState.sessionId === currentSessionId
-                    ? answerSubmissionState.questions
-                    : {}
-                }
-              />
-            </section>
-          </>
-        )}
-      </main>
-
-      <footer className="border-t border-ibm-gray-20 bg-white px-6 py-3">
-        <div className="mx-auto max-w-[1680px]">
-          <button
-            onClick={() => setShowEventStream((value) => !value)}
-            className="flex w-full items-center justify-between text-left text-sm font-semibold text-ibm-gray-100"
-          >
-            <span className="flex items-center gap-2">
-              <CircleDot className="h-4 w-4 text-ibm-blue-60" />
-              Event Stream
-            </span>
-            {showEventStream ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronUp className="h-4 w-4" />
-            )}
-          </button>
-
-          {showEventStream && (
-            <div className="mt-3 border-t border-ibm-gray-10 pt-3">
-              <EventStream />
             </div>
-          )}
-        </div>
-      </footer>
+          </div>
+
+          <div className="metric-grid">
+            <CarbonMetricTile
+              icon={TimerReset}
+              label="Time target"
+              value={formatElapsed(elapsedSeconds)}
+              detail="Goal: first PR in under ten minutes."
+              status={elapsedSeconds <= TARGET_SECONDS ? 'On pace' : 'Over'}
+              tone="blue"
+            />
+            <CarbonMetricTile
+              icon={Activity}
+              label="Cartography"
+              value={`${completedSteps} / 4`}
+              detail="Dependency graph, entry points, hotspots, conventions."
+              status={completedSteps === 4 ? 'Complete' : 'Live'}
+              tone="cyan"
+            />
+            <CarbonMetricTile
+              icon={ShieldCheck}
+              label="Certification"
+              value={`${passCount} / 3`}
+              detail="Two passes unlock the starter PR workflow."
+              status={passCount >= 2 ? 'Passed' : 'Open'}
+              tone="green"
+            />
+            <CarbonMetricTile
+              icon={GitPullRequest}
+              label="Starter PR"
+              value={starterMetric.value}
+              detail={starterMetric.detail}
+              status={starterMetric.status}
+              tone="blue"
+            />
+          </div>
+
+          <div className="route-panel">
+            <div className="row between baseline">
+              <div className="t-label-01">
+                EXPEDITION ROUTE / STAGE {String(completedSteps).padStart(2, '0')} OF 04
+              </div>
+              <div className="t-code-01 muted">
+                elapsed {formatElapsed(elapsedSeconds)} / 10:00
+              </div>
+            </div>
+            <StageRail
+              stages={displayCartographySteps.map((step) => ({
+                id: step.id,
+                label: step.label,
+                status: step.status,
+                kind:
+                  step.id === 'graph'
+                    ? `${graphData.nodes.length} modules`
+                    : step.id === 'entry'
+                      ? `${entryPointCount} surfaces`
+                      : step.id === 'hotspot'
+                        ? `${hotspotCount} files`
+                        : `${conventionCount} patterns`,
+              }))}
+            />
+          </div>
+        </section>
+
+        <Section
+          eyebrow="II / ARCHITECTURE"
+          title="The codebase, surveyed."
+          sub="A directed graph of the highest-signal modules emitted by Bob's dependency graph card."
+          right={
+            <button type="button" className="carbon-btn secondary" onClick={handleExportSession}>
+              <Code2 size={16} />
+              Export raw data
+            </button>
+          }
+        >
+          <div className="main-grid">
+            <ArchitectureCartograph data={graphData} />
+            <BobJournal entries={journalEntries} isConnected={isConnected} />
+          </div>
+        </Section>
+
+        <Section
+          eyebrow="III / READING LENSES"
+          title="Three views of the repository, in one place."
+          sub="Entry points, change hotspots, and conventions are grouped into active tabs backed by live card data."
+        >
+          <ReadingLenses
+            tabs={analysisTabs}
+            activeTab={activeAnalysisTab}
+            onTabChange={setActiveAnalysisTab}
+            entryPointsData={entryPointsData}
+            hotspotsData={hotspotsData}
+            conventionsData={conventionsData}
+            sessionMeta={sessionMeta}
+          />
+        </Section>
+
+        <Section
+          eyebrow="IV / QUESTIONS"
+          title="Practice first, then certification."
+          sub="Bob's sample questions and graded certification questions share one dashboard answer surface, so the active wait never splits across panels."
+        >
+          <QuestionFlowCarbon
+            practiceQuestions={practiceQuestions}
+            certificationQuestions={certificationQuestions}
+            currentSessionId={currentSessionId}
+            onAnswerChange={(questionId, answer) => {
+              setCertificationAnswers((prev) => ({
+                sessionId: currentSessionId,
+                answers: {
+                  ...(prev.sessionId === currentSessionId ? prev.answers : {}),
+                  [questionId]: answer,
+                },
+              }));
+            }}
+            onAnswerSubmit={submitCertificationAnswer}
+            submissionState={
+              answerSubmissionState.sessionId === currentSessionId
+                ? answerSubmissionState.questions
+                : {}
+            }
+          />
+        </Section>
+
+        <Section
+          eyebrow="V / DEPARTURE"
+          title="Ship your first contribution."
+          sub="Starter issue candidates and Bob's suggested fallback task come from the MCP backend. The PR link appears when Bob emits session_end.pr_url."
+        >
+          <StarterPRCarbon
+            repository={starterIssuesState.repository || sessionMeta.repositoryDisplay}
+            repositoryUrl={sessionMeta.repositoryUrl}
+            branch={sessionMeta.branch}
+            issues={starterIssuesState.issues}
+            starterSuggestion={starterSuggestion}
+            isLoading={starterIssuesState.isLoading}
+            error={starterIssuesState.error}
+            isUnlocked={passCount >= 2}
+            prUrl={latestPrUrl}
+            onRetry={() => {
+              void loadStarterIssues(true);
+            }}
+          />
+        </Section>
+
+        <Section
+          eyebrow="VI / TELEMETRY"
+          title="Event log."
+          sub="The full live timeline from the WebSocket bridge, with active search and type filtering."
+        >
+          <EventLog events={events} />
+        </Section>
+
+        <Footer
+          sessionId={currentSessionId}
+          bobcoinBudget={bobcoinBudget}
+          startedAt={startedAt}
+        />
+      </main>
     </div>
   );
 }
@@ -1619,7 +4874,7 @@ export default function Home() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-white text-ibm-gray-70">
+        <div className="flex min-h-screen items-center justify-center bg-[#161616] text-[#c6c6c6]">
           Loading OnboardOps dashboard...
         </div>
       }

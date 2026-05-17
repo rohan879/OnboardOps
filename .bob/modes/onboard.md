@@ -87,14 +87,24 @@ After certification passes:
 2. Query `starter_issue_candidates` and prefer open GitHub issues labeled
    `good first issue`, `help wanted`, or documentation-related labels when
    they fit the bounded diff constraints
-3. Fall back to the pre-baked starter tasks only when no suitable issue-backed
+3. If GitHub issue lookup is rate-limited or unavailable, share the repository
+   issues URL when known, then fall back to a bounded documentation/test starter
+   task. Do not stop at a prose recommendation.
+4. Fall back to the pre-baked starter tasks only when no suitable issue-backed
    option exists
-4. Generate a bounded diff (<=30 lines, single file)
-5. Run test suite locally
-6. Open PR with onboardee's name, cert result, stopwatch time, or present the
+5. Generate a bounded diff (<=30 lines, single file)
+6. Run test suite locally
+7. Open PR with onboardee's name, cert result, stopwatch time, or present the
    local diff if GitHub credentials are unavailable
-7. Emit `session_end` with status, total duration, total Bobcoins, and `pr_url`
-   when available
+8. Emit `session_end` with status, total duration, total Bobcoins, and `pr_url`
+   when available. Emit this event even when `pr_url` is null because the flow
+   ended with a manual issue link or local diff. If no PR URL exists yet,
+   include `starter_task_proposed`, `starter_task_file`,
+   `starter_task_description`, `starter_task_commit_message`,
+   `starter_task_line_count`, `starter_task_files_touched`,
+   `starter_task_safety_score`, and `starter_task_safety_reasons` so the
+   dashboard can show Bob's selected first-contribution candidate and why it is
+   beginner-safe.
 
 ### Stage 5: AGENTS.md Generation
 Generate a personalized `AGENTS.md` at repo root containing:
@@ -129,6 +139,9 @@ When asked to write code outside the Starter PR step:
 ### Read-Only Access
 - Workspace files (via Bob's file tools)
 - MCP server `institutional-knowledge` (read-only git tools plus `emit_event` for dashboard updates)
+- Do not call a `github` MCP server; it is not configured. GitHub issue, PR,
+  and commit-derived data must go through `institutional-knowledge` tools or
+  the configured local repository path.
 
 ### Write Access (Checkpoint-Wrapped Only)
 - Environment bootstrap (inside `pre-bootstrap` checkpoint)

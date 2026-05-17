@@ -13,6 +13,11 @@ Load `.bob/rules/cartography-style.md` once, then keep chat output terse. Emit
 dashboard data through the `institutional-knowledge` MCP server's `emit_event`
 tool whenever it is available.
 
+Only the `institutional-knowledge` MCP server is configured for this project.
+Do not call or reference a `github` MCP server. GitHub issue and PR data flows
+through `institutional-knowledge` tools such as `starter_issue_candidates` and
+`pr_for_file`.
+
 ## Contract
 
 Produce four real cards in order:
@@ -27,8 +32,13 @@ Do not emit Phase 2 placeholder cards during normal onboarding. Emit a
 `Data unavailable` fallback card only when a specific stage fails after one
 retry, then continue so the onboardee is not blocked.
 
-After every card, emit one `question_ask` event with a stable `question_id`, ask
-the same question in chat, and validate the answer against the card data.
+After every card, emit one `question_ask` event with a stable `question_id`,
+`response_mode: "multiple_choice"`, and four concrete `options`. Never ask a
+free-text sample question.
+Tell the onboardee that this is a **sample practice question** and that they
+should answer it in the website Practice Quiz panel, not in Bob chat. Then call
+`wait_for_dashboard_answer` with the active `session_id` and `question_id`, and
+validate that website answer against the card data.
 
 ## Event Shapes
 
@@ -57,7 +67,9 @@ Question events:
     "stage": "dependency_graph",
     "topic": "Architecture",
     "question": "Which module has the highest fan-in?",
-    "expected_answer_hint": "Compare fan_in values in the graph nodes."
+    "expected_answer_hint": "Compare fan_in values in the graph nodes.",
+    "response_mode": "multiple_choice",
+    "options": ["api", "core", "models", "utils"]
   }
 }
 ```
@@ -75,7 +87,7 @@ and `lib/`. Exclude caches, virtualenvs, `node_modules`, build output, and test
 fixtures unless no source files are available.
 
 Question: ask which module has the highest fan-in. Accept the node `id`,
-`label`, or filename.
+`label`, or filename. Present it as a website practice question.
 
 ## Stage 2: Entry Points
 
@@ -102,11 +114,32 @@ Question: pick a discovered route or CLI and ask which file/function handles it.
 
 ## Stage 3: Change Hotspots
 
-Use MCP tools first, then file/git inspection if needed:
+Use MCP tools first. Do not run shell `git log` pipelines for hotspots unless
+the MCP server is unavailable; the `commit_frequency` tool already handles git
+history and returns dashboard-ready buckets.
 
-1. Call `commit_frequency` repo-wide for the last 180 days.
+1. Call `commit_frequency` repo-wide for the last 180 days with the active
+   `session_id`. Include `repository` when the repository URL or `owner/repo` is
+   known so the backend can use GitHub history without a local repo path.
 2. For the top files, call `recent_authors` and `pr_for_file`.
 3. Emit at most five hotspots, ranked by commit count.
+
+If `commit_frequency` fails because the repository path is not configured and no
+repository URL is available, ask the user to set `ONBOARDOPS_DEMO_REPO_PATH` to
+the local clone and retry this stage. Do not switch to a nonexistent `github`
+MCP server.
+
+If shell fallback is unavoidable on Windows/PowerShell, do not use Unix tools
+such as `sort | uniq -c`, `wc`, or `head`. Use a bounded PowerShell-native
+pipeline and stop after a small result set, for example:
+
+```powershell
+git log --since="180 days ago" --max-count=400 --name-only --pretty=format: |
+  Where-Object { $_ -match '\S' } |
+  Group-Object |
+  Sort-Object Count -Descending |
+  Select-Object -First 5 Name,Count
+```
 
 Emit:
 
