@@ -46,18 +46,54 @@ export function DependencyGraph({ data, width = 800, height = 600 }: DependencyG
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width, height });
   
-  // Use useMemo to avoid setState in effect
-  const graphData = useMemo(() => ({
-    nodes: data.nodes.map(node => ({
-      ...node,
-      val: node.val || 10,
-    })),
-    links: data.edges.map(edge => ({
-      source: edge.source,
-      target: edge.target,
-      value: edge.value || 1,
-    })),
-  }), [data]);
+  // Normalize graph payloads so stray edges do not crash the renderer.
+  const graphData = useMemo(() => {
+    const nodesById = new Map(
+      data.nodes.map((node) => [
+        node.id,
+        {
+          ...node,
+          val: node.val || 10,
+        },
+      ])
+    );
+
+    const links = data.edges
+      .filter((edge) => edge.source && edge.target)
+      .map((edge) => {
+        const source = String(edge.source);
+        const target = String(edge.target);
+
+        if (!nodesById.has(source)) {
+          nodesById.set(source, {
+            id: source,
+            name: source,
+            group: 2,
+            val: 10,
+          });
+        }
+
+        if (!nodesById.has(target)) {
+          nodesById.set(target, {
+            id: target,
+            name: target,
+            group: 2,
+            val: 10,
+          });
+        }
+
+        return {
+          source,
+          target,
+          value: edge.value || 1,
+        };
+      });
+
+    return {
+      nodes: Array.from(nodesById.values()),
+      links,
+    };
+  }, [data]);
 
   useEffect(() => {
     // Center the graph after initial render
@@ -161,8 +197,8 @@ export function DependencyGraph({ data, width = 800, height = 600 }: DependencyG
       <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 border border-ibm-gray-10 shadow-sm">
         <div className="text-xs font-semibold text-ibm-gray-100 mb-2">Graph Stats</div>
         <div className="text-xs text-ibm-gray-70">
-          <div>Nodes: {data.nodes.length}</div>
-          <div>Edges: {data.edges.length}</div>
+          <div>Nodes: {graphData.nodes.length}</div>
+          <div>Edges: {graphData.links.length}</div>
         </div>
       </div>
     </motion.div>

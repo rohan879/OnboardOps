@@ -52,7 +52,8 @@ Execute these stages in strict sequence:
 Before invoking cartography, emit a `session_start` event through the
 `institutional-knowledge` MCP server's `emit_event` tool. Include the
 onboardee name when known and the current repository URL or local path. This is
-what starts the dashboard stopwatch.
+what starts the dashboard stopwatch. Save the returned `session_id` and reuse
+it for every later `emit_event` call and any website-answer waits.
 
 Immediately invoke the `repo-cartography` skill. It will guide you through four sub-stages:
 1. **Dependency Graph** - Module relationships
@@ -73,20 +74,26 @@ After cartography completes, ask permission to bootstrap their local environment
 ### Stage 3: Certification
 When the onboardee says "certify me" or "I'm ready", activate the `certification` skill. It will:
 1. Select 3 architecture questions calibrated to the cartography output
-2. Grade answers as pass/partial/fail using the embedded rubric
-3. Require 2+ passes and 0 fails to advance
-4. On any fail, loop back to the relevant cartography card
+2. Ask each question in Bob, but collect the answer from the website
+   certification panel via `wait_for_dashboard_answer`
+3. Grade answers as pass/partial/fail using the embedded rubric
+4. Require 2+ passes and 0 fails to advance
+5. On any fail, loop back to the relevant cartography card
 
 ### Stage 4: Starter PR
 After certification passes:
 0. Do not stop at "ready to contribute"; continue into this Starter PR stage.
 1. Create checkpoint named `starter-pr`
-2. Propose one of three pre-baked starter tasks (from `.bob/skills/starter-tasks.md`)
-3. Generate a bounded diff (<=30 lines, single file)
-4. Run test suite locally
-5. Open PR with onboardee's name, cert result, stopwatch time, or present the
+2. Query `starter_issue_candidates` and prefer open GitHub issues labeled
+   `good first issue`, `help wanted`, or documentation-related labels when
+   they fit the bounded diff constraints
+3. Fall back to the pre-baked starter tasks only when no suitable issue-backed
+   option exists
+4. Generate a bounded diff (<=30 lines, single file)
+5. Run test suite locally
+6. Open PR with onboardee's name, cert result, stopwatch time, or present the
    local diff if GitHub credentials are unavailable
-6. Emit `session_end` with status, total duration, total Bobcoins, and `pr_url`
+7. Emit `session_end` with status, total duration, total Bobcoins, and `pr_url`
    when available
 
 ### Stage 5: AGENTS.md Generation
@@ -148,12 +155,15 @@ You have a **strict budget** to manage:
 
 Emit structured events via the `emit_event` MCP tool so the dashboard can visualize progress:
 
+- Reuse one stable `session_id` for the full onboarding session.
 - `session_start` - Start of onboarding; required before the first cartography card
 - `turn_start` - Beginning of each Bob turn
 - `turn_end` - End of each turn
 - `card_emit` - Each cartography card using exact card types:
   `dependency_graph`, `entry_points`, `hotspots`, `conventions`
 - `question_ask` - Each Socratic question, with stable `question_id`
+- For certification questions, send website-ready multiple-choice options in
+  the same `question_ask` payload when possible.
 - `checkpoint_create` - Before mutations
 - `checkpoint_restore` - On rollback
 - `certification_grade` - Each certification answer graded; use

@@ -209,16 +209,21 @@ class AllowListManager:
                 )
 
         # Tool-specific validations
-        if tool_name in ["pr_for_file", "incident_for_file", "rationale_for_commit"]:
+        if tool_name in [
+            "pr_for_file",
+            "incident_for_file",
+            "rationale_for_commit",
+            "starter_issue_candidates",
+        ]:
             # These tools use GitHub API - check org
             repo_env = os.getenv("ONBOARDOPS_DEMO_REPO", "")
             if "/" in repo_env:
                 org = repo_env.split("/")[0]
                 if not self.is_github_org_allowed(org):
                     self._log_violation(tool_name, f"Disallowed GitHub org: {org}")
-                raise AllowListViolation(
-                    f"GitHub organization '{org}' is not in the allow-list"
-                )
+                    raise AllowListViolation(
+                        f"GitHub organization '{org}' is not in the allow-list"
+                    )
 
         self._enforce_rate_limit(tool_name)
 

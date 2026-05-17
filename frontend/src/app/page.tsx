@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   TimerReset,
   WifiOff,
-  Zap,
 } from 'lucide-react';
 import { Stopwatch } from '@/components/Stopwatch';
 import { EventStream } from '@/components/EventStream';
@@ -18,7 +17,6 @@ import { CartographyCard } from '@/components/CartographyCard';
 import { DependencyGraph, GraphData } from '@/components/DependencyGraph';
 import { CartographyStepper } from '@/components/CartographyStepper';
 import { TranscriptPanel } from '@/components/TranscriptPanel';
-import { BobcoinMeter } from '@/components/BobcoinMeter';
 import {
   AutoRecoveryBanner,
   RecoveryPattern,
@@ -42,11 +40,15 @@ import {
 } from '@/components/cards/ConventionsCard';
 import CertificationPanel, {
   CertificationQuestion,
+  CertificationSubmissionState,
 } from '@/components/CertificationPanel';
 import { IdleState } from '@/components/IdleState';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventHandlers } from '@/hooks/useEventHandlers';
 import { useEventsStore, Event } from '@/store/events';
+
+const MCP_HTTP_URL =
+  process.env.NEXT_PUBLIC_MCP_HTTP_URL || 'http://127.0.0.1:8765';
 
 const sampleGraphData: GraphData = {
   nodes: [
@@ -142,6 +144,283 @@ function conventionsDataFromCard(card: Event | undefined): ConventionsData | nul
   };
 }
 
+interface DependencyNodeInsight {
+  id: string;
+  label: string;
+  fanIn: number;
+  fanOut: number;
+}
+
+function dependencyNodesFromCard(card: Event | undefined): DependencyNodeInsight[] {
+  const data = card?.data.data as
+    | {
+        nodes?: Array<{
+          id?: string;
+          label?: string;
+          fan_in?: number;
+          fan_out?: number;
+        }>;
+      }
+    | undefined;
+
+  if (!data?.nodes?.length) return [];
+
+  return data.nodes.map((node, index) => ({
+    id: node.id || `node-${index}`,
+    label: node.label || node.id || `node-${index}`,
+    fanIn: typeof node.fan_in === 'number' ? node.fan_in : 0,
+    fanOut: typeof node.fan_out === 'number' ? node.fan_out : 0,
+  }));
+}
+
+function dependencyCyclesFromCard(card: Event | undefined): string[] {
+  const data = card?.data.data as
+    | {
+        circular_dependencies?: Array<{
+          cycle?: string[] | string;
+        }>;
+      }
+    | undefined;
+
+  if (!Array.isArray(data?.circular_dependencies)) return [];
+
+  return data.circular_dependencies
+    .map((item) => {
+      if (Array.isArray(item.cycle)) return item.cycle.join(' -> ');
+      if (typeof item.cycle === 'string') return item.cycle;
+      return '';
+    })
+    .filter((cycle) => cycle.trim().length > 0);
+}
+
+function uniqueOptions(options: string[]) {
+  return [...new Set(options.map((option) => option.trim()).filter(Boolean))];
+}
+
+function buildChoiceSet(correct: string, distractors: string[], seedKey: string) {
+  const combined = uniqueOptions([correct, ...distractors]).slice(0, 4);
+  return combined.length >= 4 ? shuffleQuestionOptions(combined, seedKey) : undefined;
+}
+
+function routeChoice(route: EntryPoint) {
+  return `${route.file}, function ${route.handler || route.entry_point || route.name}`;
+}
+
+function conventionExampleText(convention: Convention) {
+  const example = convention.evidence.example
+    ?.trim()
+    .split('\n')[0]
+    .replace(/\s+/g, ' ');
+
+  return example
+    ? `${convention.pattern} (example: ${example})`
+    : convention.pattern;
+}
+
+function deriveFallbackCertificationOptions({
+  question,
+  questionId,
+  dependencyCard,
+  entryPointsData,
+  hotspotsData,
+  conventionsData,
+}: {
+  question: CertificationQuestion;
+  questionId: string;
+  dependencyCard?: Event;
+  entryPointsData: EntryPointsData | null;
+  hotspotsData: HotspotsData | null;
+  conventionsData: ConventionsData | null;
+}) {
+  const text = question.questionText.toLowerCase();
+  const dependencyNodes = dependencyNodesFromCard(dependencyCard);
+  const routes = entryPointsData?.routes || [];
+  const cli = entryPointsData?.cli || [];
+  const hotspots = hotspotsData?.files || [];
+  const conventions = conventionsData?.conventions || [];
+
+  if (text.includes('highest fan-out') || text.includes('main orchestrator')) {
+    const ranked = [...dependencyNodes].sort((left, right) => right.fanOut - left.fanOut);
+    if (ranked.length >= 4 && ranked[0].fanOut > 0) {
+      const correct = `${ranked[0].label} (highest fan-out of ${ranked[0].fanOut})`;
+      const distractors = ranked.slice(1, 4).map(
+        (node) => `${node.label} (fan-out of ${node.fanOut})`
+      );
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('circular dependenc')) {
+    const cycles = dependencyCyclesFromCard(dependencyCard);
+    const ranked = [...dependencyNodes].sort((left, right) => right.fanOut - left.fanOut);
+
+    if (cycles.length > 0) {
+      const correct = `Yes: ${cycles[0]}`;
+      const distractors = [
+        `No circular dependencies were identified`,
+        ...ranked.slice(0, 2).map((node, index) => {
+          const nextNode = ranked[(index + 1) % ranked.length];
+          return `Yes: ${node.label} -> ${nextNode.label}`;
+        }),
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+
+    const correct = 'No circular dependencies were identified';
+    const distractors = ranked.slice(0, 3).map((node, index) => {
+      const nextNode = ranked[(index + 1) % ranked.length];
+      return `Yes: ${node.label} -> ${nextNode.label}`;
+    });
+    return buildChoiceSet(correct, distractors, questionId);
+  }
+
+  if (text.includes('which file and function would you investigate first')) {
+    const routePathMatch = question.questionText.match(/(\/[A-Za-z0-9_/-]+)/);
+    const routePath = routePathMatch?.[1];
+    const matchingRoute =
+      routes.find((route) => routePath && route.path === routePath) ||
+      routes.find((route) => routePath && route.path?.includes(routePath)) ||
+      routes[0];
+
+    if (matchingRoute) {
+      const correct = routeChoice(matchingRoute);
+      const distractors = routes
+        .filter((route) => route !== matchingRoute)
+        .slice(0, 3)
+        .map(routeChoice);
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('which file would you modify') && text.includes('imports')) {
+    const moduleMatch = question.questionText.match(/uses the ([A-Za-z0-9_./-]+) module/i);
+    const referencedModule = moduleMatch?.[1] || dependencyNodes[0]?.label || 'target module';
+    const preferredRouteFile = routes[0]?.file || 'backend/app.py';
+    const correct = `Modify ${preferredRouteFile} and import ${referencedModule} in the route handler module.`;
+    const distractors = uniqueOptions([
+      routes[1]
+        ? `Modify ${routes[1].file} and avoid any new imports.`
+        : 'Modify frontend/src/app/page.tsx and add the endpoint there.',
+      'Modify backend/tests/test_app.py and import pytest fixtures only.',
+      cli[0]
+        ? `Modify ${cli[0].file} and import the CLI entry point instead of the HTTP module.`
+        : 'Modify README.md and add no imports because routes are generated automatically.',
+    ]);
+    return buildChoiceSet(correct, distractors, questionId);
+  }
+
+  if (text.includes('cli and http entry points')) {
+    const routeExample = routes[0]?.path || '/health';
+    const cliExample = cli[0]?.name || 'scripts/bootstrap.sh';
+    const correct = `Use CLI for scripts like ${cliExample}, and HTTP for request/response routes like ${routeExample}.`;
+    const distractors = [
+      'Use HTTP for background jobs only, and CLI for all user-facing traffic.',
+      'Use CLI and HTTP interchangeably because both run through the same route table.',
+      'Use HTTP for local scripts and CLI for browser requests.',
+    ];
+    return buildChoiceSet(correct, distractors, questionId);
+  }
+
+  if (text.includes('which team member would you ask for a code review')) {
+    const authors = uniqueOptions(
+      hotspots.map((hotspot) => hotspot.top_author).filter((value): value is string => Boolean(value))
+    );
+    if (authors.length > 0) {
+      const correct = `${authors[0]} because they have the strongest recent ownership signal on the hotspot file.`;
+      const distractors = authors.slice(1, 4).map(
+        (author) => `${author} because they might be available, even without hotspot ownership evidence.`
+      );
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('changes so frequently')) {
+    const hotspot = hotspots[0];
+    if (hotspot) {
+      const correct = hotspot.rationale;
+      const distractors = [
+        'Because the file is generated automatically on every test run.',
+        'Because it is a static archive that rarely changes but is force-committed often.',
+        'Because the file is unrelated to active features and only changes for formatting.',
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('naming convention')) {
+    if (conventions.length > 0) {
+      const correct = conventionExampleText(conventions[0]);
+      const distractors = [
+        'camelCase everywhere (example: handleRequestNow)',
+        'PascalCase for file names (example: HealthCheck.py)',
+        'kebab-case for Python functions (example: submit-dashboard-answer)',
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('handle errors')) {
+    const errorConvention = conventions.find(
+      (convention) =>
+        convention.name.toLowerCase().includes('error') ||
+        convention.pattern.toLowerCase().includes('exception') ||
+        convention.pattern.toLowerCase().includes('http')
+    );
+
+    if (errorConvention) {
+      const correct = errorConvention.pattern;
+      const distractors = [
+        'Return numeric error codes only, never raise exceptions.',
+        'Use a Result/Either type for every function in the codebase.',
+        'Print errors to stdout and continue without structured handling.',
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('where would you add a test')) {
+    const moduleMatch = question.questionText.match(/for the ([A-Za-z0-9_./-]+) module/i);
+    const rawModuleName = moduleMatch?.[1] || 'app';
+    const moduleBase = rawModuleName.replace(/\.py$/i, '').split('/').pop() || rawModuleName;
+    const correct = `backend/tests/test_${moduleBase}.py`;
+    const distractors = [
+      `backend/${moduleBase}.test.py`,
+      `frontend/src/${moduleBase}.spec.ts`,
+      `tests/${moduleBase}/index.py`,
+    ];
+    return buildChoiceSet(correct, distractors, questionId);
+  }
+
+  if (text.includes('trace the flow of a request')) {
+    const route = routes[0];
+    const centralModule = dependencyNodes[0];
+    if (route && centralModule) {
+      const correct = `${route.file} -> ${route.handler || route.name} -> ${centralModule.label}`;
+      const distractors = [
+        `frontend/src/app/page.tsx -> CertificationPanel -> ${centralModule.label}`,
+        `${centralModule.label} -> ${route.file} -> ${route.handler || route.name}`,
+        `${route.file} -> README.md -> ${centralModule.label}`,
+      ];
+      return buildChoiceSet(correct, distractors, questionId);
+    }
+  }
+
+  if (text.includes('reduce its change frequency') && text.includes('splitting it into smaller modules')) {
+    const convention = conventions[0];
+    const correct = convention
+      ? `Split it following the existing ${convention.pattern} convention and keep modules aligned to one clear responsibility.`
+      : 'Split it into smaller modules that each keep one clear responsibility and follow the repo naming conventions.';
+    const distractors = [
+      'Keep adding unrelated helpers into the same file so future changes stay centralized.',
+      'Split it into randomly named files without following any established naming pattern.',
+      'Move the whole file into the frontend so fewer backend commits touch it.',
+    ];
+    return buildChoiceSet(correct, distractors, questionId);
+  }
+
+  return undefined;
+}
+
 function toRecoveryPattern(value: unknown): RecoveryPattern {
   const pattern = typeof value === 'string' ? value : '';
   const allowed: RecoveryPattern[] = [
@@ -180,6 +459,39 @@ function normalizeQuestionText(value: unknown) {
   return typeof value === 'string'
     ? value.toLowerCase().replace(/\s+/g, ' ').trim()
     : '';
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function shuffleQuestionOptions(options: string[], seedKey: string) {
+  if (options.length <= 1) return options;
+
+  const shuffled = [...options];
+  let seed = hashString(seedKey);
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const swapIndex = seed % (index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+
+  if (shuffled[0] === options[0]) {
+    [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+  }
+
+  return shuffled;
 }
 
 function MetricTile({
@@ -233,6 +545,10 @@ function Dashboard() {
     sessionId: string | null;
     answers: Record<string, string>;
   }>({ sessionId: null, answers: {} });
+  const [answerSubmissionState, setAnswerSubmissionState] = useState<{
+    sessionId: string | null;
+    questions: Record<string, CertificationSubmissionState>;
+  }>({ sessionId: null, questions: {} });
   const lastRecoveryEventId = useRef<string | null>(null);
   const { isConnected } = useEvents();
   useEventHandlers();
@@ -240,13 +556,24 @@ function Dashboard() {
   const connectionState = useEventsStore((state) => state.connectionState);
   const events = useEventsStore((state) => state.events);
   const cartographySteps = useEventsStore((state) => state.cartographySteps);
-  const bobcoinBudget = useEventsStore((state) => state.bobcoinBudget);
   const session = useEventsStore((state) => state.session);
   const { currentEvent, showRecovery, dismissRecovery } = useAutoRecovery();
 
   const isIdle = !session.isActive && events.length === 0;
   const currentSessionId =
-    events.find((event) => event.type === 'session_start')?.id || null;
+    (events.find((event) => event.type === 'session_start')?.data.session_id as
+      | string
+      | undefined) ||
+    events.find((event) => event.type === 'session_start')?.id ||
+    null;
+  const dependencyCard = findCard(events, 'dependency_graph');
+  const entryCard = findCard(events, 'entry_points');
+  const hotspotCard = findCard(events, 'hotspots');
+  const conventionCard = findCard(events, 'conventions');
+  const graphData = graphDataFromCard(dependencyCard);
+  const entryPointsData = entryPointsDataFromCard(entryCard);
+  const hotspotsData = hotspotsDataFromCard(hotspotCard);
+  const conventionsData = conventionsDataFromCard(conventionCard);
 
   const certificationQuestions = useMemo<CertificationQuestion[]>(() => {
     const questions = new Map<string, CertificationQuestion>();
@@ -262,18 +589,57 @@ function Dashboard() {
           topic?: string;
           stage?: string;
           question?: string;
+          response_mode?: 'free_text' | 'multiple_choice';
+          options?: string[];
         };
         const id = data.question_id || data.id || event.id;
         const questionText = data.question;
+        const options = Array.isArray(data.options)
+          ? data.options.filter(
+              (option): option is string =>
+                typeof option === 'string' && option.trim().length > 0
+            )
+          : [];
 
         if (questionText) {
           const existing = questions.get(id);
           questionTextToId.set(normalizeQuestionText(questionText), id);
+          const fallbackOptions =
+            options.length > 0
+              ? undefined
+              : deriveFallbackCertificationOptions({
+                  question: {
+                    id,
+                    topic: existing?.topic || data.topic || data.stage || 'Architecture',
+                    questionText,
+                  },
+                  questionId: id,
+                  dependencyCard,
+                  entryPointsData,
+                  hotspotsData,
+                  conventionsData,
+                });
+          const resolvedOptions =
+            existing?.options ||
+            (options.length > 0
+              ? shuffleQuestionOptions(
+                  options,
+                  `${currentSessionId || 'session'}:${id}`
+                )
+              : fallbackOptions);
+          const resolvedResponseMode =
+            existing?.responseMode === 'multiple_choice' ||
+            data.response_mode === 'multiple_choice' ||
+            Boolean(resolvedOptions?.length)
+              ? 'multiple_choice'
+              : 'free_text';
 
           questions.set(id, {
             id,
             topic: existing?.topic || data.topic || data.stage || 'Architecture',
             questionText: existing?.questionText || questionText,
+            responseMode: resolvedResponseMode,
+            options: resolvedOptions,
             answer: existing?.answer,
             grade: existing?.grade,
             rationale: existing?.rationale,
@@ -307,6 +673,8 @@ function Dashboard() {
               existing?.questionText ||
               eventQuestionText ||
               'Certification question',
+            responseMode: existing?.responseMode || 'free_text',
+            options: existing?.options,
             answer: data.user_answer || data.answer || existing?.answer,
             grade: data.grade,
             rationale: data.rationale,
@@ -323,7 +691,15 @@ function Dashboard() {
           ? certificationAnswers.answers[question.id]
           : undefined),
     }));
-  }, [certificationAnswers, currentSessionId, events]);
+  }, [
+    certificationAnswers,
+    conventionsData,
+    currentSessionId,
+    dependencyCard,
+    entryPointsData,
+    events,
+    hotspotsData,
+  ]);
 
   useEffect(() => {
     const latestEvent = events[0];
@@ -353,14 +729,118 @@ function Dashboard() {
     });
   }, [events, showRecovery]);
 
-  const dependencyCard = findCard(events, 'dependency_graph');
-  const entryCard = findCard(events, 'entry_points');
-  const hotspotCard = findCard(events, 'hotspots');
-  const conventionCard = findCard(events, 'conventions');
-  const graphData = graphDataFromCard(dependencyCard);
-  const entryPointsData = entryPointsDataFromCard(entryCard);
-  const hotspotsData = hotspotsDataFromCard(hotspotCard);
-  const conventionsData = conventionsDataFromCard(conventionCard);
+  async function submitCertificationAnswer(questionId: string) {
+    if (!currentSessionId) {
+      setAnswerSubmissionState((prev) => ({
+        sessionId: prev.sessionId,
+        questions: {
+          ...prev.questions,
+          [questionId]: {
+            pending: false,
+            submitted: false,
+            error: 'Start a live onboarding session before submitting answers.',
+          },
+        },
+      }));
+      return;
+    }
+
+    const answer =
+      certificationAnswers.sessionId === currentSessionId
+        ? certificationAnswers.answers[questionId]
+        : undefined;
+    const question = certificationQuestions.find((item) => item.id === questionId);
+
+    if (!answer?.trim()) {
+      setAnswerSubmissionState((prev) => ({
+        sessionId: currentSessionId,
+        questions: {
+          ...(prev.sessionId === currentSessionId ? prev.questions : {}),
+          [questionId]: {
+            pending: false,
+            submitted: false,
+            error: 'Write an answer before submitting it.',
+          },
+        },
+      }));
+      return;
+    }
+
+    setAnswerSubmissionState((prev) => ({
+      sessionId: currentSessionId,
+      questions: {
+        ...(prev.sessionId === currentSessionId ? prev.questions : {}),
+        [questionId]: {
+          pending: true,
+          submitted: false,
+        },
+      },
+    }));
+
+    try {
+      const response = await fetch(`${MCP_HTTP_URL}/dashboard/certification/answers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: currentSessionId,
+          question_id: questionId,
+          question_text: question?.questionText,
+          answer,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage =
+          'Could not submit the answer to the local grading bridge.';
+
+        if (response.status === 404 || response.status === 405) {
+          errorMessage =
+            'The running backend is missing the website grading endpoint. Restart the backend, then start a fresh Bob onboarding session.';
+        } else if (response.status === 400) {
+          try {
+            const data = (await response.json()) as { detail?: string };
+            if (typeof data.detail === 'string' && data.detail.trim()) {
+              errorMessage = data.detail;
+            }
+          } catch {
+            errorMessage = 'The backend rejected this answer submission.';
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      setAnswerSubmissionState((prev) => ({
+        sessionId: currentSessionId,
+        questions: {
+          ...(prev.sessionId === currentSessionId ? prev.questions : {}),
+          [questionId]: {
+            pending: false,
+            submitted: true,
+          },
+        },
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : 'Could not reach the local grading bridge. Check that the backend is running.';
+
+      setAnswerSubmissionState((prev) => ({
+        sessionId: currentSessionId,
+        questions: {
+          ...(prev.sessionId === currentSessionId ? prev.questions : {}),
+          [questionId]: {
+            pending: false,
+            submitted: false,
+            error: message,
+          },
+        },
+      }));
+    }
+  }
 
   const displayCartographySteps = useMemo(() => {
     const completedByCard: Record<string, boolean> = {
@@ -449,10 +929,10 @@ function Dashboard() {
             detail="Two passes required to unlock starter PR"
           />
           <MetricTile
-            icon={Zap}
-            label="Bobcoins"
-            value={`${bobcoinBudget.projected || bobcoinBudget.spent}/15`}
-            detail="Target budget per onboarding session"
+            icon={GitPullRequest}
+            label="Starter PR"
+            value={latestPrUrl ? 'Opened' : passCount >= 2 ? 'Issue-backed' : 'Pending'}
+            detail="Prefers open GitHub issues before fallback tasks"
           />
         </section>
 
@@ -554,18 +1034,13 @@ function Dashboard() {
           </section>
 
           <aside className="min-w-0 space-y-4">
-            <BobcoinMeter
-              totalBudget={bobcoinBudget.total}
-              spent={bobcoinBudget.spent}
-              projected={bobcoinBudget.projected}
-            />
-
             <TranscriptPanel maxHeight={260} />
 
             <div className="overflow-hidden border border-ibm-gray-20 bg-white">
               <CertificationPanel
                 key={currentSessionId || 'no-session'}
                 questions={certificationQuestions}
+                canSubmitAnswers={Boolean(currentSessionId)}
                 onAnswerChange={(questionId, answer) => {
                   setCertificationAnswers((prev) => ({
                     sessionId: currentSessionId,
@@ -575,6 +1050,12 @@ function Dashboard() {
                     },
                   }));
                 }}
+                onAnswerSubmit={submitCertificationAnswer}
+                submissionState={
+                  answerSubmissionState.sessionId === currentSessionId
+                    ? answerSubmissionState.questions
+                    : {}
+                }
               />
             </div>
 
@@ -594,11 +1075,20 @@ function Dashboard() {
                 </a>
               ) : passCount >= 2 ? (
                 <div className="mt-2 text-sm text-ibm-green-50">
-                  Certification passed. Starter PR is ready in Bob.
+                  Certification passed. Bob can now prefer open GitHub issues for the first PR.
                 </div>
               ) : (
                 <div className="mt-2 text-sm text-ibm-gray-70">
-                  Unlocks after certification passes.
+                  Unlocks after certification passes. The workflow now prefers{' '}
+                  <code className="rounded bg-ibm-gray-10 px-1 py-0.5 text-xs">
+                    good first issue
+                  </code>{' '}
+                  ,{' '}
+                  <code className="rounded bg-ibm-gray-10 px-1 py-0.5 text-xs">
+                    help wanted
+                  </code>{' '}
+                  , and documentation issues before falling back to starter
+                  templates.
                 </div>
               )}
             </div>

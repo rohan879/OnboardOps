@@ -9,20 +9,34 @@ export interface CertificationQuestion {
   id: string;
   topic: string;
   questionText: string;
+  responseMode?: 'free_text' | 'multiple_choice';
+  options?: string[];
   answer?: string;
   grade?: 'pass' | 'partial' | 'fail';
   rationale?: string;
 }
 
+export interface CertificationSubmissionState {
+  pending?: boolean;
+  submitted?: boolean;
+  error?: string;
+}
+
 interface CertificationPanelProps {
   questions: CertificationQuestion[];
   onAnswerChange?: (questionId: string, answer: string) => void;
+  onAnswerSubmit?: (questionId: string) => Promise<void> | void;
+  submissionState?: Record<string, CertificationSubmissionState>;
+  canSubmitAnswers?: boolean;
   isCertified?: boolean;
 }
 
 export default function CertificationPanel({
   questions,
   onAnswerChange,
+  onAnswerSubmit,
+  submissionState = {},
+  canSubmitAnswers = false,
   isCertified = false,
 }: CertificationPanelProps) {
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
@@ -147,6 +161,17 @@ export default function CertificationPanel({
             transition={{ delay: index * 0.1 }}
             className="space-y-3"
           >
+            {(() => {
+              const draftAnswer = question.answer || localAnswers[question.id] || '';
+              const submitState = submissionState[question.id] || {};
+              const isLocked =
+                !!question.grade || submitState.pending || submitState.submitted;
+              const isMultipleChoice =
+                question.responseMode === 'multiple_choice' &&
+                Boolean(question.options?.length);
+
+              return (
+                <>
             {/* Question Header */}
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
@@ -166,18 +191,89 @@ export default function CertificationPanel({
             </div>
 
             {/* Answer Input */}
-            <textarea
-              value={question.answer || localAnswers[question.id] || ''}
-              onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-              placeholder="Type your answer here..."
-              disabled={!!question.grade}
-              className={`w-full px-4 py-3 border rounded-lg text-sm font-mono resize-none transition-colors ${
-                question.grade
-                  ? 'bg-gray-50 border-gray-200 text-gray-600 cursor-not-allowed'
-                  : 'bg-white border-gray-300 text-[#161616] focus:border-[#0F62FE] focus:ring-2 focus:ring-[#0F62FE]/20 focus:outline-none'
-              }`}
-              rows={4}
-            />
+            {isMultipleChoice ? (
+              <div className="space-y-3">
+                {question.options?.map((option, optionIndex) => {
+                  const isSelected = draftAnswer === option;
+
+                  return (
+                    <button
+                      key={`${question.id}-${option}`}
+                      type="button"
+                      onClick={() => handleAnswerChange(question.id, option)}
+                      disabled={isLocked}
+                      className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                        isLocked
+                          ? isSelected
+                            ? 'border-[#0F62FE]/40 bg-[#0F62FE]/8 text-[#161616]'
+                            : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-500'
+                          : isSelected
+                            ? 'border-[#0F62FE] bg-[#0F62FE]/8 text-[#161616] shadow-sm'
+                            : 'border-gray-300 bg-white text-[#161616] hover:border-[#0F62FE]/60 hover:bg-[#0F62FE]/3'
+                      }`}
+                    >
+                      <span
+                        className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
+                          isSelected
+                            ? 'border-[#0F62FE] bg-[#0F62FE] text-white'
+                            : 'border-gray-300 text-[#6F6F6F]'
+                        }`}
+                      >
+                        {String.fromCharCode(65 + optionIndex)}
+                      </span>
+                      <span className="text-sm leading-relaxed">{option}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <textarea
+                value={draftAnswer}
+                onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                placeholder="Type your answer here..."
+                disabled={isLocked}
+                className={`w-full px-4 py-3 border rounded-lg text-sm font-mono resize-none transition-colors ${
+                  isLocked
+                    ? 'bg-gray-50 border-gray-200 text-gray-600 cursor-not-allowed'
+                    : 'bg-white border-gray-300 text-[#161616] focus:border-[#0F62FE] focus:ring-2 focus:ring-[#0F62FE]/20 focus:outline-none'
+                }`}
+                rows={4}
+              />
+            )}
+
+            {!question.grade && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs text-[#6F6F6F]">
+                  {submitState.pending
+                    ? 'Answer submitted from the website. Bob is grading it now.'
+                    : submitState.submitted
+                      ? 'Waiting for Bob to grade this dashboard answer.'
+                    : canSubmitAnswers
+                        ? isMultipleChoice
+                          ? 'Pick one option here and keep the graph visible while Bob grades in the background.'
+                          : 'Submit here and keep the graph visible while Bob grades in the background.'
+                        : 'Live answer submission is only available during an active onboarding session.'}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onAnswerSubmit?.(question.id)}
+                  disabled={
+                    !canSubmitAnswers ||
+                    !draftAnswer.trim() ||
+                    submitState.pending ||
+                    submitState.submitted
+                  }
+                  className="inline-flex items-center justify-center rounded-full bg-[#0F62FE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0043CE] disabled:cursor-not-allowed disabled:bg-[#C6C6C6]"
+                >
+                  {submitState.pending ? 'Submitting...' : 'Submit on website'}
+                </button>
+              </div>
+            )}
+
+            {submitState.error && !question.grade && (
+              <p className="text-xs text-[#DA1E28]">{submitState.error}</p>
+            )}
 
             {/* Rationale (shown after grading) */}
             <AnimatePresence>
@@ -204,6 +300,9 @@ export default function CertificationPanel({
                 </motion.div>
               )}
             </AnimatePresence>
+                </>
+              );
+            })()}
           </motion.div>
         ))}
 
@@ -215,7 +314,7 @@ export default function CertificationPanel({
               Certification questions will appear here
             </p>
             <p className="text-xs text-[#8A8A8A] mt-1">
-              Complete the cartography stages first
+              Complete the cartography stages first, then answer them right here.
             </p>
           </div>
         )}

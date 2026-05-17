@@ -8,6 +8,9 @@ auto_activate: false
 
 This skill gates the end of the onboarding session. Bob selects three questions from a pool of twelve, calibrated against the cartography output, and grades the onboardee's free-text answers using machine-readable rubrics.
 
+The certification panel on the website is the primary answer surface. The
+onboardee should be able to keep the cartography visible while answering.
+
 ## Grading System
 
 - **Pass**: Answer demonstrates understanding with evidence from cartography
@@ -245,9 +248,9 @@ rubric:
 
 When showing answer options, create one correct option and three plausible
 distractors, then shuffle them before display. Do not place the correct answer
-first by default; vary the correct answer position across the session. Keep the
-answer key private for grading and render the options as a readable vertical
-list.
+first by default, and do not keep it in the same slot across questions. Keep
+the answer key private for grading and render the options as a readable
+vertical list.
 
 ## Grading Logic
 
@@ -256,6 +259,14 @@ list.
 - Use anti-sycophancy prompt: penalize plausible-but-shallow answers
 - Require evidence drawn from cartography output or MCP responses
 - Emit a `question_ask` event before each question.
+- For multiple-choice questions, include `response_mode: "multiple_choice"` and
+  an `options` array in the `question_ask` event payload.
+- After emitting `question_ask`, tell the onboardee to answer in the website's
+  certification panel instead of the Bob chat.
+- Keep the `session_id` returned by the initial `session_start` / `emit_event`
+  call and reuse it for all subsequent certification events.
+- Call `wait_for_dashboard_answer` with the current `session_id` and
+  `question_id` to retrieve the website-submitted answer before grading.
 - Emit a `certification_grade` event after each answer using
   `question_id`, `question_text`, `user_answer`, `grade`, `rationale`,
   `rubric_points_earned`, and `rubric_points_total`.
@@ -265,8 +276,9 @@ list.
 On any "fail":
 1. Re-surface the relevant cartography card
 2. Ask one targeted follow-up question
-3. Re-grade the answer
-4. If still "fail", reveal the answer and continue
+3. Wait for the follow-up answer from the website panel
+4. Re-grade the answer
+5. If still "fail", reveal the answer and continue
 
 ## Completion
 

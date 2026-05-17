@@ -1,20 +1,29 @@
-from fastapi.testclient import TestClient
+import httpx
+import pytest
 
 from app import app
 
 
-client = TestClient(app)
+pytestmark = pytest.mark.anyio
 
 
-def test_health_check():
-    response = client.get("/health")
+async def make_request(method: str, path: str, **kwargs: object) -> httpx.Response:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        return await client.request(method, path, **kwargs)
+
+
+async def test_health_check():
+    response = await make_request("GET", "/health")
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
 
-def test_mcp_discovery_lists_required_tools():
-    response = client.post("/mcp", json={})
+async def test_mcp_discovery_lists_required_tools():
+    response = await make_request("POST", "/mcp", json={})
 
     assert response.status_code == 200
     tool_names = {tool["name"] for tool in response.json()["tools"]}
@@ -27,11 +36,14 @@ def test_mcp_discovery_lists_required_tools():
         "rationale_for_commit",
         "incident_for_file",
         "emit_event",
+        "starter_issue_candidates",
+        "wait_for_dashboard_answer",
     }.issubset(tool_names)
 
 
-def test_recent_authors_invocation_works_without_demo_repo():
-    response = client.post(
+async def test_recent_authors_invocation_works_without_demo_repo():
+    response = await make_request(
+        "POST",
         "/mcp/invoke",
         json={
             "tool_name": "recent_authors",
@@ -45,8 +57,9 @@ def test_recent_authors_invocation_works_without_demo_repo():
     assert len(body["result"]["authors"]) == 2
 
 
-def test_blocked_file_path_returns_403():
-    response = client.post(
+async def test_blocked_file_path_returns_403():
+    response = await make_request(
+        "POST",
         "/mcp/invoke",
         json={
             "tool_name": "git_blame_summary",
@@ -57,8 +70,9 @@ def test_blocked_file_path_returns_403():
     assert response.status_code == 403
 
 
-def test_emit_event_supports_bootstrap_recovery():
-    response = client.post(
+async def test_emit_event_supports_bootstrap_recovery():
+    response = await make_request(
+        "POST",
         "/mcp/invoke",
         json={
             "tool_name": "emit_event",
@@ -81,8 +95,9 @@ def test_emit_event_supports_bootstrap_recovery():
     assert body["result"]["success"] is True
 
 
-def test_emit_event_supports_certification_complete():
-    response = client.post(
+async def test_emit_event_supports_certification_complete():
+    response = await make_request(
+        "POST",
         "/mcp/invoke",
         json={
             "tool_name": "emit_event",
@@ -103,3 +118,39 @@ def test_emit_event_supports_certification_complete():
     assert response.status_code == 200
     assert body["error"] is None
     assert body["result"]["success"] is True
+
+
+async def test_dashboard_answer_submission_can_be_retrieved_by_mcp_tool():
+    submit_response = await make_request(
+        "POST",
+        "/dashboard/certification/answers",
+        json={
+            "session_id": "pytest-session",
+            "question_id": "cert-q1",
+            "question_text": "What is the entry point?",
+            "answer": "I would start in backend/app.py.",
+        },
+    )
+
+    submit_body = submit_response.json()
+    assert submit_response.status_code == 200
+    assert submit_body["success"] is True
+
+    wait_response = await make_request(
+        "POST",
+        "/mcp/invoke",
+        json={
+            "tool_name": "wait_for_dashboard_answer",
+            "arguments": {
+                "session_id": "pytest-session",
+                "question_id": "cert-q1",
+                "timeout_seconds": 1,
+            },
+        },
+    )
+
+    wait_body = wait_response.json()
+    assert wait_response.status_code == 200
+    assert wait_body["error"] is None
+    assert wait_body["result"]["answer"] == "I would start in backend/app.py."
+    assert wait_body["result"]["question_text"] == "What is the entry point?"

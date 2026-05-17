@@ -8,7 +8,12 @@ grading_temperature: 0.3
 
 # Certification Skill
 
-This skill gates the end of the onboarding session. Bob selects three questions from a pool of twelve, calibrated against the cartography output, and grades the onboardee's free-text answers using machine-readable rubrics.
+This skill gates the end of the onboarding session. Bob selects three questions
+from a pool of twelve, calibrated against the cartography output, and grades
+the onboardee's answers using machine-readable rubrics.
+
+The website certification panel is the primary answer surface so the onboardee
+can keep the graph and supporting cards visible while answering.
 
 ## Grading System
 
@@ -257,7 +262,7 @@ The certification skill selects 3 questions from the pool of 12 using these rule
 
 ### Multiple-Choice Presentation
 
-When presenting answer choices in chat:
+When presenting answer choices:
 
 1. Generate one correct option and three plausible distractors.
 2. Shuffle the four options before displaying them.
@@ -265,7 +270,8 @@ When presenting answer choices in chat:
    correct answer position.
 4. Keep a private answer key for grading; do not reveal which option is correct
    until after the onboardee answers or exhausts remediation.
-5. Render choices as a clear vertical list, not cramped inline text.
+5. Render choices as a clear vertical list in the website certification panel,
+   not as cramped inline text.
 
 ### Selection Algorithm
 
@@ -294,7 +300,8 @@ Each answer is graded using a three-tier system: **pass**, **partial**, **fail**
 
 ### Grading Process
 
-1. **Parse answer**: Extract key terms, file paths, module names, and reasoning.
+1. **Read answer**: Use the selected website option or the typed answer from the
+   website certification panel.
 2. **Check rubric requirements**:
    - **Pass**: All required elements present + evidence from cartography
    - **Partial**: Some required elements present OR correct but shallow
@@ -372,13 +379,17 @@ Emit `event_type: "certification_remediation"` with:
 
 1. **Trigger**: Onboardee declares readiness after cartography completes
 2. **Selection**: Choose 3 questions using selection logic
-3. **Ask Q1**: Emit `question_ask` event, wait for answer
-4. **Grade Q1**: Apply rubric, emit `certification_grade` event
-5. **Remediation (if fail)**: Emit remediation, re-ask, re-grade
-6. **Ask Q2**: Repeat for second question
-7. **Ask Q3**: Repeat for third question
-8. **Final decision**: Check pass threshold
-9. **Emit result**: Call `emit_event` with `event_type: "certification_complete"`
+3. **Ask Q1**: Emit a `question_ask` event with a stable `question_id`,
+   `response_mode: "multiple_choice"`, and an `options` array
+4. **Direct answer flow**: Tell the onboardee to answer in the website
+   certification panel, then call `wait_for_dashboard_answer` with the active
+   `session_id` and `question_id`
+5. **Grade Q1**: Apply rubric, emit `certification_grade` event
+6. **Remediation (if fail)**: Emit remediation, re-ask, re-grade
+7. **Ask Q2**: Repeat for second question
+8. **Ask Q3**: Repeat for third question
+9. **Final decision**: Check pass threshold
+10. **Emit result**: Call `emit_event` with `event_type: "certification_complete"`
    ```json
    {
      "passed": true,
@@ -387,8 +398,11 @@ Emit `event_type: "certification_remediation"` with:
      "remediation_count": 1
    }
    ```
-10. **Narrate**: "Certification complete. You passed 2 of 3 questions. Ready for
-    your first PR."
+11. **Narrate**: "Certification complete. You passed 2 of 3 questions. Ready
+    for your first PR."
+
+Keep the `session_id` returned by the initial `session_start` / `emit_event`
+call and reuse it for all certification questions, wait calls, and grade events.
 
 ## Integration with Cartography
 
