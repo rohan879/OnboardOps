@@ -5,7 +5,7 @@ import { Flame, ExternalLink, User, GitPullRequest, TrendingUp } from 'lucide-re
 import { useMemo, useState } from 'react';
 
 const REPOSITORY_URL =
-  process.env.NEXT_PUBLIC_REPOSITORY_URL || 'https://github.com/rohan879/OnboardOps';
+  process.env.NEXT_PUBLIC_REPOSITORY_URL || '';
 const REPOSITORY_BRANCH = process.env.NEXT_PUBLIC_REPOSITORY_BRANCH || 'main';
 
 export interface Hotspot {
@@ -31,23 +31,28 @@ function getRepositoryFileUrl(path: string) {
   if (!path || path === 'unknown') return undefined;
 
   const normalizedBase = REPOSITORY_URL.replace(/\.git$/, '').replace(/\/$/, '');
+  if (!/^https?:\/\//i.test(normalizedBase)) return undefined;
+
   const normalizedPath = path.replace(/\\/g, '/').replace(/^\/+/, '');
 
   return `${normalizedBase}/blob/${REPOSITORY_BRANCH}/${encodeURI(normalizedPath)}`;
 }
 
-function normalizeSparklineData(value: unknown, commitCount: number) {
+function normalizeSparklineData(value: unknown) {
   if (Array.isArray(value)) {
-    const numericValues = value.filter(
-      (item): item is number => typeof item === 'number' && Number.isFinite(item)
-    );
+    const numericValues = value
+      .map((item) => toFiniteNumber(item, Number.NaN))
+      .filter((item) => Number.isFinite(item));
 
-    if (numericValues.length >= 2) {
+    if (
+      numericValues.length >= 2 &&
+      Math.max(...numericValues) !== Math.min(...numericValues)
+    ) {
       return numericValues;
     }
   }
 
-  return Array(12).fill(Math.max(0, commitCount) / 12);
+  return null;
 }
 
 function toFiniteNumber(value: unknown, fallback = 0) {
@@ -175,11 +180,8 @@ function HotspotRow({ hotspot, rank, maxCommits }: {
   const commitCount = toFiniteNumber(hotspot.commit_count, 0);
   const barWidth = maxCommits > 0 ? (commitCount / maxCommits) * 100 : 0;
   const fileUrl = getRepositoryFileUrl(hotspot.path);
-  const sparklineData = normalizeSparklineData(
-    hotspot.commit_frequency,
-    commitCount
-  );
-  const sparklineMax = Math.max(...sparklineData, 1);
+  const sparklineData = normalizeSparklineData(hotspot.commit_frequency);
+  const sparklineMax = sparklineData ? Math.max(...sparklineData, 1) : 1;
 
   return (
     <motion.div
@@ -235,7 +237,11 @@ function HotspotRow({ hotspot, rank, maxCommits }: {
 
         {/* Sparkline */}
         <div>
-          <Sparkline data={sparklineData} max={sparklineMax} />
+          {sparklineData ? (
+            <Sparkline data={sparklineData} max={sparklineMax} />
+          ) : (
+            <span className="text-xs text-ibm-gray-50">No buckets</span>
+          )}
         </div>
 
         {/* External link */}

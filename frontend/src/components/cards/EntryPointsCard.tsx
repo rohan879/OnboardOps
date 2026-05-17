@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Clock, ExternalLink, Globe, Terminal, Zap } from 'lucide-react';
 
 const REPOSITORY_URL =
-  process.env.NEXT_PUBLIC_REPOSITORY_URL || 'https://github.com/rohan879/OnboardOps';
+  process.env.NEXT_PUBLIC_REPOSITORY_URL || '';
 const REPOSITORY_BRANCH = process.env.NEXT_PUBLIC_REPOSITORY_BRANCH || 'main';
 
 export interface EntryPoint {
@@ -51,6 +51,8 @@ function getRepositoryFileUrl(entry: EntryPoint) {
   if (!entry.file) return undefined;
 
   const normalizedBase = REPOSITORY_URL.replace(/\.git$/, '').replace(/\/$/, '');
+  if (!/^https?:\/\//i.test(normalizedBase)) return undefined;
+
   const normalizedPath = entry.file.replace(/\\/g, '/').replace(/^\/+/, '');
   const lineSuffix = entry.line_number ? `#L${entry.line_number}` : '';
 

@@ -281,10 +281,18 @@ provide rationales for why each file changes often.
 
 Steps (optimized for Bobcoin efficiency):
 
+Only the `institutional-knowledge` MCP server is configured. Do not call a
+`github` MCP server. Do not run shell `git log` pipelines for hotspots unless
+the MCP server is unavailable; `commit_frequency` is the primary source of git
+history.
+
 1. Call `commit_frequency` MCP tool with no file_path (repo-wide) and days=180.
    This returns the top 5 most frequently changed files.
    **Error handling**: If tool fails or returns empty, retry once. If retry fails,
    emit placeholder card (see Error Handling section below) and continue to Stage 4.
+   If the error says `ONBOARDOPS_DEMO_REPO_PATH` is missing, ask the user to set
+   it to the local clone and retry; do not switch to a nonexistent GitHub MCP
+   server.
 2. For the top 5 files only (reduced from 10 for efficiency):
    - Call `recent_authors` with the file_path to get top contributors
    - Call `pr_for_file` with the file_path and limit=1 (only most recent PR)
@@ -312,6 +320,18 @@ Steps (optimized for Bobcoin efficiency):
 5. Call `emit_event` with card_type "hotspots" (see output format rules).
 6. Narrate using template from cartography-output-format.md:
    - Multiple hotspots: "Top hotspots: `[file1]` (`[n1]` commits), `[file2]` (`[n2]` commits)."
+
+Windows shell fallback, only if MCP is unavailable:
+
+```powershell
+git log --since="180 days ago" --max-count=400 --name-only --pretty=format: |
+  Where-Object { $_ -match '\S' } |
+  Group-Object |
+  Sort-Object Count -Descending |
+  Select-Object -First 5 Name,Count
+```
+
+Do not use Unix-only tools such as `uniq`, `wc`, or `head` in PowerShell.
 
 Acceptance:
 

@@ -13,6 +13,11 @@ Load `.bob/rules/cartography-style.md` once, then keep chat output terse. Emit
 dashboard data through the `institutional-knowledge` MCP server's `emit_event`
 tool whenever it is available.
 
+Only the `institutional-knowledge` MCP server is configured for this project.
+Do not call or reference a `github` MCP server. GitHub issue and PR data flows
+through `institutional-knowledge` tools such as `starter_issue_candidates` and
+`pr_for_file`.
+
 ## Contract
 
 Produce four real cards in order:
@@ -102,11 +107,29 @@ Question: pick a discovered route or CLI and ask which file/function handles it.
 
 ## Stage 3: Change Hotspots
 
-Use MCP tools first, then file/git inspection if needed:
+Use MCP tools first. Do not run shell `git log` pipelines for hotspots unless
+the MCP server is unavailable; the `commit_frequency` tool already handles git
+history and returns dashboard-ready buckets.
 
 1. Call `commit_frequency` repo-wide for the last 180 days.
 2. For the top files, call `recent_authors` and `pr_for_file`.
 3. Emit at most five hotspots, ranked by commit count.
+
+If `commit_frequency` fails because the repository path is not configured, ask
+the user to set `ONBOARDOPS_DEMO_REPO_PATH` to the local clone and retry this
+stage. Do not switch to a nonexistent `github` MCP server.
+
+If shell fallback is unavoidable on Windows/PowerShell, do not use Unix tools
+such as `sort | uniq -c`, `wc`, or `head`. Use a bounded PowerShell-native
+pipeline and stop after a small result set, for example:
+
+```powershell
+git log --since="180 days ago" --max-count=400 --name-only --pretty=format: |
+  Where-Object { $_ -match '\S' } |
+  Group-Object |
+  Sort-Object Count -Descending |
+  Select-Object -First 5 Name,Count
+```
 
 Emit:
 

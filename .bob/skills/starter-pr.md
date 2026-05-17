@@ -32,6 +32,13 @@ Select starter work in this priority order:
 If issue-backed work is unavailable or too large for a safe starter diff, fall
 back to the documentation/test path.
 
+If `starter_issue_candidates` fails because of GitHub rate limits or network
+access, do not retry repeatedly and do not end the onboarding flow at a prose
+recommendation. Share the repository's GitHub issues URL when known, then pick
+one bounded fallback starter task from the documentation/test paths and continue
+the Starter PR flow. Always emit `session_end` before finishing, even when no
+PR URL is available.
+
 When asking the onboardee what to work on, use a plain numbered list in chat,
 not cramped inline options:
 
@@ -122,7 +129,15 @@ Call `emit_event` at each substep:
 4. `starter_pr_commit_message` - the commit message
 5. `session_end` - after the PR is opened or the local diff is ready; include
    `status`, `total_duration_ms`, `total_bobcoins_spent`, and `pr_url` when
-   available.
+   available. When no PR URL exists yet, also include
+   `starter_task_proposed`, `starter_task_file`, `starter_task_description`,
+   and `starter_task_commit_message` so the dashboard can show the suggested
+   first contribution instead of a zero-issue empty state.
+
+If GitHub credentials, API quota, or PR creation are unavailable, emit
+`session_end` with `status: "completed"`, `pr_url: null`, and the structured
+starter task fields after presenting the local diff or the exact manual issue
+URL. Never finish this skill without a `session_end` event.
 
 ## Output Format
 

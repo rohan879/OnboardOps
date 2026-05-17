@@ -201,11 +201,22 @@ class SessionStart(BaseEvent):
 class SessionEnd(BaseEvent):
     """Event emitted when an onboarding session completes"""
 
+    model_config = ConfigDict(extra="allow")
+
     event_type: Literal["session_end"] = "session_end"
-    status: Literal["completed", "failed", "aborted"]
-    total_duration_ms: int
-    total_bobcoins_spent: float
+    status: Literal["completed", "failed", "aborted"] = "completed"
+    total_duration_ms: int = 0
+    total_bobcoins_spent: float = 0.0
     pr_url: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    cartography_completed: Optional[bool] = None
+    certification_passed: Optional[bool] = None
+    certification_score: Optional[str] = None
+    starter_task_proposed: Optional[str] = None
+    starter_task_file: Optional[str] = None
+    starter_task_url: Optional[str] = None
+    starter_task_description: Optional[str] = None
+    starter_task_commit_message: Optional[str] = None
 
 
 # ============================================================================
