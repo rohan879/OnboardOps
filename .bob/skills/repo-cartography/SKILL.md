@@ -32,8 +32,13 @@ Do not emit Phase 2 placeholder cards during normal onboarding. Emit a
 `Data unavailable` fallback card only when a specific stage fails after one
 retry, then continue so the onboardee is not blocked.
 
-After every card, emit one `question_ask` event with a stable `question_id`, ask
-the same question in chat, and validate the answer against the card data.
+After every card, emit one `question_ask` event with a stable `question_id`,
+`response_mode: "multiple_choice"`, and four concrete `options`. Never ask a
+free-text sample question.
+Tell the onboardee that this is a **sample practice question** and that they
+should answer it in the website Practice Quiz panel, not in Bob chat. Then call
+`wait_for_dashboard_answer` with the active `session_id` and `question_id`, and
+validate that website answer against the card data.
 
 ## Event Shapes
 
@@ -62,7 +67,9 @@ Question events:
     "stage": "dependency_graph",
     "topic": "Architecture",
     "question": "Which module has the highest fan-in?",
-    "expected_answer_hint": "Compare fan_in values in the graph nodes."
+    "expected_answer_hint": "Compare fan_in values in the graph nodes.",
+    "response_mode": "multiple_choice",
+    "options": ["api", "core", "models", "utils"]
   }
 }
 ```
@@ -80,7 +87,7 @@ and `lib/`. Exclude caches, virtualenvs, `node_modules`, build output, and test
 fixtures unless no source files are available.
 
 Question: ask which module has the highest fan-in. Accept the node `id`,
-`label`, or filename.
+`label`, or filename. Present it as a website practice question.
 
 ## Stage 2: Entry Points
 

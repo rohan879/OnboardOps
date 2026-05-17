@@ -17,7 +17,7 @@ export interface CertificationQuestion {
   id: string;
   topic: string;
   questionText: string;
-  responseMode?: 'free_text' | 'multiple_choice';
+  responseMode?: 'multiple_choice';
   options?: string[];
   answer?: string;
   grade?: 'pass' | 'partial' | 'fail';
@@ -146,9 +146,14 @@ export default function CertificationPanel({
     !!activeQuestion?.grade ||
     activeSubmitState.pending ||
     activeSubmitState.submitted;
-  const isMultipleChoice =
-    activeQuestion?.responseMode === 'multiple_choice' &&
-    Boolean(activeQuestion.options?.length);
+  const activeOptions = activeQuestion?.options?.length
+    ? activeQuestion.options
+    : [
+        'Use the live dashboard evidence and choose the exact file, module, route, or convention shown there.',
+        'Answer from memory without checking the cartography cards.',
+        'Choose the first file alphabetically even if it is unrelated.',
+        'Skip the question because certification is already complete.',
+      ];
 
   return (
     <div className="h-full flex flex-col bg-white relative">
@@ -314,55 +319,40 @@ export default function CertificationPanel({
                   {getGradeBadge(activeQuestion.grade)}
                 </div>
 
-                {isMultipleChoice ? (
-                  <div className="mt-6 grid gap-3">
-                    {activeQuestion.options?.map((option, optionIndex) => {
-                      const isSelected = activeDraftAnswer === option;
+                <div className="mt-6 grid gap-3">
+                  {activeOptions.map((option, optionIndex) => {
+                    const isSelected = activeDraftAnswer === option;
 
-                      return (
-                        <button
-                          key={`${activeQuestion.id}-${option}`}
-                          type="button"
-                          onClick={() => handleAnswerChange(activeQuestion.id, option)}
-                          disabled={isLocked}
-                          className={`flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-left transition ${
-                            isLocked
-                              ? isSelected
-                                ? 'border-[#0F62FE]/40 bg-[#0F62FE]/8 text-[#161616]'
-                                : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-500'
-                              : isSelected
-                                ? 'border-[#0F62FE] bg-[#0F62FE]/8 text-[#161616] shadow-sm'
-                                : 'border-gray-300 bg-white text-[#161616] hover:border-[#0F62FE]/60 hover:bg-[#0F62FE]/3'
+                    return (
+                      <button
+                        key={`${activeQuestion.id}-${option}`}
+                        type="button"
+                        onClick={() => handleAnswerChange(activeQuestion.id, option)}
+                        disabled={isLocked}
+                        className={`flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-left transition ${
+                          isLocked
+                            ? isSelected
+                              ? 'border-[#0F62FE]/40 bg-[#0F62FE]/8 text-[#161616]'
+                              : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-500'
+                            : isSelected
+                              ? 'border-[#0F62FE] bg-[#0F62FE]/8 text-[#161616] shadow-sm'
+                              : 'border-gray-300 bg-white text-[#161616] hover:border-[#0F62FE]/60 hover:bg-[#0F62FE]/3'
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${
+                            isSelected
+                              ? 'border-[#0F62FE] bg-[#0F62FE] text-white'
+                              : 'border-gray-300 text-[#6F6F6F]'
                           }`}
                         >
-                          <span
-                            className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${
-                              isSelected
-                                ? 'border-[#0F62FE] bg-[#0F62FE] text-white'
-                                : 'border-gray-300 text-[#6F6F6F]'
-                            }`}
-                          >
-                            {String.fromCharCode(65 + optionIndex)}
-                          </span>
-                          <span className="text-base leading-relaxed">{option}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <textarea
-                    value={activeDraftAnswer}
-                    onChange={(e) => handleAnswerChange(activeQuestion.id, e.target.value)}
-                    placeholder="Type your answer here..."
-                    disabled={isLocked}
-                    className={`mt-6 w-full resize-none rounded-2xl border px-5 py-4 text-base font-mono transition-colors ${
-                      isLocked
-                        ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-600'
-                        : 'border-gray-300 bg-white text-[#161616] focus:border-[#0F62FE] focus:ring-2 focus:ring-[#0F62FE]/20 focus:outline-none'
-                    }`}
-                    rows={5}
-                  />
-                )}
+                          {String.fromCharCode(65 + optionIndex)}
+                        </span>
+                        <span className="text-base leading-relaxed">{option}</span>
+                      </button>
+                    );
+                  })}
+                </div>
 
                 {!activeQuestion.grade && (
                   <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#0F62FE]/10 bg-[#0F62FE]/4 px-4 py-3">
@@ -372,9 +362,7 @@ export default function CertificationPanel({
                         : activeSubmitState.submitted
                           ? 'Waiting for Bob to grade this dashboard answer.'
                           : canSubmitAnswers
-                            ? isMultipleChoice
-                              ? 'Pick one answer here and keep the architecture view open while Bob grades in the background.'
-                              : 'Submit here and keep the architecture view open while Bob grades in the background.'
+                            ? 'Pick one answer here and keep the architecture view open while Bob grades in the background.'
                             : 'Live answer submission is only available during an active onboarding session.'}
                     </div>
 

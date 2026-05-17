@@ -15,6 +15,10 @@ the onboardee's answers using machine-readable rubrics.
 The website certification panel is the primary answer surface so the onboardee
 can keep the graph and supporting cards visible while answering.
 
+Every certification question must be multiple choice. Emit
+`response_mode: "multiple_choice"` plus exactly four answer `options`; do not
+ask free-text certification questions.
+
 ## Grading System
 
 - **Pass**: Answer demonstrates understanding with evidence from cartography

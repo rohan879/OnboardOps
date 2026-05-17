@@ -19,6 +19,12 @@ Load these rules once per session (Phase 4 T1.6 compression):
 Keep all chat output terse. Emit dashboard data through the `emit_event` MCP tool.
 Use the `session_id` returned by the initial `session_start` event on every
 cartography `card_emit` and `question_ask` call.
+Cartography checkpoint questions are **sample practice questions**. After each
+`question_ask`, tell the onboardee to answer in the website Practice Quiz panel,
+then call `wait_for_dashboard_answer` with the active `session_id` and stable
+`question_id`. Every `question_ask` must include
+`response_mode: "multiple_choice"` and exactly four answer `options`. Do not
+collect these answers in Bob chat, and do not ask free-text practice questions.
 
 ## Output Validation and Safety Rails (Phase 4 T1.5)
 
@@ -144,21 +150,27 @@ Acceptance:
 
 ## Stage 1 Question Loop
 
-Before asking in chat, call `emit_event` for the question:
+Before showing the sample in the website Practice Quiz, call `emit_event` for
+the question. Every sample question must be multiple choice: include
+`response_mode: "multiple_choice"` and four concrete `options`. Do not ask
+free-text practice questions.
 
 ```json
 {
   "event_type": "question_ask",
   "event_data": {
+    "question_id": "dep-graph-q1",
     "stage": "dependency-graph",
     "question": "Which module has the highest fan-in?",
     "expected_answer_hint": "Compare fan_in values in the graph nodes.",
+    "response_mode": "multiple_choice",
+    "options": ["api", "core", "models", "utils"],
     "attempt": 1
   }
 }
 ```
 
-Ask: **Which module has the highest fan-in?**
+Tell the onboardee: **Answer the sample practice question in the dashboard Practice Quiz: Which module has the highest fan-in?** Then call `wait_for_dashboard_answer` for this `question_id`.
 
 Validation:
 
@@ -238,21 +250,26 @@ Acceptance:
 
 ## Stage 2 Question Loop
 
-Before asking in chat, call `emit_event` for the question:
+Before showing the sample in the website Practice Quiz, call `emit_event` for
+the question. Every sample question must be multiple choice with four concrete
+options.
 
 ```json
 {
   "event_type": "question_ask",
   "event_data": {
+    "question_id": "entry-points-q1",
     "stage": "entry-points",
     "question": "Which HTTP route would handle a GET request to /api/users?",
     "expected_answer_hint": "Look for GET routes in the entry points data.",
+    "response_mode": "multiple_choice",
+    "options": ["GET /api/users", "POST /api/users", "GET /health", "CLI users"],
     "attempt": 1
   }
 }
 ```
 
-Ask: **Which HTTP route would handle a GET request to [SPECIFIC_PATH]?**
+Tell the onboardee: **Answer the sample practice question in the dashboard Practice Quiz: Which HTTP route would handle a GET request to [SPECIFIC_PATH]?** Then call `wait_for_dashboard_answer` for this `question_id`.
 (Parameterize [SPECIFIC_PATH] with an actual route from the discovered data)
 
 Validation:
@@ -349,21 +366,31 @@ Acceptance:
 
 ## Stage 3 Question Loop
 
-Before asking in chat, call `emit_event` for the question:
+Before showing the sample in the website Practice Quiz, call `emit_event` for
+the question. Every sample question must be multiple choice with four concrete
+options.
 
 ```json
 {
   "event_type": "question_ask",
   "event_data": {
+    "question_id": "hotspots-q1",
     "stage": "hotspots",
     "question": "Which file is the top hotspot, and why does it change so frequently?",
     "expected_answer_hint": "Look at commit counts and rationales in the hotspots data.",
+    "response_mode": "multiple_choice",
+    "options": [
+      "backend/app.py because most recent route and MCP changes land there",
+      "README.md because documentation is always the runtime hotspot",
+      "package-lock.json because every commit rewrites it manually",
+      "tests/conftest.py because it is the only production entry point"
+    ],
     "attempt": 1
   }
 }
 ```
 
-Ask: **Which file is the top hotspot, and why does it change so frequently?**
+Tell the onboardee: **Answer the sample practice question in the dashboard Practice Quiz: Which file is the top hotspot, and why does it change so frequently?** Then call `wait_for_dashboard_answer` for this `question_id`.
 
 Validation:
 
@@ -437,21 +464,26 @@ Acceptance:
 
 ## Stage 4 Question Loop
 
-Before asking in chat, call `emit_event` for the question:
+Before showing the sample in the website Practice Quiz, call `emit_event` for
+the question. Every sample question must be multiple choice with four concrete
+options.
 
 ```json
 {
   "event_type": "question_ask",
   "event_data": {
+    "question_id": "conventions-q1",
     "stage": "conventions",
     "question": "What naming convention is used for functions in this codebase?",
     "expected_answer_hint": "Look at the naming convention in the conventions data.",
+    "response_mode": "multiple_choice",
+    "options": ["snake_case", "camelCase", "PascalCase", "kebab-case"],
     "attempt": 1
   }
 }
 ```
 
-Ask: **What naming convention is used for [ENTITY_TYPE] in this codebase?**
+Tell the onboardee: **Answer the sample practice question in the dashboard Practice Quiz: What naming convention is used for [ENTITY_TYPE] in this codebase?** Then call `wait_for_dashboard_answer` for this `question_id`.
 (Parameterize [ENTITY_TYPE] with "functions", "classes", or "files" based on
 what was detected)
 

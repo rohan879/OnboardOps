@@ -110,6 +110,11 @@ body {
   display: flex;
 }
 
+.wrap {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .between {
   justify-content: space-between;
 }
@@ -1372,22 +1377,6 @@ body {
 
 .answer-grid button p {
   margin: 0;
-}
-
-.cert-question textarea {
-  background: var(--bg);
-  border: 1px solid var(--border-2);
-  color: var(--text);
-  display: block;
-  margin-top: 24px;
-  outline: none;
-  padding: 14px 16px;
-  resize: vertical;
-  width: 100%;
-}
-
-.cert-question textarea:focus {
-  border-color: var(--primary);
 }
 
 .answer-submit,

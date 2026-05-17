@@ -754,6 +754,41 @@ function deriveFallbackCertificationOptions({
   return undefined;
 }
 
+function ensureMultipleChoiceOptions({
+  question,
+  explicitOptions,
+  fallbackOptions,
+  seedKey,
+}: {
+  question: Pick<CertificationQuestion, 'id' | 'questionText' | 'topic'>;
+  explicitOptions: string[];
+  fallbackOptions?: string[];
+  seedKey: string;
+}) {
+  const sanitizedExplicitOptions = uniqueOptions(
+    explicitOptions.map((option) => option.trim()).filter(Boolean)
+  );
+
+  if (sanitizedExplicitOptions.length >= 2) {
+    return shuffleQuestionOptions(sanitizedExplicitOptions, seedKey);
+  }
+
+  if (fallbackOptions && fallbackOptions.length >= 2) {
+    return fallbackOptions;
+  }
+
+  const topic = question.topic || 'cartography';
+  return buildChoiceSet(
+    `Use the ${topic} dashboard evidence and choose the exact file, module, route, or convention shown there.`,
+    [
+      'Answer from memory without checking the live dashboard cards.',
+      'Choose the first file alphabetically even if it is unrelated.',
+      'Skip the question because sample questions are not part of onboarding.',
+    ],
+    question.id
+  ) as string[];
+}
+
 function toRecoveryPattern(value: unknown): RecoveryPattern {
   const pattern = typeof value === 'string' ? value : '';
   const allowed: RecoveryPattern[] = [
@@ -2802,6 +2837,8 @@ function ConventionsLens({
   );
 }
 
+// Kept temporarily for replay compatibility while the live dashboard uses QuestionFlowCarbon.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CertificationCarbon({
   questions,
   currentSessionId,
@@ -2836,9 +2873,6 @@ function CertificationCarbon({
     Boolean(activeQuestion?.grade) ||
     Boolean(activeSubmitState.pending) ||
     Boolean(activeSubmitState.submitted);
-  const isMultipleChoice =
-    activeQuestion?.responseMode === 'multiple_choice' &&
-    Boolean(activeQuestion.options?.length);
 
   const setAnswer = (questionId: string, answer: string) => {
     setLocalAnswers((prev) => ({ ...prev, [questionId]: answer }));
@@ -2918,34 +2952,24 @@ function CertificationCarbon({
           </div>
           <h3>{activeQuestion.questionText}</h3>
 
-          {isMultipleChoice ? (
-            <div className="answer-grid">
-              {activeQuestion.options?.map((option, index) => {
-                const selected = activeAnswer === option;
-                return (
-                  <button
-                    key={`${activeQuestion.id}-${option}`}
-                    type="button"
-                    disabled={isLocked}
-                    onClick={() => setAnswer(activeQuestion.id, option)}
-                    className={selected ? 'selected' : ''}
-                  >
-                    <span className="mono">{String.fromCharCode(65 + index)}</span>
-                    <p>{option}</p>
-                    {selected && <CheckCircle2 size={18} />}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <textarea
-              value={activeAnswer}
-              disabled={isLocked}
-              rows={5}
-              placeholder="Type your architecture answer..."
-              onChange={(event) => setAnswer(activeQuestion.id, event.target.value)}
-            />
-          )}
+          <div className="answer-grid">
+            {activeQuestion.options?.map((option, index) => {
+              const selected = activeAnswer === option;
+              return (
+                <button
+                  key={`${activeQuestion.id}-${option}`}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => setAnswer(activeQuestion.id, option)}
+                  className={selected ? 'selected' : ''}
+                >
+                  <span className="mono">{String.fromCharCode(65 + index)}</span>
+                  <p>{option}</p>
+                  {selected && <CheckCircle2 size={18} />}
+                </button>
+              );
+            })}
+          </div>
 
           {!activeQuestion.grade && (
             <div className="answer-submit">
@@ -3019,6 +3043,485 @@ function CertificationCarbon({
               <ChevronRight size={16} />
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Kept temporarily for replay compatibility while the live dashboard uses QuestionFlowCarbon.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function PracticeQuizCarbon({
+  questions,
+  currentSessionId,
+  onAnswerChange,
+  onAnswerSubmit,
+  submissionState,
+}: {
+  questions: CertificationQuestion[];
+  currentSessionId: string | null;
+  onAnswerChange: (questionId: string, answer: string) => void;
+  onAnswerSubmit: (questionId: string) => Promise<void> | void;
+  submissionState: Record<string, CertificationSubmissionState>;
+}) {
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
+  const activeQuestion =
+    questions.find((question) => question.id === activeQuestionId) ||
+    questions.find((question) => {
+      const state = submissionState[question.id];
+      return !state?.submitted;
+    }) ||
+    questions[questions.length - 1];
+  const activeIndex = activeQuestion
+    ? questions.findIndex((question) => question.id === activeQuestion.id)
+    : -1;
+  const activeSubmitState = activeQuestion
+    ? submissionState[activeQuestion.id] || {}
+    : {};
+  const activeAnswer = activeQuestion
+    ? activeQuestion.answer || localAnswers[activeQuestion.id] || ''
+    : '';
+  const isLocked =
+    Boolean(activeSubmitState.pending) || Boolean(activeSubmitState.submitted);
+  const submittedCount = questions.filter(
+    (question) => submissionState[question.id]?.submitted
+  ).length;
+
+  const setAnswer = (questionId: string, answer: string) => {
+    setLocalAnswers((prev) => ({ ...prev, [questionId]: answer }));
+    onAnswerChange(questionId, answer);
+  };
+
+  if (questions.length === 0 || !activeQuestion) {
+    return (
+      <div className="carbon-panel">
+        <EmptyState
+          icon={CircleDot}
+          title="Waiting for sample questions"
+          body="After each cartography plate, Bob emits a practice question here before certification starts."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="carbon-panel certification-panel">
+      <div className="cert-head">
+        <div>
+          <div className="t-label-01">PRACTICE QUIZ / SAMPLE QUESTIONS</div>
+          <div className="t-h-04">
+            Sample questions before the graded certification.
+          </div>
+          <div className="cert-steps">
+            {questions.map((question, index) => {
+              const active = question.id === activeQuestion.id;
+              const state = submissionState[question.id] || {};
+              return (
+                <button
+                  key={question.id}
+                  type="button"
+                  onClick={() => setActiveQuestionId(question.id)}
+                  className={active ? 'active' : ''}
+                >
+                  <div className="row between center">
+                    <span className="t-label-01">
+                      SAMPLE {index + 1} OF {questions.length}
+                    </span>
+                    {state.submitted && <CheckCircle2 size={18} />}
+                  </div>
+                  <div className="t-h-02">{question.topic || 'Practice'}</div>
+                  <div className="t-helper">
+                    {state.submitted
+                      ? 'submitted to Bob'
+                      : active
+                        ? 'attempting sample'
+                        : 'open sample'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <aside>
+          <div className="t-label-01">Practice status</div>
+          <div className="cert-score mono">
+            {submittedCount}
+            <span>/{questions.length}</span>
+          </div>
+          <CarbonTag tone={submittedCount === questions.length ? 'green' : 'blue'}>
+            {submittedCount === questions.length
+              ? 'Practice complete'
+              : 'Attempting sample question'}
+          </CarbonTag>
+          <p>
+            Not graded. Bob waits for these dashboard submissions before
+            continuing the cartography flow.
+          </p>
+          <ProvenancePill
+            tool="question_ask + wait_for_dashboard_answer"
+            detail="sample practice question"
+          />
+        </aside>
+      </div>
+
+      <div className="cert-question">
+        <div className="cert-number mono">
+          {String(activeIndex + 1).padStart(2, '0')}
+        </div>
+        <div>
+          <div className="row between center wrap">
+            <div className="t-label-01">
+              SAMPLE QUESTION {activeIndex + 1} OF {questions.length} /{' '}
+              {activeQuestion.topic || 'Cartography'}
+            </div>
+            <div className="row center">
+              <CarbonTag tone="blue">Attempting sample question</CarbonTag>
+              <CarbonTag tone="purple">Not graded</CarbonTag>
+            </div>
+          </div>
+          <h3>{activeQuestion.questionText}</h3>
+
+          <div className="answer-grid">
+            {activeQuestion.options?.map((option, index) => {
+              const selected = activeAnswer === option;
+              return (
+                <button
+                  key={`${activeQuestion.id}-${option}`}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => setAnswer(activeQuestion.id, option)}
+                  className={selected ? 'selected' : ''}
+                >
+                  <span className="mono">{String.fromCharCode(65 + index)}</span>
+                  <p>{option}</p>
+                  {selected && <CheckCircle2 size={18} />}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="answer-submit">
+            <p>
+              {activeSubmitState.pending
+                ? 'Sample answer submitted. Bob is reading it now.'
+                : activeSubmitState.submitted
+                  ? 'Submitted to Bob. The onboarding flow can continue.'
+                  : currentSessionId
+                    ? 'Submit this multiple-choice sample answer to Bob.'
+                    : 'Start a live onboarding session before submitting answers.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void onAnswerSubmit(activeQuestion.id)}
+              disabled={!currentSessionId || isLocked || !activeAnswer.trim()}
+              className="carbon-btn"
+            >
+              <Send size={16} />
+              {activeSubmitState.pending
+                ? 'Submitting'
+                : activeSubmitState.submitted
+                  ? 'Submitted to Bob'
+                  : 'Submit sample answer'}
+            </button>
+          </div>
+
+          {activeSubmitState.error && (
+            <div className="answer-error">{activeSubmitState.error}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuestionFlowCarbon({
+  practiceQuestions,
+  certificationQuestions,
+  currentSessionId,
+  onAnswerChange,
+  onAnswerSubmit,
+  submissionState,
+}: {
+  practiceQuestions: CertificationQuestion[];
+  certificationQuestions: CertificationQuestion[];
+  currentSessionId: string | null;
+  onAnswerChange: (questionId: string, answer: string) => void;
+  onAnswerSubmit: (questionId: string) => Promise<void> | void;
+  submissionState: Record<string, CertificationSubmissionState>;
+}) {
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
+  const allQuestions = [...practiceQuestions, ...certificationQuestions];
+  const passCount = certificationQuestions.filter(
+    (question) => question.grade === 'pass'
+  ).length;
+  const submittedPracticeCount = practiceQuestions.filter(
+    (question) => submissionState[question.id]?.submitted
+  ).length;
+  const hasOpenPractice = practiceQuestions.some(
+    (question) => !submissionState[question.id]?.submitted
+  );
+  const showingPractice =
+    practiceQuestions.length > 0 &&
+    (hasOpenPractice || certificationQuestions.length === 0);
+  const activeQuestions = showingPractice ? practiceQuestions : certificationQuestions;
+  const requestedQuestion = activeQuestions.find(
+    (question) => question.id === activeQuestionId
+  );
+  const activeQuestion =
+    (requestedQuestion &&
+    (!showingPractice || !submissionState[requestedQuestion.id]?.submitted)
+      ? requestedQuestion
+      : undefined) ||
+    (showingPractice
+      ? practiceQuestions.find((question) => !submissionState[question.id]?.submitted)
+      : certificationQuestions.find((question) => !question.grade)) ||
+    activeQuestions[activeQuestions.length - 1];
+  const activeIndexInMode = activeQuestion
+    ? activeQuestions.findIndex((question) => question.id === activeQuestion.id)
+    : -1;
+  const activeGlobalIndex = activeQuestion
+    ? allQuestions.findIndex((question) => question.id === activeQuestion.id)
+    : -1;
+  const activeSubmitState = activeQuestion
+    ? submissionState[activeQuestion.id] || {}
+    : {};
+  const activeAnswer = activeQuestion
+    ? activeQuestion.answer || localAnswers[activeQuestion.id] || ''
+    : '';
+  const isLocked =
+    Boolean(!showingPractice && activeQuestion?.grade) ||
+    Boolean(activeSubmitState.pending) ||
+    Boolean(activeSubmitState.submitted);
+  const remediation = showingPractice
+    ? undefined
+    : getCertificationRemediation(activeQuestion);
+
+  const setAnswer = (questionId: string, answer: string) => {
+    setLocalAnswers((prev) => ({ ...prev, [questionId]: answer }));
+    onAnswerChange(questionId, answer);
+  };
+
+  if (allQuestions.length === 0 || !activeQuestion) {
+    return (
+      <div className="carbon-panel">
+        <EmptyState
+          icon={CircleDot}
+          title="Waiting for dashboard questions"
+          body="Practice questions appear here first. After they are answered, Bob's graded certification questions use the same panel."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="carbon-panel certification-panel">
+      <div className="cert-head">
+        <div>
+          <div className="t-label-01">QUESTION FLOW / PRACTICE THEN CERTIFICATION</div>
+          <div className="t-h-04">
+            {showingPractice
+              ? 'Answer sample questions before certification starts.'
+              : 'Certification questions are now active and graded by Bob.'}
+          </div>
+          <div className="cert-steps">
+            {allQuestions.map((question, index) => {
+              const active = question.id === activeQuestion.id;
+              const isPractice = index < practiceQuestions.length;
+              const state = submissionState[question.id] || {};
+              const certNumber = index + 1 - practiceQuestions.length;
+              const disabledByPractice =
+                !isPractice && hasOpenPractice && !question.grade;
+              return (
+                <button
+                  key={question.id}
+                  type="button"
+                  disabled={disabledByPractice}
+                  onClick={() => setActiveQuestionId(question.id)}
+                  className={active ? 'active' : ''}
+                >
+                  <div className="row between center">
+                    <span className="t-label-01">
+                      {isPractice
+                        ? `PRACTICE ${index + 1}`
+                        : `CERT ${certNumber} OF 3`}
+                    </span>
+                    {isPractice && state.submitted && <CheckCircle2 size={18} />}
+                    {!isPractice && question.grade === 'pass' && (
+                      <CheckCircle2 size={18} />
+                    )}
+                    {!isPractice && question.grade === 'fail' && <XCircle size={18} />}
+                  </div>
+                  <div className="t-h-02">
+                    {question.topic || (isPractice ? 'Practice' : 'Architecture')}
+                  </div>
+                  <div className="t-helper">
+                    {isPractice
+                      ? state.submitted
+                        ? 'practice submitted'
+                        : active
+                          ? 'attempting sample'
+                          : 'practice first'
+                      : disabledByPractice
+                        ? 'locked until practice is done'
+                        : question.grade
+                          ? `graded / ${question.grade}`
+                          : 'certification open'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <aside>
+          <div className="t-label-01">
+            {showingPractice ? 'Practice status' : 'Certification result'}
+          </div>
+          <div className="cert-score mono">
+            {showingPractice ? submittedPracticeCount : passCount}
+            <span>/{showingPractice ? practiceQuestions.length : 3}</span>
+          </div>
+          <CarbonTag
+            tone={
+              showingPractice
+                ? 'blue'
+                : passCount >= 2
+                  ? 'green'
+                  : 'yellow'
+            }
+          >
+            {showingPractice
+              ? 'Attempting sample question'
+              : passCount >= 2
+                ? 'Certified / ready to ship'
+                : 'Two passes required'}
+          </CarbonTag>
+          <p>
+            {showingPractice
+              ? 'Not graded. Bob waits for these sample answers before moving forward.'
+              : passCount >= 2
+                ? 'Starter issue review is unlocked for this session.'
+                : 'Answer the active certification question while Bob waits here.'}
+          </p>
+          <ProvenancePill
+            tool={
+              showingPractice
+                ? 'question_ask + wait_for_dashboard_answer'
+                : 'question_ask + certification_grade'
+            }
+            detail={showingPractice ? 'sample practice question' : 'graded Bob event'}
+          />
+        </aside>
+      </div>
+
+      <div className="cert-question">
+        <div className="cert-number mono">
+          {String(activeGlobalIndex + 1).padStart(2, '0')}
+        </div>
+        <div>
+          <div className="row between center wrap">
+            <div className="t-label-01">
+              {showingPractice
+                ? `SAMPLE QUESTION ${activeIndexInMode + 1} OF ${
+                    practiceQuestions.length
+                  }`
+                : `CERTIFICATION QUESTION ${activeIndexInMode + 1} OF 3`}{' '}
+              / {activeQuestion.topic || 'Architecture'}
+            </div>
+            <div className="row center">
+              {showingPractice ? (
+                <>
+                  <CarbonTag tone="blue">Attempting sample question</CarbonTag>
+                  <CarbonTag tone="purple">Not graded</CarbonTag>
+                </>
+              ) : (
+                <CarbonTag tone="yellow">Graded by Bob</CarbonTag>
+              )}
+            </div>
+          </div>
+          <h3>{activeQuestion.questionText}</h3>
+
+          <div className="answer-grid">
+            {activeQuestion.options?.map((option, index) => {
+              const selected = activeAnswer === option;
+              return (
+                <button
+                  key={`${activeQuestion.id}-${option}`}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => setAnswer(activeQuestion.id, option)}
+                  className={selected ? 'selected' : ''}
+                >
+                  <span className="mono">{String.fromCharCode(65 + index)}</span>
+                  <p>{option}</p>
+                  {selected && <CheckCircle2 size={18} />}
+                </button>
+              );
+            })}
+          </div>
+
+          {(showingPractice || !activeQuestion.grade) && (
+            <div className="answer-submit">
+              <p>
+                {showingPractice
+                  ? activeSubmitState.pending
+                    ? 'Sample answer submitted. Bob is reading it now.'
+                    : activeSubmitState.submitted
+                      ? 'Submitted to Bob. The next question will appear in this same panel.'
+                      : currentSessionId
+                        ? 'Submit this sample answer before certification questions become active.'
+                        : 'Start a live onboarding session before submitting answers.'
+                  : activeSubmitState.pending
+                    ? 'Answer submitted. Bob is grading it now.'
+                    : activeSubmitState.submitted
+                      ? 'Waiting for Bob to return a grade.'
+                      : currentSessionId
+                        ? 'Submit this certification answer to the local grading bridge.'
+                        : 'Start a live onboarding session before submitting answers.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => onAnswerSubmit(activeQuestion.id)}
+                disabled={
+                  !currentSessionId ||
+                  !activeAnswer.trim() ||
+                  activeSubmitState.pending ||
+                  activeSubmitState.submitted
+                }
+                className="carbon-btn"
+              >
+                <Send size={16} />
+                {activeSubmitState.pending
+                  ? 'Submitting'
+                  : activeSubmitState.submitted
+                    ? 'Submitted to Bob'
+                    : showingPractice
+                      ? 'Submit sample answer'
+                      : 'Submit answer'}
+              </button>
+            </div>
+          )}
+
+          {activeSubmitState.error && (showingPractice || !activeQuestion.grade) && (
+            <div className="answer-error">{activeSubmitState.error}</div>
+          )}
+
+          {!showingPractice && activeQuestion.rationale && (
+            <div className={`verdict ${activeQuestion.grade || 'partial'}`}>
+              <div className="row between">
+                <div className="t-label-01">BOB&apos;S VERDICT / {activeQuestion.grade}</div>
+              </div>
+              <p>{activeQuestion.rationale}</p>
+            </div>
+          )}
+
+          {remediation && (
+            <div className="remediation-card">
+              <div className="t-label-01">Adaptive remediation / {remediation.source}</div>
+              <p>{remediation.action}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -3459,6 +3962,84 @@ function Dashboard() {
   );
   const heroPrefix = sessionMeta.onboardeeName || sessionMeta.repositoryOwner;
 
+  const practiceQuestions = useMemo<CertificationQuestion[]>(() => {
+    const questions = new Map<string, CertificationQuestion>();
+
+    [...events].reverse().forEach((event) => {
+      if (event.type !== 'question_ask' || isCertificationQuestionEvent(event)) {
+        return;
+      }
+
+      const data = event.data as {
+        id?: string;
+        question_id?: string;
+        topic?: string;
+        stage?: string;
+        question?: string;
+        response_mode?: 'multiple_choice';
+        options?: string[];
+      };
+      const id = data.question_id || data.id || event.id;
+      const questionText = data.question;
+      if (!questionText) return;
+
+      const options = Array.isArray(data.options)
+        ? data.options.filter(
+            (option): option is string =>
+              typeof option === 'string' && option.trim().length > 0
+          )
+        : [];
+      const existing = questions.get(id);
+      const questionDraft = {
+        id,
+        topic: existing?.topic || data.topic || data.stage || 'Practice',
+        questionText,
+      };
+      const fallbackOptions = deriveFallbackCertificationOptions({
+        question: questionDraft,
+        questionId: id,
+        dependencyCard,
+        entryPointsData,
+        hotspotsData,
+        conventionsData,
+      });
+      const resolvedOptions =
+        existing?.options ||
+        ensureMultipleChoiceOptions({
+          question: questionDraft,
+          explicitOptions: options,
+          fallbackOptions,
+          seedKey: `${currentSessionId || 'session'}:${id}`,
+        });
+
+      questions.set(id, {
+        id,
+        topic: questionDraft.topic,
+        questionText: existing?.questionText || questionText,
+        responseMode: 'multiple_choice',
+        options: resolvedOptions,
+        answer: existing?.answer,
+      });
+    });
+
+    return Array.from(questions.values()).map((question) => ({
+      ...question,
+      answer:
+        question.answer ??
+        (certificationAnswers.sessionId === currentSessionId
+          ? certificationAnswers.answers[question.id]
+          : undefined),
+    }));
+  }, [
+    certificationAnswers,
+    conventionsData,
+    currentSessionId,
+    dependencyCard,
+    entryPointsData,
+    events,
+    hotspotsData,
+  ]);
+
   const certificationQuestions = useMemo<CertificationQuestion[]>(() => {
     const questions = new Map<string, CertificationQuestion>();
     const questionTextToId = new Map<string, string>();
@@ -3473,7 +4054,7 @@ function Dashboard() {
           topic?: string;
           stage?: string;
           question?: string;
-          response_mode?: 'free_text' | 'multiple_choice';
+          response_mode?: 'multiple_choice';
           options?: string[];
         };
         const id = data.question_id || data.id || event.id;
@@ -3488,41 +4069,33 @@ function Dashboard() {
         if (questionText) {
           const existing = questions.get(id);
           questionTextToId.set(normalizeQuestionText(questionText), id);
-          const fallbackOptions =
-            options.length > 0
-              ? undefined
-              : deriveFallbackCertificationOptions({
-                  question: {
-                    id,
-                    topic: existing?.topic || data.topic || data.stage || 'Architecture',
-                    questionText,
-                  },
-                  questionId: id,
-                  dependencyCard,
-                  entryPointsData,
-                  hotspotsData,
-                  conventionsData,
-                });
+          const questionDraft = {
+            id,
+            topic: existing?.topic || data.topic || data.stage || 'Architecture',
+            questionText,
+          };
+          const fallbackOptions = deriveFallbackCertificationOptions({
+            question: questionDraft,
+            questionId: id,
+            dependencyCard,
+            entryPointsData,
+            hotspotsData,
+            conventionsData,
+          });
           const resolvedOptions =
             existing?.options ||
-            (options.length > 0
-              ? shuffleQuestionOptions(
-                  options,
-                  `${currentSessionId || 'session'}:${id}`
-                )
-              : fallbackOptions);
-          const resolvedResponseMode =
-            existing?.responseMode === 'multiple_choice' ||
-            data.response_mode === 'multiple_choice' ||
-            Boolean(resolvedOptions?.length)
-              ? 'multiple_choice'
-              : 'free_text';
+            ensureMultipleChoiceOptions({
+              question: questionDraft,
+              explicitOptions: options,
+              fallbackOptions,
+              seedKey: `${currentSessionId || 'session'}:${id}`,
+            });
 
           questions.set(id, {
             id,
-            topic: existing?.topic || data.topic || data.stage || 'Architecture',
+            topic: questionDraft.topic,
             questionText: existing?.questionText || questionText,
-            responseMode: resolvedResponseMode,
+            responseMode: 'multiple_choice',
             options: resolvedOptions,
             answer: existing?.answer,
             grade: existing?.grade,
@@ -3557,8 +4130,21 @@ function Dashboard() {
               existing?.questionText ||
               eventQuestionText ||
               'Certification question',
-            responseMode: existing?.responseMode || 'free_text',
-            options: existing?.options,
+            responseMode: 'multiple_choice',
+            options:
+              existing?.options ||
+              ensureMultipleChoiceOptions({
+                question: {
+                  id,
+                  topic: existing?.topic || data.topic || 'Certification',
+                  questionText:
+                    existing?.questionText ||
+                    eventQuestionText ||
+                    'Certification question',
+                },
+                explicitOptions: [],
+                seedKey: `${currentSessionId || 'session'}:${id}`,
+              }),
             answer: data.user_answer || data.answer || existing?.answer,
             grade: data.grade,
             rationale: data.rationale,
@@ -3633,7 +4219,9 @@ function Dashboard() {
       certificationAnswers.sessionId === currentSessionId
         ? certificationAnswers.answers[questionId]
         : undefined;
-    const question = certificationQuestions.find((item) => item.id === questionId);
+    const question =
+      certificationQuestions.find((item) => item.id === questionId) ||
+      practiceQuestions.find((item) => item.id === questionId);
 
     if (!answer?.trim()) {
       setAnswerSubmissionState((prev) => ({
@@ -4217,12 +4805,13 @@ function Dashboard() {
         </Section>
 
         <Section
-          eyebrow="IV / CERTIFICATION"
-          title="Three architecture questions, graded against the cartograph."
-          sub="Answer directly from the dashboard; submissions go to the local grading endpoint for the active session."
+          eyebrow="IV / QUESTIONS"
+          title="Practice first, then certification."
+          sub="Bob's sample questions and graded certification questions share one dashboard answer surface, so the active wait never splits across panels."
         >
-          <CertificationCarbon
-            questions={certificationQuestions}
+          <QuestionFlowCarbon
+            practiceQuestions={practiceQuestions}
+            certificationQuestions={certificationQuestions}
             currentSessionId={currentSessionId}
             onAnswerChange={(questionId, answer) => {
               setCertificationAnswers((prev) => ({
