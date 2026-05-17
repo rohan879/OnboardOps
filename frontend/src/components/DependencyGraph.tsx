@@ -2,6 +2,8 @@
 
 import {
   useCallback,
+  useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -66,6 +68,11 @@ interface DerivedNode extends GraphNode {
 interface PositionedNode extends DerivedNode {
   xPx: number;
   yPx: number;
+}
+
+interface SurfaceSize {
+  width: number;
+  height: number;
 }
 
 interface VisibleGraph {
@@ -369,16 +376,59 @@ function makeVisibleGraph(data: GraphData, height: number): VisibleGraph {
   };
 }
 
-function edgePath(source: PositionedNode, target: PositionedNode) {
-  const startX = source.xPx;
-  const startY = source.yPx;
-  const endX = target.xPx;
-  const endY = target.yPx;
-  const bend = Math.max(10, Math.abs(endX - startX) * 0.35);
-  const control1X = startX + bend;
-  const control2X = endX - bend;
+function rectangleEdgePoint(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  halfWidth: number,
+  halfHeight: number
+) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
 
-  return `M ${startX} ${startY} C ${control1X} ${startY}, ${control2X} ${endY}, ${endX} ${endY}`;
+  if (dx === 0 && dy === 0) {
+    return from;
+  }
+
+  const horizontalScale = dx === 0 ? Number.POSITIVE_INFINITY : halfWidth / Math.abs(dx);
+  const verticalScale = dy === 0 ? Number.POSITIVE_INFINITY : halfHeight / Math.abs(dy);
+  const scale = Math.min(horizontalScale, verticalScale);
+
+  return {
+    x: from.x + dx * scale,
+    y: from.y + dy * scale,
+  };
+}
+
+function edgePathBetweenCards(
+  source: PositionedNode,
+  target: PositionedNode,
+  surfaceWidth: number
+) {
+  const cardWidth = Math.max(7.6, (164 / Math.max(surfaceWidth, 320)) * 100);
+  const cardHeight = 38;
+  const start = rectangleEdgePoint(
+    { x: source.xPx, y: source.yPx },
+    { x: target.xPx, y: target.yPx },
+    cardWidth / 2,
+    cardHeight
+  );
+  const end = rectangleEdgePoint(
+    { x: target.xPx, y: target.yPx },
+    { x: source.xPx, y: source.yPx },
+    cardWidth / 2,
+    cardHeight
+  );
+  const backoffX = start.x === end.x ? 0 : ((end.x - start.x) / Math.abs(end.x - start.x)) * 1.15;
+  const backoffY = end.y === start.y ? 0 : ((end.y - start.y) / Math.abs(end.y - start.y)) * 4;
+  const arrowEnd = {
+    x: end.x - backoffX,
+    y: end.y - backoffY,
+  };
+  const bend = Math.max(10, Math.abs(arrowEnd.x - start.x) * 0.35);
+  const control1X = start.x + bend;
+  const control2X = arrowEnd.x - bend;
+
+  return `M ${start.x} ${start.y} C ${control1X} ${start.y}, ${control2X} ${arrowEnd.y}, ${arrowEnd.x} ${arrowEnd.y}`;
 }
 
 const DEFAULT_VIEWPORT = {
@@ -394,6 +444,14 @@ export function DependencyGraph({
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const [viewport, setViewport] = useState(DEFAULT_VIEWPORT);
   const [isDragging, setIsDragging] = useState(false);
+  const [nodePositions, setNodePositions] = useState<Record<
+    string,
+    { xPx: number; yPx: number }
+  >>({});
+  const [surfaceSize, setSurfaceSize] = useState<SurfaceSize>({
+    width: 1280,
+    height,
+  });
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -401,7 +459,18 @@ export function DependencyGraph({
     originX: number;
     originY: number;
   } | null>(null);
+  const nodeDragStateRef = useRef<{
+    pointerId: number;
+    nodeId: string;
+    startClientX: number;
+    startClientY: number;
+    startNodeX: number;
+    startNodeY: number;
+    didMove: boolean;
+  } | null>(null);
+  const suppressedClickNodeRef = useRef<string | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const markerBaseId = useId().replace(/:/g, '');
   const stageHeight = Math.max(440, height);
   const layoutHeight = Math.max(360, stageHeight - 48);
 
@@ -409,14 +478,22 @@ export function DependencyGraph({
     () => makeVisibleGraph(data, layoutHeight),
     [data, layoutHeight]
   );
-  const visibleNodeMap = useMemo(
-    () => new Map(graph.visibleNodes.map((node) => [node.id, node])),
-    [graph.visibleNodes]
+  const displayNodes = useMemo(
+    () =>
+      graph.visibleNodes.map((node) => ({
+        ...node,
+        ...(nodePositions[node.id] || {}),
+      })),
+    [graph.visibleNodes, nodePositions]
+  );
+  const displayNodeMap = useMemo(
+    () => new Map(displayNodes.map((node) => [node.id, node])),
+    [displayNodes]
   );
   const focusedNode =
-    (focusedNodeId ? visibleNodeMap.get(focusedNodeId) : null) ||
+    (focusedNodeId ? displayNodeMap.get(focusedNodeId) : null) ||
     graph.topOrchestrator ||
-    graph.visibleNodes[0] ||
+    displayNodes[0] ||
     null;
 
   const connectedNodeIds = useMemo(() => {
@@ -490,6 +567,27 @@ export function DependencyGraph({
     return Math.min(1.9, Math.max(0.8, Number(value.toFixed(2))));
   }, []);
 
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+
+    const updateSurfaceSize = () => {
+      setSurfaceSize({
+        width: surface.clientWidth || 1280,
+        height: surface.clientHeight || layoutHeight,
+      });
+    };
+
+    updateSurfaceSize();
+
+    const observer = new ResizeObserver(updateSurfaceSize);
+    observer.observe(surface);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [layoutHeight]);
+
   const adjustZoom = useCallback(
     (delta: number, origin?: { x: number; y: number }) => {
       setViewport((current) => {
@@ -559,6 +657,26 @@ export function DependencyGraph({
     setIsDragging(false);
   }, []);
 
+  const endNodeDrag = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, nodeId: string) => {
+      const dragState = nodeDragStateRef.current;
+      if (
+        dragState &&
+        dragState.pointerId === event.pointerId &&
+        event.currentTarget.hasPointerCapture(event.pointerId)
+      ) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      if (dragState?.didMove) {
+        suppressedClickNodeRef.current = nodeId;
+      }
+
+      nodeDragStateRef.current = null;
+    },
+    []
+  );
+
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement;
@@ -594,6 +712,67 @@ export function DependencyGraph({
       x: dragState.originX + deltaX,
       y: dragState.originY + deltaY,
     }));
+  }, []);
+
+  const handleNodePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, node: PositionedNode) => {
+      event.stopPropagation();
+
+      const position = nodePositions[node.id] || { xPx: node.xPx, yPx: node.yPx };
+
+      nodeDragStateRef.current = {
+        pointerId: event.pointerId,
+        nodeId: node.id,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startNodeX: position.xPx,
+        startNodeY: position.yPx,
+        didMove: false,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [nodePositions]
+  );
+
+  const handleNodePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      const dragState = nodeDragStateRef.current;
+      if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+      const deltaX = (event.clientX - dragState.startClientX) / viewport.scale;
+      const deltaY = (event.clientY - dragState.startClientY) / viewport.scale;
+
+      if (!dragState.didMove && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
+        dragState.didMove = true;
+      }
+
+      const nextX = Math.min(
+        95,
+        Math.max(5, dragState.startNodeX + (deltaX / Math.max(surfaceSize.width, 320)) * 100)
+      );
+      const nextY = Math.min(
+        layoutHeight - 30,
+        Math.max(40, dragState.startNodeY + deltaY)
+      );
+
+      setNodePositions((current) => ({
+        ...current,
+        [dragState.nodeId]: {
+          xPx: nextX,
+          yPx: nextY,
+        },
+      }));
+    },
+    [layoutHeight, surfaceSize.width, viewport.scale]
+  );
+
+  const handleNodeClick = useCallback((nodeId: string) => {
+    if (suppressedClickNodeRef.current === nodeId) {
+      suppressedClickNodeRef.current = null;
+      return;
+    }
+
+    setFocusedNodeId(nodeId);
   }, []);
 
   return (
@@ -710,9 +889,42 @@ export function DependencyGraph({
                     preserveAspectRatio="none"
                     className="absolute inset-0 h-full w-full"
                   >
+                    <defs>
+                      <marker
+                        id={`${markerBaseId}-edge-muted`}
+                        viewBox="0 0 10 10"
+                        markerWidth="8"
+                        markerHeight="8"
+                        refX="8.2"
+                        refY="5"
+                        orient="auto"
+                        markerUnits="strokeWidth"
+                      >
+                        <path
+                          d="M 0 0 L 10 5 L 0 10 z"
+                          fill="#8d8d8d"
+                        />
+                      </marker>
+                      <marker
+                        id={`${markerBaseId}-edge-active`}
+                        viewBox="0 0 10 10"
+                        markerWidth="8"
+                        markerHeight="8"
+                        refX="8.2"
+                        refY="5"
+                        orient="auto"
+                        markerUnits="strokeWidth"
+                      >
+                        <path
+                          d="M 0 0 L 10 5 L 0 10 z"
+                          fill="#0F62FE"
+                        />
+                      </marker>
+                    </defs>
+
                     {graph.visibleLinks.map((link) => {
-                      const source = visibleNodeMap.get(link.source);
-                      const target = visibleNodeMap.get(link.target);
+                      const source = displayNodeMap.get(link.source);
+                      const target = displayNodeMap.get(link.target);
                       if (!source || !target) return null;
 
                       const isHighlighted =
@@ -721,18 +933,20 @@ export function DependencyGraph({
                       return (
                         <path
                           key={`${link.source}-${link.target}`}
-                          d={edgePath(source, target)}
+                          d={edgePathBetweenCards(source, target, surfaceSize.width)}
                           fill="none"
-                          stroke={isHighlighted ? 'rgba(15, 98, 254, 0.38)' : 'rgba(82, 82, 82, 0.16)'}
-                          strokeWidth={isHighlighted ? 1.8 : 1.1}
+                          stroke={isHighlighted ? 'rgba(15, 98, 254, 0.26)' : 'rgba(82, 82, 82, 0.12)'}
+                          strokeWidth={isHighlighted ? 0.98 : 0.68}
                           strokeLinecap="round"
+                          strokeLinejoin="round"
+                          markerEnd={`url(#${markerBaseId}-${isHighlighted ? 'edge-active' : 'edge-muted'})`}
                         />
                       );
                     })}
                   </svg>
 
                   <div className="relative h-full" style={{ minHeight: layoutHeight }}>
-                    {graph.visibleNodes.map((node) => {
+                    {displayNodes.map((node) => {
                       const style = roleStyles[node.role];
                       const isActive = focusedNode?.id === node.id;
                       const isConnected = connectedNodeIds.has(node.id);
@@ -743,8 +957,11 @@ export function DependencyGraph({
                           type="button"
                           data-graph-node="true"
                           whileHover={{ y: -2 }}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={() => setFocusedNodeId(node.id)}
+                          onPointerDown={(event) => handleNodePointerDown(event, node)}
+                          onPointerMove={handleNodePointerMove}
+                          onPointerUp={(event) => endNodeDrag(event, node.id)}
+                          onPointerCancel={(event) => endNodeDrag(event, node.id)}
+                          onClick={() => handleNodeClick(node.id)}
                           className={`absolute w-[164px] -translate-x-1/2 -translate-y-1/2 rounded-[20px] border px-4 py-3 text-left shadow-sm transition ${
                             style.card
                           } ${style.border} ${
@@ -784,7 +1001,7 @@ export function DependencyGraph({
                 <div className="pointer-events-none absolute bottom-4 left-4 rounded-full bg-white/92 px-3 py-1.5 text-xs font-medium text-ibm-gray-70 shadow-[0_8px_18px_rgba(22,22,22,0.08)]">
                   <span className="inline-flex items-center gap-2">
                     <Move className="h-3.5 w-3.5 text-ibm-blue-60" />
-                    Drag canvas to pan. Scroll to zoom. Reset anytime.
+                    Drag canvas to pan. Drag modules to rearrange. Scroll to zoom.
                   </span>
                 </div>
               </div>

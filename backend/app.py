@@ -358,13 +358,9 @@ class MCPDiscoveryResponse(BaseModel):
     tools: List[MCPTool]
 
 
-@app.post("/mcp")
-async def mcp_discovery(request: Request):
-    """
-    MCP discovery endpoint - returns list of available tools
-    This is a stub that returns hard-coded tool definitions
-    """
-    tools = [
+def get_mcp_tools() -> List[MCPTool]:
+    """Return the MCP tool catalog for both discovery and JSON-RPC listing."""
+    return [
         MCPTool(
             name="git_blame_summary",
             description="Get git blame summary for a file showing who last modified each section",
@@ -562,6 +558,30 @@ async def mcp_discovery(request: Request):
         ),
     ]
 
+
+def build_mcp_discovery_response() -> MCPDiscoveryResponse:
+    """Build the plain MCP discovery response payload."""
+    return MCPDiscoveryResponse(
+        server_name="institutional-knowledge",
+        server_version="1.0.0",
+        tools=get_mcp_tools(),
+    )
+
+
+@app.get("/mcp")
+async def mcp_discovery_get():
+    """Support MCP clients that probe discovery over GET."""
+    return build_mcp_discovery_response()
+
+
+@app.post("/mcp")
+async def mcp_discovery(request: Request):
+    """
+    MCP discovery endpoint - returns list of available tools
+    Supports both plain discovery and JSON-RPC tool negotiation.
+    """
+    tools = get_mcp_tools()
+
     try:
         body = await request.json()
     except Exception:
@@ -638,9 +658,7 @@ async def mcp_discovery(request: Request):
             },
         }
 
-    return MCPDiscoveryResponse(
-        server_name="institutional-knowledge", server_version="1.0.0", tools=tools
-    )
+    return build_mcp_discovery_response()
 
 
 # ============================================================================
